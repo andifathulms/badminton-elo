@@ -136,3 +136,61 @@ class DrawData(_Base):
 
 # day-matches returns a BARE array of matches (no wrapper object).
 DayMatches = TypeAdapter(list[MatchRaw])
+
+
+# --- vue-grouped-year-tournaments (season calendar) -------------------------
+class CalendarTournament(_Base):
+    """One tournament entry from the calendar (PRD §4.7 enumeration source)."""
+
+    id: int
+    code: str
+    name: str
+    slug: str = ""
+    start_date: datetime | None = None
+    end_date: datetime | None = None
+    category: str = ""  # tier label, e.g. "HSBC BWF World Tour Super 500"
+    country: str = ""
+    location: str = ""
+    prize_money: str = ""  # calendar sends a formatted string ("1,450,000") or null
+    month_no: int | None = Field(default=None, alias="monthNo")
+
+    @field_validator("start_date", "end_date", mode="before")
+    @classmethod
+    def _empty_dt(cls, v):
+        return None if v in ("", None) else v
+
+    @field_validator("prize_money", mode="before")
+    @classmethod
+    def _prize_str(cls, v):
+        return "" if v is None else str(v)
+
+    @property
+    def start(self) -> date | None:
+        return self.start_date.date() if self.start_date else None
+
+    @property
+    def end(self) -> date | None:
+        return self.end_date.date() if self.end_date else None
+
+    @property
+    def prize_money_decimal(self) -> Decimal | None:
+        cleaned = self.prize_money.replace(",", "").strip()
+        try:
+            return Decimal(cleaned) if cleaned else None
+        except (ArithmeticError, ValueError):
+            return None
+
+
+class _CalendarMonth(_Base):
+    month: str = ""
+    month_no: int | None = Field(default=None, alias="monthNo")
+    tournaments: list[CalendarTournament] = Field(default_factory=list)
+
+
+class GroupedYearTournaments(_Base):
+    """Response wrapper: results[] is a list of months, each with tournaments."""
+
+    results: list[_CalendarMonth] = Field(default_factory=list)
+
+    def all_tournaments(self) -> list[CalendarTournament]:
+        return [t for m in self.results for t in m.tournaments]

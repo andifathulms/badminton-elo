@@ -21,7 +21,7 @@ from datetime import date
 from django.db import transaction
 
 from .models import Draw, Game, Match, MatchPlayer, Player, Tournament
-from .schemas import DrawData, MatchRaw, TournamentDetail
+from .schemas import CalendarTournament, DrawData, MatchRaw, TournamentDetail
 
 logger = logging.getLogger(__name__)
 
@@ -235,6 +235,50 @@ def synthetic_tournament_id(code: str) -> int:
     Stable across runs -> re-scraping upserts the same Tournament row.
     """
     return zlib.crc32(code.encode("utf-8")) & 0x7FFFFFFF
+
+
+@transaction.atomic
+def upsert_tournament_from_calendar(cal: CalendarTournament) -> Tournament:
+    """Upsert a Tournament from a calendar entry — the AUTHORITATIVE source.
+
+    Carries the real numeric id, dates, and tier (category), so it supersedes
+    the synthetic-id row a day-matches-only run may have created for the same
+    GUID. If such a row exists under a different PK, migrate its children to the
+    real id and drop the stale row (keeps re-collection idempotent).
+    """
+    defaults = {
+        "code": cal.code,
+        "name": cal.name,
+        "slug": cal.slug,
+        "start_date": cal.start,
+        "end_date": cal.end,
+        "category_name": cal.category,
+        "prize_money": cal.prize_money_decimal,
+        "venue_name": cal.location,
+    }
+
+    stale = (
+        Tournament.objects.filter(code=cal.code)
+        .exclude(tournament_id=cal.id)
+        .first()
+    )
+    if stale is not None:
+        # 1) create the real-id row (blank code first to avoid the unique clash)
+        obj, _ = Tournament.objects.update_or_create(
+            tournament_id=cal.id, defaults={**defaults, "code": ""}
+        )
+        # 2) re-point children, 3) drop the stale row, 4) set the real code
+        Match.objects.filter(tournament=stale).update(tournament=obj)
+        Draw.objects.filter(tournament=stale).update(tournament=obj)
+        stale.delete()
+        obj.code = cal.code
+        obj.save(update_fields=["code"])
+        return obj
+
+    obj, _ = Tournament.objects.update_or_create(
+        tournament_id=cal.id, defaults=defaults
+    )
+    return obj
 
 
 def upsert_tournament_from_code(code: str, name: str = "") -> Tournament:
