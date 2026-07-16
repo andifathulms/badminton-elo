@@ -113,11 +113,15 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # ---------------------------------------------------------------------------
 # Ingestion config (PRD §8) — read by apps/ingest.
 # ---------------------------------------------------------------------------
-# Tournament GUIDs to scrape with `scrape --all`. Malaysia Masters 2026 is the
-# M1 fixture. Override via DJANGO env or a local settings shim.
+# Tournament GUIDs to collect with `scrape_days --all`. Env override (comma-
+# separated) wins; otherwise fall back to the known-good defaults below.
+# Each entry is verified to return data from the day-matches endpoint.
+_DEFAULT_TOURNAMENT_CODES = [
+    "71AC3AB2-C072-444C-B479-4AC73C756C14",  # PERODUA Malaysia Masters 2026 (180 matches)
+]
 TOURNAMENT_CODES = [
     c for c in os.environ.get("TOURNAMENT_CODES", "").split(",") if c
-]
+] or _DEFAULT_TOURNAMENT_CODES
 
 INCLUDE_QUALIFYING = _env_bool("INCLUDE_QUALIFYING", False)
 RATE_LIMIT_QPS = float(os.environ.get("RATE_LIMIT_QPS", "1"))
