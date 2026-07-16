@@ -17,6 +17,7 @@ import logging
 from datetime import timedelta
 
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 
 from apps.ingest.api import endpoints
 from apps.ingest.api.client import BwfClient
@@ -71,6 +72,7 @@ class Command(BaseCommand):
             if opts["limit"]:
                 tours = tours[: opts["limit"]]
 
+            today = timezone.now().date()
             grand = 0
             for t in tours:
                 tournament = upsert_tournament_from_calendar(t)
@@ -78,7 +80,12 @@ class Command(BaseCommand):
                 if opts["no_matches"] or not t.start or not t.end:
                     self.stdout.write(line + ("" if t.start else "  <no dates>"))
                     continue
-                n = self._collect_matches(client, tournament, t)
+                # Tournament tables are always upserted; only fetch matches once
+                # the event has actually started (avoids empty future-date pulls).
+                if t.start > today:
+                    self.stdout.write(line + "  (upcoming — matches skipped)")
+                    continue
+                n = self._collect_matches(client, tournament, t, today)
                 grand += n
                 self.stdout.write(line + f"  -> {n} matches")
 
@@ -87,10 +94,12 @@ class Command(BaseCommand):
                     self.style.SUCCESS(f"Total matches ingested: {grand}")
                 )
 
-    def _collect_matches(self, client, tournament, cal) -> int:
+    def _collect_matches(self, client, tournament, cal, today) -> int:
         total = 0
         d = cal.start
-        while d <= cal.end:
+        # Don't fetch beyond today for an in-progress event.
+        last = min(cal.end, today)
+        while d <= last:
             raw = client.get_json(endpoints.day_matches(cal.code, d))
             if isinstance(raw, list) and raw:
                 matches = DayMatches.validate_python(raw)
