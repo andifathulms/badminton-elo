@@ -1,0 +1,116 @@
+{
+  "note": "SYNTHETIC vue-tournament-draw-data excerpt for an XD draw. Mirrors the real payload shape (flat `matches` array; score.home=team1, score.away=team2; winner=who advanced). Replace with the captured Malaysia Masters 2026 XD draw to run the full 31-match M1 acceptance. Match 344 reproduces the retirement edge case: winner side 2 despite trailing 5-11.",
+  "results": {
+    "matches": [
+      {
+        "id": 341,
+        "code": "XD-R32-1",
+        "eventName": "XD",
+        "drawName": "Mixed Doubles",
+        "roundName": "R32",
+        "matchStatus": "F",
+        "scoreStatus": 0,
+        "scoreStatusValue": "Normal",
+        "winner": 1,
+        "team1seed": "1",
+        "team2seed": "",
+        "team1": {"players": [
+          {"id": 57943, "nameDisplay": "GAO Jia Xuan", "countryCode": "CHN"},
+          {"id": 60001, "nameDisplay": "HUANG Dong Ping", "countryCode": "CHN"}
+        ]},
+        "team2": {"players": [
+          {"id": 60002, "nameDisplay": "Player Two A", "countryCode": "INA"},
+          {"id": 60003, "nameDisplay": "Player Two B", "countryCode": "INA"}
+        ]},
+        "score": [
+          {"set": 1, "home": 21, "away": 15},
+          {"set": 2, "home": 21, "away": 10}
+        ],
+        "matchTimeUtc": "2026-05-24T02:00:00Z",
+        "duration": 34,
+        "reliability": 1
+      },
+      {
+        "id": 344,
+        "code": "XD-R32-2",
+        "eventName": "XD",
+        "drawName": "Mixed Doubles",
+        "roundName": "R32",
+        "matchStatus": "F",
+        "scoreStatus": 3,
+        "scoreStatusValue": "Retired",
+        "winner": 2,
+        "team1seed": "",
+        "team2seed": "5",
+        "team1": {"players": [
+          {"id": 60004, "nameDisplay": "Retiree One", "countryCode": "MAS"},
+          {"id": 60005, "nameDisplay": "Retiree Two", "countryCode": "MAS"}
+        ]},
+        "team2": {"players": [
+          {"id": 60006, "nameDisplay": "Advancer One", "countryCode": "JPN"},
+          {"id": 60007, "nameDisplay": "Advancer Two", "countryCode": "JPN"}
+        ]},
+        "score": [
+          {"set": 1, "home": 11, "away": 5}
+        ],
+        "matchTimeUtc": "2026-05-24T03:00:00Z",
+        "duration": 12,
+        "reliability": 1
+      },
+      {
+        "id": 347,
+        "code": "XD-R32-3",
+        "eventName": "XD",
+        "drawName": "Mixed Doubles",
+        "roundName": "R32",
+        "matchStatus": "F",
+        "scoreStatus": 5,
+        "scoreStatusValue": "Walkover",
+        "winner": 1,
+        "team1seed": "",
+        "team2seed": "",
+        "team1": {"players": [
+          {"id": 60008, "nameDisplay": "WO Winner A", "countryCode": "DEN"},
+          {"id": 60009, "nameDisplay": "WO Winner B", "countryCode": "DEN"}
+        ]},
+        "team2": {"players": [
+          {"id": 60010, "nameDisplay": "WO Absent A", "countryCode": "TPE"},
+          {"id": 60011, "nameDisplay": "WO Absent B", "countryCode": "TPE"}
+        ]},
+        "score": [],
+        "matchTimeUtc": "2026-05-24T04:00:00Z",
+        "duration": 0,
+        "reliability": 1
+      },
+      {
+        "id": 361,
+        "code": "XD-R16-1",
+        "eventName": "XD",
+        "drawName": "Mixed Doubles",
+        "roundName": "R16",
+        "matchStatus": "F",
+        "scoreStatus": 0,
+        "scoreStatusValue": "Normal",
+        "winner": 1,
+        "team1seed": "1",
+        "team2seed": "",
+        "team1": {"players": [
+          {"id": 57943, "nameDisplay": "GAO Jia Xuan", "countryCode": "CHN"},
+          {"id": 60001, "nameDisplay": "HUANG Dong Ping", "countryCode": "CHN"}
+        ]},
+        "team2": {"players": [
+          {"id": 60006, "nameDisplay": "Advancer One", "countryCode": "JPN"},
+          {"id": 60007, "nameDisplay": "Advancer Two", "countryCode": "JPN"}
+        ]},
+        "score": [
+          {"set": 1, "home": 21, "away": 18},
+          {"set": 2, "home": 19, "away": 21},
+          {"set": 3, "home": 21, "away": 19}
+        ],
+        "matchTimeUtc": "2026-05-25T02:00:00Z",
+        "duration": 58,
+        "reliability": 1
+      }
+    ]
+  }
+}
