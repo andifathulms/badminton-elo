@@ -61,6 +61,10 @@ STATUS_MAP = {
     "No Match": ("NoMatch", True),
     "NoMatch": ("NoMatch", True),
     "Disqualified": ("Disqualified", True),
+    # Seen live in the 2026 season: a bye/promotion — no contest was played,
+    # so it is ingested for completeness but excluded from rating.
+    "Promoted": ("Promoted", True),
+    "Bye": ("Bye", True),
 }
 
 
