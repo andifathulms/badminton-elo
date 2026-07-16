@@ -34,6 +34,19 @@ BASE = "https://extranet-lv.bwfbadminton.com/api"
 VUE_BASE = BASE
 
 # Which builders are verified against a real captured request URL.
+#
+# 2026-07-17 live probe against extranet-lv.bwfbadminton.com/api:
+#   * day_matches ............ 200, full match shape across all disciplines.
+#     THIS IS THE WORKING COLLECTOR — see the `scrape_days` command.
+#   * vue_tournament_detail .. 404 (every param/path variant tried)
+#   * vue_tournament_draws ... 404 as `vue-tournament-draws`; a sibling
+#     `tournaments/draws` returns 500 (exists, but the required params are not
+#     guessable and the error body is a generic "Server Error")
+#   * vue_tournament_draw_data 404
+#   * players / match_statistics 404
+# Net: only day_matches is usable without a browser network-tab capture. The
+# vue-* builders are kept for when those requests are captured; until then the
+# ingestion path uses day_matches exclusively.
 CONFIRMED = {
     "day_matches": True,
     "vue_tournament_detail": False,

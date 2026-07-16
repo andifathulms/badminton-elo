@@ -1,0 +1,642 @@
+[
+  {
+    "id": 1518163,
+    "code": "254",
+    "tournamentCode": "71AC3AB2-C072-444C-B479-4AC73C756C14",
+    "tournamentName": "PERODUA Malaysia Masters 2026",
+    "isTeamMatch": false,
+    "scoreStatus": 0,
+    "scoreStatusValue": "Normal",
+    "winner": 2,
+    "team1": {
+      "countryCode": "JPN",
+      "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/JPN.png",
+      "teamId": null,
+      "teamName": null,
+      "players": [
+        {
+          "id": "94519",
+          "nameDisplay": "Sayaka HIROTA",
+          "nameType": 0,
+          "firstName": "Sayaka",
+          "lastName": "HIROTA",
+          "initials": "SH",
+          "nameShort": "S HIROTA",
+          "nameShort2": "HIROTA",
+          "slug": "sayaka-hirota",
+          "countryCode": "JPN",
+          "countryName": "Japan",
+          "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/JPN.png",
+          "avatar": {
+            "title": "Sayaka HIROTA",
+            "thumbnailUrl": "https://img.bwfbadminton.com/image/upload/v1633938972/assets/players/thumbnail/94519.jpg"
+          }
+        },
+        {
+          "id": "83211",
+          "nameDisplay": "Ayako SAKURAMOTO",
+          "nameType": 0,
+          "firstName": "Ayako",
+          "lastName": "SAKURAMOTO",
+          "initials": "AS",
+          "nameShort": "A SAKURAMOTO",
+          "nameShort2": "SAKURAMOTO",
+          "slug": "ayako-sakuramoto",
+          "countryCode": "JPN",
+          "countryName": null,
+          "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/JPN.png",
+          "avatar": {
+            "title": "Ayako SAKURAMOTO",
+            "thumbnailUrl": "https://img.bwfbadminton.com/image/upload/v1604896000/assets/players/thumbnail/83211.jpg"
+          }
+        }
+      ],
+      "linkName": null
+    },
+    "team2": {
+      "countryCode": "CHN",
+      "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/CHN.png",
+      "teamId": null,
+      "teamName": null,
+      "players": [
+        {
+          "id": "86532",
+          "nameDisplay": "CHEN Fan Shu Tian",
+          "nameType": 1,
+          "firstName": "Fan Shu Tian",
+          "lastName": "CHEN",
+          "initials": "CF",
+          "nameShort": "CHEN F S T ",
+          "nameShort2": "CHEN",
+          "slug": "fan-shu-tian-chen",
+          "countryCode": "CHN",
+          "countryName": "China",
+          "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/CHN.png",
+          "avatar": {
+            "title": "Fan Shu Tian CHEN",
+            "thumbnailUrl": "https://img.bwfbadminton.com/image/upload/assets/players/thumbnail/profile_female.jpg"
+          }
+        },
+        {
+          "id": "65300",
+          "nameDisplay": "LUO Xu Min",
+          "nameType": 1,
+          "firstName": "Xu Min",
+          "lastName": "LUO",
+          "initials": "LX",
+          "nameShort": "LUO X M ",
+          "nameShort2": "LUO",
+          "slug": "xu-min-luo",
+          "countryCode": "CHN",
+          "countryName": null,
+          "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/CHN.png",
+          "avatar": {
+            "title": "Xu Min LUO",
+            "thumbnailUrl": "https://img.bwfbadminton.com/image/upload/v1604897783/assets/players/thumbnail/65300.jpg"
+          }
+        }
+      ],
+      "linkName": null
+    },
+    "team1seed": null,
+    "team2seed": "6",
+    "matchTime": "2026-05-24 12:00:00",
+    "matchTimeUtc": "2026-05-24 04:00:00",
+    "matchStatus": "F",
+    "matchStatusValue": "Finished",
+    "oopRound": "1",
+    "oopText": "Starting at 12:00 PM",
+    "oopTypeId": 1,
+    "eventName": "WD",
+    "roundName": "Final",
+    "drawName": "WD",
+    "drawCode": "8",
+    "courtName": "Court 1",
+    "courtCode": "1",
+    "courtIndex": 0,
+    "locationName": "STADIUM AXIATA ARENA",
+    "duration": 52,
+    "time": "00:52",
+    "matchOrder": null,
+    "matchTypeId": 4,
+    "matchTypeValue": "Women's Doubles",
+    "matchTypeNo": null,
+    "reliability": 0,
+    "score": [
+      {
+        "set": 1,
+        "home": 16,
+        "away": 21,
+        "lastPointWinner": null,
+        "serve": null
+      },
+      {
+        "set": 2,
+        "home": 23,
+        "away": 25,
+        "lastPointWinner": null,
+        "serve": null
+      }
+    ],
+    "matches": []
+  },
+  {
+    "id": 1518179,
+    "code": "29",
+    "tournamentCode": "71AC3AB2-C072-444C-B479-4AC73C756C14",
+    "tournamentName": "PERODUA Malaysia Masters 2026",
+    "isTeamMatch": false,
+    "scoreStatus": 0,
+    "scoreStatusValue": "Normal",
+    "winner": 1,
+    "team1": {
+      "countryCode": "CHN",
+      "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/CHN.png",
+      "teamId": null,
+      "teamName": null,
+      "players": [
+        {
+          "id": "95476",
+          "nameDisplay": "LI Shi Feng",
+          "nameType": 1,
+          "firstName": "Shi Feng",
+          "lastName": "LI",
+          "initials": "LS",
+          "nameShort": "LI S F ",
+          "nameShort2": "LI",
+          "slug": "shi-feng-li",
+          "countryCode": "CHN",
+          "countryName": "China",
+          "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/CHN.png",
+          "avatar": {
+            "title": "Shi Feng LI",
+            "thumbnailUrl": "https://img.bwfbadminton.com/image/upload/v1697425579/assets/players/thumbnail/95476.jpg"
+          }
+        }
+      ],
+      "linkName": null
+    },
+    "team2": {
+      "countryCode": "THA",
+      "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/THA.png",
+      "teamId": null,
+      "teamName": null,
+      "players": [
+        {
+          "id": "85845",
+          "nameDisplay": "Panitchaphon TEERARATSAKUL",
+          "nameType": 0,
+          "firstName": "Panitchaphon",
+          "lastName": "TEERARATSAKUL",
+          "initials": "PT",
+          "nameShort": "P TEERARATSAKUL",
+          "nameShort2": "TEERARATSAKUL",
+          "slug": "panitchaphon-teeraratsakul",
+          "countryCode": "THA",
+          "countryName": "Thailand",
+          "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/THA.png",
+          "avatar": {
+            "title": "Panitchaphon TEERARATSAKUL",
+            "thumbnailUrl": "https://img.bwfbadminton.com/image/upload/v1667175084/assets/players/thumbnail/85845.jpg"
+          }
+        }
+      ],
+      "linkName": null
+    },
+    "team1seed": "5",
+    "team2seed": null,
+    "matchTime": "2026-05-24 13:15:00",
+    "matchTimeUtc": "2026-05-24 05:15:00",
+    "matchStatus": "F",
+    "matchStatusValue": "Finished",
+    "oopRound": "2",
+    "oopText": "Followed by",
+    "oopTypeId": 0,
+    "eventName": "MS",
+    "roundName": "Final",
+    "drawName": "MS",
+    "drawCode": "2",
+    "courtName": "Court 1",
+    "courtCode": "1",
+    "courtIndex": 0,
+    "locationName": "STADIUM AXIATA ARENA",
+    "duration": 50,
+    "time": "00:50",
+    "matchOrder": null,
+    "matchTypeId": 1,
+    "matchTypeValue": "Men's Singles",
+    "matchTypeNo": null,
+    "reliability": 1,
+    "score": [
+      {
+        "set": 1,
+        "home": 21,
+        "away": 16,
+        "lastPointWinner": null,
+        "serve": null
+      },
+      {
+        "set": 2,
+        "home": 21,
+        "away": 17,
+        "lastPointWinner": null,
+        "serve": null
+      }
+    ],
+    "matches": []
+  },
+  {
+    "id": 1518112,
+    "code": "104",
+    "tournamentCode": "71AC3AB2-C072-444C-B479-4AC73C756C14",
+    "tournamentName": "PERODUA Malaysia Masters 2026",
+    "isTeamMatch": false,
+    "scoreStatus": 0,
+    "scoreStatusValue": "Normal",
+    "winner": 2,
+    "team1": {
+      "countryCode": "CHN",
+      "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/CHN.png",
+      "teamId": null,
+      "teamName": null,
+      "players": [
+        {
+          "id": "78778",
+          "nameDisplay": "CHEN Yu Fei",
+          "nameType": 1,
+          "firstName": "Yu Fei",
+          "lastName": "CHEN",
+          "initials": "CY",
+          "nameShort": "CHEN Y F ",
+          "nameShort2": "CHEN",
+          "slug": "yu-fei-chen",
+          "countryCode": "CHN",
+          "countryName": "China",
+          "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/CHN.png",
+          "avatar": {
+            "title": "Yu Fei CHEN",
+            "thumbnailUrl": "https://img.bwfbadminton.com/image/upload/v1689647649/assets/players/thumbnail/78778.jpg"
+          }
+        }
+      ],
+      "linkName": null
+    },
+    "team2": {
+      "countryCode": "THA",
+      "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/THA.png",
+      "teamId": null,
+      "teamName": null,
+      "players": [
+        {
+          "id": "35642",
+          "nameDisplay": "Ratchanok INTANON",
+          "nameType": 0,
+          "firstName": "Ratchanok",
+          "lastName": "INTANON",
+          "initials": "RI",
+          "nameShort": "R INTANON",
+          "nameShort2": "INTANON",
+          "slug": "ratchanok-intanon",
+          "countryCode": "THA",
+          "countryName": "Thailand",
+          "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/THA.png",
+          "avatar": {
+            "title": "Ratchanok INTANON",
+            "thumbnailUrl": "https://img.bwfbadminton.com/image/upload/v1604897731/assets/players/thumbnail/35642.jpg"
+          }
+        }
+      ],
+      "linkName": null
+    },
+    "team1seed": "1",
+    "team2seed": "2",
+    "matchTime": "2026-05-24 14:20:00",
+    "matchTimeUtc": "2026-05-24 06:20:00",
+    "matchStatus": "F",
+    "matchStatusValue": "Finished",
+    "oopRound": "3",
+    "oopText": "Followed by",
+    "oopTypeId": 0,
+    "eventName": "WS",
+    "roundName": "Final",
+    "drawName": "WS",
+    "drawCode": "4",
+    "courtName": "Court 1",
+    "courtCode": "1",
+    "courtIndex": 0,
+    "locationName": "STADIUM AXIATA ARENA",
+    "duration": 51,
+    "time": "00:51",
+    "matchOrder": null,
+    "matchTypeId": 2,
+    "matchTypeValue": "Women's Singles",
+    "matchTypeNo": null,
+    "reliability": 1,
+    "score": [
+      {
+        "set": 1,
+        "home": 17,
+        "away": 21,
+        "lastPointWinner": null,
+        "serve": null
+      },
+      {
+        "set": 2,
+        "home": 15,
+        "away": 21,
+        "lastPointWinner": null,
+        "serve": null
+      }
+    ],
+    "matches": []
+  },
+  {
+    "id": 1518158,
+    "code": "329",
+    "tournamentCode": "71AC3AB2-C072-444C-B479-4AC73C756C14",
+    "tournamentName": "PERODUA Malaysia Masters 2026",
+    "isTeamMatch": false,
+    "scoreStatus": 0,
+    "scoreStatusValue": "Normal",
+    "winner": 2,
+    "team1": {
+      "countryCode": "THA",
+      "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/THA.png",
+      "teamId": null,
+      "teamName": null,
+      "players": [
+        {
+          "id": "65674",
+          "nameDisplay": "Pakkapon TEERARATSAKUL",
+          "nameType": 0,
+          "firstName": "Pakkapon",
+          "lastName": "TEERARATSAKUL",
+          "initials": "PT",
+          "nameShort": "P TEERARATSAKUL",
+          "nameShort2": "TEERARATSAKUL",
+          "slug": "pakkapon-teeraratsakul",
+          "countryCode": "THA",
+          "countryName": "Thailand",
+          "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/THA.png",
+          "avatar": {
+            "title": "Pakkapon TEERARATSAKUL",
+            "thumbnailUrl": "https://img.bwfbadminton.com/image/upload/assets/players/thumbnail/profile_male.jpg"
+          }
+        },
+        {
+          "id": "67158",
+          "nameDisplay": "Sapsiree TAERATTANACHAI",
+          "nameType": 0,
+          "firstName": "Sapsiree",
+          "lastName": "TAERATTANACHAI",
+          "initials": "ST",
+          "nameShort": "S TAERATTANACHAI",
+          "nameShort2": "TAERATTANACHAI",
+          "slug": "sapsiree-taerattanachai",
+          "countryCode": "THA",
+          "countryName": null,
+          "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/THA.png",
+          "avatar": {
+            "title": "Sapsiree TAERATTANACHAI",
+            "thumbnailUrl": "https://img.bwfbadminton.com/image/upload/v1636447113/assets/players/thumbnail/67158.jpg"
+          }
+        }
+      ],
+      "linkName": null
+    },
+    "team2": {
+      "countryCode": "CHN",
+      "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/CHN.png",
+      "teamId": null,
+      "teamName": null,
+      "players": [
+        {
+          "id": "57943",
+          "nameDisplay": "GAO Jia Xuan",
+          "nameType": 1,
+          "firstName": "Jia Xuan",
+          "lastName": "GAO",
+          "initials": "GJ",
+          "nameShort": "GAO J X ",
+          "nameShort2": "GAO",
+          "slug": "gao-jia-xuan",
+          "countryCode": "CHN",
+          "countryName": "China",
+          "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/CHN.png",
+          "avatar": {
+            "title": "Jia Xuan GAO",
+            "thumbnailUrl": "https://img.bwfbadminton.com/image/upload/v1784097224/assets/players/thumbnail/57943.jpg"
+          }
+        },
+        {
+          "id": "57246",
+          "nameDisplay": "WEI Ya Xin",
+          "nameType": 1,
+          "firstName": "Ya Xin",
+          "lastName": "WEI",
+          "initials": "WY",
+          "nameShort": "WEI Y X ",
+          "nameShort2": "WEI",
+          "slug": "ya-xin-wei",
+          "countryCode": "CHN",
+          "countryName": null,
+          "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/CHN.png",
+          "avatar": {
+            "title": "Ya Xin WEI",
+            "thumbnailUrl": "https://img.bwfbadminton.com/image/upload/v1604896551/assets/players/thumbnail/57246.jpg"
+          }
+        }
+      ],
+      "linkName": null
+    },
+    "team1seed": null,
+    "team2seed": "8",
+    "matchTime": "2026-05-24 15:25:00",
+    "matchTimeUtc": "2026-05-24 07:25:00",
+    "matchStatus": "F",
+    "matchStatusValue": "Finished",
+    "oopRound": "4",
+    "oopText": "Followed by",
+    "oopTypeId": 0,
+    "eventName": "XD",
+    "roundName": "Final",
+    "drawName": "XD",
+    "drawCode": "10",
+    "courtName": "Court 1",
+    "courtCode": "1",
+    "courtIndex": 0,
+    "locationName": "STADIUM AXIATA ARENA",
+    "duration": 58,
+    "time": "00:58",
+    "matchOrder": null,
+    "matchTypeId": 5,
+    "matchTypeValue": "Mixed Doubles",
+    "matchTypeNo": null,
+    "reliability": 1,
+    "score": [
+      {
+        "set": 1,
+        "home": 13,
+        "away": 21,
+        "lastPointWinner": null,
+        "serve": null
+      },
+      {
+        "set": 2,
+        "home": 21,
+        "away": 15,
+        "lastPointWinner": null,
+        "serve": null
+      },
+      {
+        "set": 3,
+        "home": 11,
+        "away": 21,
+        "lastPointWinner": null,
+        "serve": null
+      }
+    ],
+    "matches": []
+  },
+  {
+    "id": 1518090,
+    "code": "179",
+    "tournamentCode": "71AC3AB2-C072-444C-B479-4AC73C756C14",
+    "tournamentName": "PERODUA Malaysia Masters 2026",
+    "isTeamMatch": false,
+    "scoreStatus": 0,
+    "scoreStatusValue": "Normal",
+    "winner": 2,
+    "team1": {
+      "countryCode": "MAS",
+      "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/MAS.png",
+      "teamId": null,
+      "teamName": null,
+      "players": [
+        {
+          "id": "90768",
+          "nameDisplay": "GOH Sze Fei",
+          "nameType": 1,
+          "firstName": "Sze Fei",
+          "lastName": "GOH",
+          "initials": "GS",
+          "nameShort": "GOH S F ",
+          "nameShort2": "GOH",
+          "slug": "sze-fei-goh",
+          "countryCode": "MAS",
+          "countryName": "Malaysia",
+          "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/MAS.png",
+          "avatar": {
+            "title": "Sze Fei GOH",
+            "thumbnailUrl": "https://img.bwfbadminton.com/image/upload/v1636512672/assets/players/thumbnail/90768.jpg"
+          }
+        },
+        {
+          "id": "94814",
+          "nameDisplay": "Nur IZZUDDIN",
+          "nameType": 0,
+          "firstName": "Nur",
+          "lastName": "IZZUDDIN",
+          "initials": "NI",
+          "nameShort": "N IZZUDDIN",
+          "nameShort2": "IZZUDDIN",
+          "slug": "nur-izzuddin",
+          "countryCode": "MAS",
+          "countryName": null,
+          "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/MAS.png",
+          "avatar": {
+            "title": "Nur IZZUDDIN",
+            "thumbnailUrl": "https://img.bwfbadminton.com/image/upload/v1636512792/assets/players/thumbnail/94814.jpg"
+          }
+        }
+      ],
+      "linkName": null
+    },
+    "team2": {
+      "countryCode": "DEN",
+      "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/DEN.png",
+      "teamId": null,
+      "teamName": null,
+      "players": [
+        {
+          "id": "68134",
+          "nameDisplay": "Daniel LUNDGAARD",
+          "nameType": 0,
+          "firstName": "Daniel",
+          "lastName": "LUNDGAARD",
+          "initials": "DL",
+          "nameShort": "D LUNDGAARD",
+          "nameShort2": "LUNDGAARD",
+          "slug": "daniel-lundgaard",
+          "countryCode": "DEN",
+          "countryName": "Denmark",
+          "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/DEN.png",
+          "avatar": {
+            "title": "Daniel LUNDGAARD",
+            "thumbnailUrl": "https://img.bwfbadminton.com/image/upload/v1604896020/assets/players/thumbnail/68134.jpg"
+          }
+        },
+        {
+          "id": "60507",
+          "nameDisplay": "Mads VESTERGAARD",
+          "nameType": 0,
+          "firstName": "Mads",
+          "lastName": "VESTERGAARD",
+          "initials": "MV",
+          "nameShort": "M VESTERGAARD",
+          "nameShort2": "VESTERGAARD",
+          "slug": "mads-vestergaard",
+          "countryCode": "DEN",
+          "countryName": null,
+          "countryFlagUrl": "https://img.bwfbadminton.com/image/upload/v2/assets/flag-circle-svg-custom/DEN.png",
+          "avatar": {
+            "title": "Mads VESTERGAARD",
+            "thumbnailUrl": "https://img.bwfbadminton.com/image/upload/v1724635601/assets/players/thumbnail/60507.jpg"
+          }
+        }
+      ],
+      "linkName": null
+    },
+    "team1seed": "3",
+    "team2seed": "6",
+    "matchTime": "2026-05-24 16:40:00",
+    "matchTimeUtc": "2026-05-24 08:40:00",
+    "matchStatus": "F",
+    "matchStatusValue": "Finished",
+    "oopRound": "5",
+    "oopText": "Followed by",
+    "oopTypeId": 0,
+    "eventName": "MD",
+    "roundName": "Final",
+    "drawName": "MD",
+    "drawCode": "6",
+    "courtName": "Court 1",
+    "courtCode": "1",
+    "courtIndex": 0,
+    "locationName": "STADIUM AXIATA ARENA",
+    "duration": 42,
+    "time": "00:42",
+    "matchOrder": null,
+    "matchTypeId": 3,
+    "matchTypeValue": "Men's Doubles",
+    "matchTypeNo": null,
+    "reliability": 1,
+    "score": [
+      {
+        "set": 1,
+        "home": 16,
+        "away": 21,
+        "lastPointWinner": null,
+        "serve": null
+      },
+      {
+        "set": 2,
+        "home": 17,
+        "away": 21,
+        "lastPointWinner": null,
+        "serve": null
+      }
+    ],
+    "matches": []
+  }
+]
