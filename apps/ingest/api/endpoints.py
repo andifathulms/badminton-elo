@@ -44,17 +44,44 @@ VUE_BASE = BASE
 #     guessable and the error body is a generic "Server Error")
 #   * vue_tournament_draw_data 404
 #   * players / match_statistics 404
-# Net: only day_matches is usable without a browser network-tab capture. The
-# vue-* builders are kept for when those requests are captured; until then the
-# ingestion path uses day_matches exclusively.
+#
+# 2026-07-17 UPDATE from a real browser network-tab capture (bwfworldtour.
+# bwfbadminton.com): the vue-* endpoints DO NOT sit under /api/tournaments/ —
+# they are at /api/ directly (and match-center is under /api/match-center/),
+# and the requests carry an Origin/Referer of bwfworldtour.bwfbadminton.com.
+# Confirmed working:
+#   * vue-grouped-year-tournaments ... the season CALENDAR (enumeration source);
+#     ?year=YYYY&category[]=..(repeated)..&state=all. Each entry has the real
+#     numeric id, GUID code, dates, and category/tier — 200.
+#   * match-center/vue-current-live .. currently-live tournaments — 200.
+# Still to capture (exist but 500 with every guessed param; need the exact
+# query string from the network tab):
+#   * vue-tournament-detail, vue-tournament-draws, vue-tournament-draw-data
+#
+# Category ids for the calendar/live filters map to World Tour tiers:
+#   22..26 span Super 300 → Super 1000 + Finals (pass all five for everything).
+CALENDAR_CATEGORIES = (22, 23, 24, 25, 26)
+
+# Sent on every request (see BwfClient). The vue-* endpoints require them.
+REQUEST_ORIGIN = "https://bwfworldtour.bwfbadminton.com"
+REQUEST_REFERER = "https://bwfworldtour.bwfbadminton.com/"
+
 CONFIRMED = {
     "day_matches": True,
+    "vue_grouped_year_tournaments": True,
+    "vue_current_live": True,
     "vue_tournament_detail": False,
     "vue_tournament_draws": False,
     "vue_tournament_draw_data": False,
     "players": False,
     "match_statistics": False,
 }
+
+
+def _category_qs(categories) -> str:
+    """Repeated `category[]=` params, literal (matches the browser exactly)."""
+    cats = CALENDAR_CATEGORIES if categories is None else categories
+    return "&".join(f"category[]={c}" for c in cats)
 
 
 def _url(base: str, path: str, **params) -> str:
@@ -87,24 +114,42 @@ def day_matches(tournament_code: str, date: str | _date) -> str:
     )
 
 
+def vue_grouped_year_tournaments(year: int, categories=None, state: str = "all") -> str:
+    """Season CALENDAR — every tournament in a year, grouped by month.
+
+    CONFIRMED (2026-07-17). Each tournament carries the real numeric id, GUID
+    code, start/end dates, category (tier), country and prize money — this is
+    the enumeration + tier source. Note: NOT under /api/tournaments/.
+    """
+    return f"{BASE}/vue-grouped-year-tournaments?year={year}&{_category_qs(categories)}&state={state}"
+
+
+def vue_current_live(categories=None) -> str:
+    """Currently-live tournaments (match-center). CONFIRMED (2026-07-17)."""
+    return f"{BASE}/match-center/vue-current-live?{_category_qs(categories)}"
+
+
 # --- TO CONFIRM (response shapes known; request params are best guesses) ------
 
 def vue_tournament_detail(tournament_code: str) -> str:
     """Tournament metadata (id, name, dates, categoryModel.name = tier, ...).
 
-    TO CONFIRM param name — guess: tournamentCode. Could also be keyed by numeric id.
+    Path corrected 2026-07-17 (drop tournaments/ prefix). Still 500 with
+    tournamentCode / tournamentId / id — TO CONFIRM the exact query string from
+    the network tab. Not blocking: the calendar already yields id + tier.
     """
-    return _url(VUE_BASE, "tournaments/vue-tournament-detail",
+    return _url(VUE_BASE, "vue-tournament-detail",
                 tournamentCode=tournament_code)
 
 
 def vue_tournament_draws(tournament_code: str) -> str:
     """List of draws in a tournament (results[]: value, text=MS/WS/MD/WD/XD,
-    doubles, qualification, stage_name, size, ...). Filter qualification==0 for main draw.
+    doubles, qualification, stage_name, size, ...). Filter qualification==0.
 
-    TO CONFIRM param name — guess: tournamentCode.
+    Path corrected 2026-07-17. Returns 200 but an EMPTY results set with
+    tournamentCode/tournamentId — TO CONFIRM the exact param from the network tab.
     """
-    return _url(VUE_BASE, "tournaments/vue-tournament-draws",
+    return _url(VUE_BASE, "vue-tournament-draws",
                 tournamentCode=tournament_code)
 
 
@@ -112,11 +157,10 @@ def vue_tournament_draw_data(tournament_code: str, draw_value: str | int) -> str
     """PRIMARY results source: full bracket for one draw, incl. a flat `matches`
     array with every match (all rounds), game-by-game scores, player ids, status.
 
-    TO CONFIRM the draw param name. `draw_value` is the `value` from
-    vue_tournament_draws (e.g. "10" for XD main). The param key is one of:
-    draw / drawId / drawCode / value — verify in the network tab.
+    Path corrected 2026-07-17. Still 500 with tournamentCode/Id × draw/drawId/
+    drawCode — TO CONFIRM the exact param names from the network tab.
     """
-    return _url(VUE_BASE, "tournaments/vue-tournament-draw-data",
+    return _url(VUE_BASE, "vue-tournament-draw-data",
                 tournamentCode=tournament_code,
                 draw=draw_value)  # TO CONFIRM key: draw | drawId | drawCode | value
 

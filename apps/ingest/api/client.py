@@ -22,6 +22,7 @@ import httpx
 from django.conf import settings
 from django.utils import timezone
 
+from . import endpoints
 from ..models import RawCache
 
 logger = logging.getLogger(__name__)
@@ -70,7 +71,14 @@ class BwfClient:
         self._last_request_ts = 0.0
         self._client = httpx.Client(
             timeout=self.timeout,
-            headers={"User-Agent": self.user_agent, "Accept": "application/json"},
+            headers={
+                "User-Agent": self.user_agent,
+                "Accept": "application/json, text/plain, */*",
+                # The vue-* endpoints 404/500 without the fan-site Origin/Referer;
+                # day-matches is unaffected. See endpoints.REQUEST_ORIGIN.
+                "Origin": endpoints.REQUEST_ORIGIN,
+                "Referer": endpoints.REQUEST_REFERER,
+            },
             follow_redirects=True,
         )
 
