@@ -6,10 +6,10 @@ unknown keys are ignored so the fan API can add fields without breaking us.
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
 
 
 class _Base(BaseModel):
@@ -84,7 +84,8 @@ class GameScore(_Base):
 
 
 class MatchRaw(_Base):
-    """One entry of the flat `matches` array (PRD §4.3)."""
+    """One match — shared by the flat draw-data `matches` array (PRD §4.3) and
+    the day-matches array (PRD §4.4), which carry the same shape."""
 
     id: int  # globally unique — primary upsert key
     code: str = ""
@@ -105,6 +106,9 @@ class MatchRaw(_Base):
     duration: int | None = None
     reliability: int | None = None
     court_name: str = Field(default="", alias="courtName")
+    # Present in day-matches payloads (per-match); absent in draw-data.
+    tournament_code: str = Field(default="", alias="tournamentCode")
+    tournament_name: str = Field(default="", alias="tournamentName")
 
     @field_validator("team1_seed", "team2_seed", mode="before")
     @classmethod
@@ -116,6 +120,19 @@ class MatchRaw(_Base):
     def _empty_dt(cls, v):
         return None if v in ("", None) else v
 
+    @field_validator("match_time_utc", mode="after")
+    @classmethod
+    def _as_utc(cls, v: datetime | None):
+        # day-matches gives "YYYY-MM-DD HH:MM:SS" (naive UTC); pin the tzinfo so
+        # Django's USE_TZ storage never guesses.
+        if v is not None and v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v
+
 
 class DrawData(_Base):
     matches: list[MatchRaw] = Field(default_factory=list)
+
+
+# day-matches returns a BARE array of matches (no wrapper object).
+DayMatches = TypeAdapter(list[MatchRaw])

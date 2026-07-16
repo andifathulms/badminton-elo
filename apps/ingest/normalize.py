@@ -15,6 +15,7 @@ pure `rating/` package).
 from __future__ import annotations
 
 import logging
+import zlib
 from datetime import date
 
 from django.db import transaction
@@ -217,6 +218,90 @@ def normalize_draw_data(
             )
             ingested += 1
         except Exception:  # noqa: BLE001 - isolate a bad match, keep the draw
+            logger.exception("skipping malformed match id=%s", getattr(raw, "id", "?"))
+            skipped += 1
+    return ingested, skipped
+
+
+# --- day-matches path (PRD §4.4) --------------------------------------------
+# day-matches is the only live-confirmed endpoint (see api/endpoints.CONFIRMED),
+# so it is the primary collector. It lacks a numeric tournament id, so we derive
+# a stable synthetic primary key from the GUID; `code` stays unique and lets a
+# future vue-tournament-detail pass reconcile to the real id.
+def synthetic_tournament_id(code: str) -> int:
+    """Deterministic, collision-resistant int PK from a tournament GUID.
+
+    CRC32 masked to signed 32-bit so it fits IntegerField on every backend.
+    Stable across runs -> re-scraping upserts the same Tournament row.
+    """
+    return zlib.crc32(code.encode("utf-8")) & 0x7FFFFFFF
+
+
+def upsert_tournament_from_code(code: str, name: str = "") -> Tournament:
+    """Minimal Tournament from a day-matches payload (no detail endpoint).
+
+    Only code+name are known here; category/tier and exact dates stay blank
+    until vue-tournament-detail is captured. Keyed by the synthetic id but kept
+    idempotent on `code`.
+    """
+    existing = Tournament.objects.filter(code=code).first()
+    tid = existing.tournament_id if existing else synthetic_tournament_id(code)
+    defaults = {"code": code}
+    if name:
+        defaults["name"] = name
+    obj, _ = Tournament.objects.update_or_create(
+        tournament_id=tid,
+        defaults={**defaults, "name": defaults.get("name", existing.name if existing else name or code)},
+    )
+    return obj
+
+
+def _upsert_draw_from_match(tournament: Tournament, raw: MatchRaw) -> Draw | None:
+    """Group day-matches into Draw rows by drawCode (+eventName)."""
+    if not raw.draw_code:
+        return None
+    doubles = raw.event_name in {"MD", "WD", "XD"}
+    draw, _ = Draw.objects.update_or_create(
+        tournament=tournament,
+        draw_value=raw.draw_code,
+        defaults={
+            "event": raw.event_name,
+            # day-matches doesn't expose qualification/stage; default Main Draw.
+            "stage": "Main Draw",
+            "doubles": doubles,
+        },
+    )
+    return draw
+
+
+def normalize_day_matches(
+    matches: list[MatchRaw],
+    *,
+    tournament: Tournament,
+    scoring_format_override: str | None = None,
+) -> tuple[int, int]:
+    """Normalize a day-matches array. Returns (ingested, skipped).
+
+    Skips team-match rubbers and entries missing both lineups. A malformed
+    match is logged and skipped so the rest of the day still ingests.
+    """
+    ingested = skipped = 0
+    for raw in matches:
+        try:
+            if not (raw.team1 and raw.team1.players) and not (
+                raw.team2 and raw.team2.players
+            ):
+                skipped += 1
+                continue
+            draw = _upsert_draw_from_match(tournament, raw)
+            normalize_match(
+                raw,
+                tournament=tournament,
+                draw=draw,
+                scoring_format_override=scoring_format_override,
+            )
+            ingested += 1
+        except Exception:  # noqa: BLE001 - isolate a bad match, keep the day
             logger.exception("skipping malformed match id=%s", getattr(raw, "id", "?"))
             skipped += 1
     return ingested, skipped
