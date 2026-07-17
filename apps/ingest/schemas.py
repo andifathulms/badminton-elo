@@ -69,6 +69,12 @@ class DrawInfo(_Base):
     def _stringify(cls, v):
         return str(v)
 
+    @field_validator("text", "slug", "stage_name", mode="before")
+    @classmethod
+    def _none_to_str(cls, v):
+        # Older draws send stage_name: null.
+        return "" if v is None else v
+
     @property
     def event(self) -> str:
         """Clean discipline code (MS/WS/MD/WD/XD) parsed from `text`."""
@@ -132,6 +138,22 @@ class MatchRaw(_Base):
     @classmethod
     def _seed_str(cls, v):
         return "" if v is None else str(v)
+
+    @field_validator(
+        "code",
+        "event_name",
+        "draw_name",
+        "draw_code",
+        "round_name",
+        "match_status",
+        "score_status_value",
+        "court_name",
+        mode="before",
+    )
+    @classmethod
+    def _none_to_str(cls, v):
+        # Older payloads send null for some string fields (e.g. matchStatus).
+        return "" if v is None else v
 
     @field_validator("match_time_utc", mode="before")
     @classmethod
