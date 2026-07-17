@@ -38,7 +38,13 @@ class TournamentDetail(_Base):
     @field_validator("start_date", "end_date", mode="before")
     @classmethod
     def _empty_date(cls, v):
-        return None if v in ("", None) else v
+        if v in ("", None):
+            return None
+        # Some tournaments send a datetime with a non-zero time
+        # ("2025-06-03 08:00:00"); keep only the calendar date.
+        if isinstance(v, str):
+            return v.replace("T", " ").split(" ")[0]
+        return v
 
     @field_validator("slug", "venue_name", "venue_address1", mode="before")
     @classmethod
