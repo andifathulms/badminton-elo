@@ -90,10 +90,13 @@ if os.environ.get("POSTGRES_DB"):
 else:
     # data/ is gitignored; create it so SQLite can open the file on first run.
     (BASE_DIR / "data").mkdir(parents=True, exist_ok=True)
+    # SQLITE_PATH lets a read-only server (e.g. Docker) point at a snapshot
+    # while a scrape keeps writing the primary db.sqlite3.
+    _sqlite_name = os.environ.get("SQLITE_PATH") or (BASE_DIR / "data" / "db.sqlite3")
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "data" / "db.sqlite3",
+            "NAME": _sqlite_name,
         }
     }
 

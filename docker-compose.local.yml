@@ -1,0 +1,26 @@
+# Local demo: serve the real collected data (a SQLite snapshot) in Docker,
+# decoupled from any running scrape. No Postgres needed.
+#   docker compose -f docker-compose.local.yml up --build
+#   Frontend: http://localhost:8010   API/admin: http://localhost:8011
+services:
+  web:
+    build: .
+    environment:
+      # Point Django at the read-only snapshot (data/ is bind-mounted below).
+      SQLITE_PATH: /app/data/serve.sqlite3
+      DJANGO_DEBUG: "true"          # runserver serves admin/browsable-API static
+      DJANGO_ALLOWED_HOSTS: "*"
+      DJANGO_SECRET_KEY: "local-demo-key"
+    volumes:
+      - ./data:/app/data
+    command: sh -c "python manage.py runserver 0.0.0.0:8000"
+    ports:
+      - "8011:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+    depends_on:
+      - web
+    ports:
+      - "8010:80"
