@@ -171,7 +171,8 @@ class RatingHistory(models.Model):
     rd_before = models.FloatField()
     rd_after = models.FloatField()
     delta = models.FloatField()
-    applied_utc = models.DateTimeField()
+    # Null only for the rare match with neither a match time nor a tournament date.
+    applied_utc = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["applied_utc", "match_id"]
