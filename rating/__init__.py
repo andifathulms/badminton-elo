@@ -6,10 +6,31 @@ them to the dataclasses in `rating.types`, calls `rating.run`, and writes the
 results back. Keeping this boundary is non-negotiable (CLAUDE.md architecture
 principle): it is what keeps the rating math unit-testable and uncorrupted.
 
-Phase status: dominance (§7.3) is implemented and tested; the Glicko-2-with-
-pairs update (§7.1–§7.5) and the chronological driver are Phase-2 stubs, not to
-be fleshed out until the M1 ingestion acceptance test passes.
+Phase 2 is implemented: the Glicko-2-with-pairs update (§7.1–§7.5), the
+dominance/margin math (§7.3), and the deterministic chronological driver (§7.7).
+`manage.py rate` is the only bridge to persistence.
 """
 from .dominance import dominance, margin_multiplier
+from .engine import update_match
+from .run import RunResult, match_sort_key, run
+from .types import (
+    GameRecord,
+    MatchRecord,
+    Rating,
+    RatingConfig,
+    RatingDelta,
+)
 
-__all__ = ["dominance", "margin_multiplier"]
+__all__ = [
+    "dominance",
+    "margin_multiplier",
+    "update_match",
+    "run",
+    "RunResult",
+    "match_sort_key",
+    "GameRecord",
+    "MatchRecord",
+    "Rating",
+    "RatingConfig",
+    "RatingDelta",
+]

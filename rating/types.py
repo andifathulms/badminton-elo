@@ -31,6 +31,13 @@ class MatchRecord:
     side1_player_ids: tuple[int, ...]
     side2_player_ids: tuple[int, ...]
     games: tuple[GameRecord, ...] = field(default_factory=tuple)
+    # Tier multiplier (W_tier) resolved by the bridge from settings; 1.0 = no
+    # weighting. The engine never parses tier strings itself.
+    tier_weight: float = 1.0
+
+    @property
+    def is_retired(self) -> bool:
+        return self.score_status.strip().lower() == "retired"
 
 
 @dataclass
