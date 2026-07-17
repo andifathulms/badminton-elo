@@ -91,10 +91,19 @@ class PlayerRef(_Base):
     slug: str = ""
     country_code: str = Field(default="", alias="countryCode")
 
-    @field_validator("name_display", mode="before")
+    @field_validator(
+        "name_display",
+        "first_name",
+        "last_name",
+        "name_short",
+        "slug",
+        "country_code",
+        mode="before",
+    )
     @classmethod
-    def _name_fallback(cls, v):
-        return v or ""
+    def _none_to_str(cls, v):
+        # Older payloads send null for countryCode and some name fields.
+        return "" if v is None else v
 
 
 class TeamRef(_Base):
