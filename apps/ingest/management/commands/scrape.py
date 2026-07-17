@@ -23,6 +23,7 @@ import logging
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone
 
 from apps.ingest.api import endpoints
 from apps.ingest.api.client import BwfClient
@@ -64,13 +65,15 @@ class Command(BaseCommand):
 
     def _resolve_ids(self, opts) -> list[int]:
         if opts["all"]:
+            # Only tournaments that have started have published draws.
+            today = timezone.now().date()
             ids = list(
-                Tournament.objects.order_by("start_date").values_list(
-                    "tournament_id", flat=True
-                )
+                Tournament.objects.filter(start_date__lte=today)
+                .order_by("start_date")
+                .values_list("tournament_id", flat=True)
             )
             if not ids:
-                raise CommandError("no tournaments in the DB; run sync_calendar first.")
+                raise CommandError("no started tournaments; run sync_calendar first.")
             return ids
         if opts["code"]:
             t = Tournament.objects.filter(code=opts["code"]).first()
