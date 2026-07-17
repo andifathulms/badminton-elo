@@ -265,6 +265,8 @@ def upsert_tournament_from_calendar(cal: CalendarTournament) -> Tournament:
         Tournament.objects.filter(code=cal.code)
         .exclude(tournament_id=cal.id)
         .first()
+        if cal.code
+        else None
     )
     if stale is not None:
         # 1) create the real-id row (blank code first to avoid the unique clash)

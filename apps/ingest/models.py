@@ -16,7 +16,9 @@ from django.db import models
 
 class Tournament(models.Model):
     tournament_id = models.IntegerField(primary_key=True)  # detail.results.id
-    code = models.CharField(max_length=64, unique=True)  # GUID
+    # GUID. Null for very old tournaments that predate BWF's GUIDs (SQLite and
+    # Postgres both allow multiple NULLs under a unique constraint).
+    code = models.CharField(max_length=64, unique=True, null=True, blank=True)
     name = models.CharField(max_length=255)
     slug = models.SlugField(blank=True, max_length=255)
     start_date = models.DateField(null=True, blank=True)

@@ -23,7 +23,7 @@ class CategoryModel(_Base):
 
 class TournamentDetail(_Base):
     id: int
-    code: str
+    code: str | None = None
     name: str
     slug: str = ""
     start_date: date | None = None
@@ -183,7 +183,7 @@ class CalendarTournament(_Base):
     """One tournament entry from the calendar (PRD §4.7 enumeration source)."""
 
     id: int
-    code: str
+    code: str | None = None  # very old tournaments have no GUID
     name: str
     slug: str = ""
     start_date: datetime | None = None
@@ -203,6 +203,12 @@ class CalendarTournament(_Base):
     @classmethod
     def _prize_str(cls, v):
         return "" if v is None else str(v)
+
+    @field_validator("code", mode="before")
+    @classmethod
+    def _blank_code_to_none(cls, v):
+        # Store missing/blank codes as NULL so the unique constraint allows many.
+        return v or None
 
     @property
     def start(self) -> date | None:
