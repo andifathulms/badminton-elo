@@ -1,11 +1,12 @@
 """Root URL configuration.
 
-Phase 1 exposes only the Django admin — the inspection UI for ingested data.
-DRF viewsets (apps.api) are wired in during Phase 3.
+Admin is the Phase-1 inspection UI; the DRF read API (apps.api) serves the
+leaderboard/player/match endpoints for the React frontend (Phase 3).
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("api/", include("apps.api.urls")),
 ]
