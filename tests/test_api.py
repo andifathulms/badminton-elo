@@ -91,6 +91,20 @@ def test_match_detail_has_lineup_and_games(api):
     assert body["tournament"]["tournament_id"] == 5229
 
 
+def test_peak_ranking(api):
+    # Peak board ranks by all-time peak mu and exposes peak fields.
+    r = api.get("/api/leaderboard?event=XD&min_matches=1&ranking=peak")
+    assert r.status_code == 200
+    results = r.json()["results"]
+    assert results
+    peaks = [row["peak_mu"] for row in results]
+    assert all(p is not None for p in peaks)
+    assert peaks == sorted(peaks, reverse=True)
+    # Peak mu is always >= current mu (best-ever can't be below now).
+    for row in results:
+        assert row["peak_mu"] >= row["mu"] - 1e-6
+
+
 def test_events_endpoint(api):
     r = api.get("/api/events")
     assert r.status_code == 200

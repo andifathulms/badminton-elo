@@ -153,6 +153,10 @@ class PlayerRating(models.Model):
     sigma = models.FloatField()
     matches_played = models.IntegerField(default=0)
     last_match_utc = models.DateTimeField(null=True, blank=True)
+    # All-time peak (highest mu ever reached) and the state/date at that peak.
+    peak_mu = models.FloatField(null=True, blank=True)
+    peak_rd = models.FloatField(null=True, blank=True)
+    peak_utc = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         unique_together = ("player", "event")

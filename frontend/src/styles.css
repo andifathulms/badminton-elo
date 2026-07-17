@@ -58,6 +58,11 @@ code { background: var(--line); padding: 1px 5px; border-radius: 4px; }
   background: var(--card); color: var(--ink);
   border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px;
 }
+.segmented { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg { background: var(--card); color: var(--ink); border: none; padding: 6px 14px;
+  cursor: pointer; font-weight: 600; font-size: 13px; }
+.seg.active { background: var(--accent); color: var(--accent-ink); }
+.seg + .seg { border-left: 1px solid var(--line); }
 
 .board { width: 100%; border-collapse: collapse; background: var(--card);
   border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }

@@ -6,10 +6,12 @@ import { useAsync } from '../useAsync.js'
 export default function Leaderboard() {
   const [event, setEvent] = useState('MS')
   const [order, setOrder] = useState('rating')
+  const [ranking, setRanking] = useState('current')
   const { data, error, loading } = useAsync(
-    () => api.leaderboard(event, { order, minMatches: 5, limit: 50 }),
-    [event, order],
+    () => api.leaderboard(event, { order, ranking, minMatches: 5, limit: 50 }),
+    [event, order, ranking],
   )
+  const isPeak = ranking === 'peak'
 
   return (
     <div>
@@ -27,14 +29,29 @@ export default function Leaderboard() {
       </div>
 
       <div className="toolbar">
-        <span>{EVENTS.find((e) => e.code === event)?.label}</span>
-        <label className="order">
-          Sort:&nbsp;
-          <select value={order} onChange={(ev) => setOrder(ev.target.value)}>
-            <option value="rating">Rating (mu − 2·rd)</option>
-            <option value="mu">Skill (mu)</option>
-          </select>
-        </label>
+        <div className="segmented">
+          <button
+            className={!isPeak ? 'seg active' : 'seg'}
+            onClick={() => setRanking('current')}
+          >
+            Current
+          </button>
+          <button
+            className={isPeak ? 'seg active' : 'seg'}
+            onClick={() => setRanking('peak')}
+          >
+            All-time peak
+          </button>
+        </div>
+        {!isPeak && (
+          <label className="order">
+            Sort:&nbsp;
+            <select value={order} onChange={(ev) => setOrder(ev.target.value)}>
+              <option value="rating">Rating (mu − 2·rd)</option>
+              <option value="mu">Skill (mu)</option>
+            </select>
+          </label>
+        )}
       </div>
 
       {loading && <p className="muted">Loading…</p>}
@@ -46,8 +63,8 @@ export default function Leaderboard() {
               <th>#</th>
               <th>Player</th>
               <th></th>
-              <th className="num">Rating</th>
-              <th className="num">mu</th>
+              <th className="num">{isPeak ? 'Peak' : 'Rating'}</th>
+              <th className="num">{isPeak ? 'when' : 'mu'}</th>
               <th className="num">rd</th>
               <th className="num">M</th>
             </tr>
@@ -62,9 +79,19 @@ export default function Leaderboard() {
                   </Link>
                 </td>
                 <td className="country">{row.player.country_code}</td>
-                <td className="num strong">{row.rating.toFixed(1)}</td>
-                <td className="num">{row.mu.toFixed(0)}</td>
-                <td className="num muted">{row.rd.toFixed(0)}</td>
+                <td className="num strong">
+                  {isPeak ? row.peak_mu.toFixed(0) : row.rating.toFixed(1)}
+                </td>
+                <td className="num muted">
+                  {isPeak
+                    ? row.peak_utc
+                      ? row.peak_utc.slice(0, 7)
+                      : '—'
+                    : row.mu.toFixed(0)}
+                </td>
+                <td className="num muted">
+                  {isPeak ? row.peak_rd.toFixed(0) : row.rd.toFixed(0)}
+                </td>
                 <td className="num muted">{row.matches_played}</td>
               </tr>
             ))}

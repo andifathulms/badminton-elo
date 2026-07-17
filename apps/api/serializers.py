@@ -27,6 +27,7 @@ class PlayerBriefSerializer(serializers.ModelSerializer):
 class LeaderboardEntrySerializer(serializers.ModelSerializer):
     player = PlayerBriefSerializer(read_only=True)
     rating = serializers.SerializerMethodField()
+    peak_rating = serializers.SerializerMethodField()
 
     class Meta:
         model = PlayerRating
@@ -34,8 +35,12 @@ class LeaderboardEntrySerializer(serializers.ModelSerializer):
             "player",
             "event",
             "rating",
+            "peak_rating",
             "mu",
             "rd",
+            "peak_mu",
+            "peak_rd",
+            "peak_utc",
             "sigma",
             "matches_played",
             "last_match_utc",
@@ -43,6 +48,11 @@ class LeaderboardEntrySerializer(serializers.ModelSerializer):
 
     def get_rating(self, obj) -> float:
         return round(obj.mu - 2.0 * obj.rd, 1)
+
+    def get_peak_rating(self, obj):
+        if obj.peak_mu is None:
+            return None
+        return round(obj.peak_mu, 1)
 
 
 class PlayerRatingSerializer(serializers.ModelSerializer):
@@ -55,6 +65,9 @@ class PlayerRatingSerializer(serializers.ModelSerializer):
             "rating",
             "mu",
             "rd",
+            "peak_mu",
+            "peak_rd",
+            "peak_utc",
             "sigma",
             "matches_played",
             "last_match_utc",

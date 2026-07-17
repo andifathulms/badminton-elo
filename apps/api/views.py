@@ -29,7 +29,13 @@ EVENTS = ("MS", "WS", "MD", "WD", "XD")
 
 
 class LeaderboardView(generics.ListAPIView):
-    """Paginated ranking for one discipline, conservative (mu − 2·rd) by default."""
+    """Paginated ranking for one discipline.
+
+    ?ranking=current (default) ranks live form by the conservative mu − 2·rd;
+    ?ranking=peak ranks by the all-time peak mu (best a player ever was), which
+    surfaces retired greats (Lin Dan, Lee Chong Wei) that the current board
+    understates. ?order=mu ranks current by raw skill instead.
+    """
 
     serializer_class = LeaderboardEntrySerializer
 
@@ -48,6 +54,10 @@ class LeaderboardView(generics.ListAPIView):
             PlayerRating.objects.filter(event=event, matches_played__gte=min_matches)
             .select_related("player")
         )
+        ranking = self.request.query_params.get("ranking", "current")
+        if ranking == "peak":
+            return qs.exclude(peak_mu=None).order_by("-peak_mu")
+
         order = self.request.query_params.get("order", "rating")
         if order == "mu":
             return qs.order_by("-mu", "rd")
