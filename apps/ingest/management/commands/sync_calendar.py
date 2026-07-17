@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from apps.ingest.api import endpoints
@@ -30,11 +30,26 @@ from apps.ingest.schemas import DayMatches, GroupedYearTournaments
 logger = logging.getLogger(__name__)
 
 
+def _is_senior(category: str) -> bool:
+    """A senior event = anything that isn't Junior or Para-Badminton."""
+    label = (category or "").lower()
+    return "junior" not in label and "para" not in label
+
+
 class Command(BaseCommand):
     help = "Enumerate a season via the calendar and collect each tournament."
 
     def add_arguments(self, parser):
-        parser.add_argument("--year", type=int, required=True, help="Season year.")
+        parser.add_argument("--year", type=int, help="A single season year.")
+        parser.add_argument("--start-year", type=int, help="First year of a range.")
+        parser.add_argument("--end-year", type=int, help="Last year of a range.")
+        parser.add_argument(
+            "--tiers",
+            choices=("worldtour", "senior", "all"),
+            default="worldtour",
+            help="worldtour = Super 300-1000; senior = every tier except Junior/"
+            "Para; all = everything. (senior/all query the full id space.)",
+        )
         parser.add_argument(
             "--no-matches",
             action="store_true",
@@ -55,44 +70,61 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **opts):
+        years = self._years(opts)
+        categories = (
+            endpoints.CALENDAR_CATEGORIES
+            if opts["tiers"] == "worldtour"
+            else endpoints.ALL_CATEGORIES
+        )
         with BwfClient(use_cache=not opts["no_cache"]) as client:
-            cal = GroupedYearTournaments.model_validate(
-                client.get_json(endpoints.vue_grouped_year_tournaments(opts["year"]))
-            )
-            tours = cal.all_tournaments()
-            self.stdout.write(
-                self.style.MIGRATE_HEADING(
-                    f"{opts['year']}: {len(tours)} tournaments in calendar"
-                )
-            )
-
-            if opts["only"]:
-                wanted = {int(x) for x in opts["only"].split(",") if x.strip()}
-                tours = [t for t in tours if t.id in wanted]
-            if opts["limit"]:
-                tours = tours[: opts["limit"]]
-
-            today = timezone.now().date()
-            grand = 0
-            for t in tours:
-                tournament = upsert_tournament_from_calendar(t)
-                line = f"  [{t.id}] {t.name}  ({t.category})  {t.start}..{t.end}"
-                if opts["no_matches"] or not t.start or not t.end:
-                    self.stdout.write(line + ("" if t.start else "  <no dates>"))
-                    continue
-                # Tournament tables are always upserted; only fetch matches once
-                # the event has actually started (avoids empty future-date pulls).
-                if t.start > today:
-                    self.stdout.write(line + "  (upcoming — matches skipped)")
-                    continue
-                n = self._collect_matches(client, tournament, t, today)
-                grand += n
-                self.stdout.write(line + f"  -> {n} matches")
-
-            if not opts["no_matches"]:
+            grand_t = grand_m = 0
+            for year in years:
+                nt, nm = self._sync_year(client, year, categories, opts)
+                grand_t += nt
+                grand_m += nm
+            if len(years) > 1:
                 self.stdout.write(
-                    self.style.SUCCESS(f"Total matches ingested: {grand}")
+                    self.style.SUCCESS(
+                        f"All years: {grand_t} tournaments"
+                        + ("" if opts["no_matches"] else f", {grand_m} matches")
+                    )
                 )
+
+    def _years(self, opts) -> list[int]:
+        if opts["start_year"] and opts["end_year"]:
+            return list(range(opts["start_year"], opts["end_year"] + 1))
+        if opts["year"]:
+            return [opts["year"]]
+        raise CommandError("provide --year, or --start-year and --end-year.")
+
+    def _sync_year(self, client, year, categories, opts) -> tuple[int, int]:
+        cal = GroupedYearTournaments.model_validate(
+            client.get_json(
+                endpoints.vue_grouped_year_tournaments(year, categories=categories)
+            )
+        )
+        tours = cal.all_tournaments()
+        if opts["tiers"] == "senior":
+            tours = [t for t in tours if _is_senior(t.category)]
+        if opts["only"]:
+            wanted = {int(x) for x in opts["only"].split(",") if x.strip()}
+            tours = [t for t in tours if t.id in wanted]
+        if opts["limit"]:
+            tours = tours[: opts["limit"]]
+
+        self.stdout.write(
+            self.style.MIGRATE_HEADING(f"{year}: {len(tours)} tournaments")
+        )
+        today = timezone.now().date()
+        matches = 0
+        for t in tours:
+            tournament = upsert_tournament_from_calendar(t)
+            if opts["no_matches"] or not t.start or not t.end or t.start > today:
+                continue
+            matches += self._collect_matches(client, tournament, t, today)
+        if not opts["no_matches"]:
+            self.stdout.write(f"  {year}: {matches} matches")
+        return len(tours), matches
 
     def _collect_matches(self, client, tournament, cal, today) -> int:
         total = 0

@@ -64,6 +64,10 @@ VUE_BASE = BASE
 # Category ids for the calendar/live filters map to World Tour tiers:
 #   22..26 span Super 300 → Super 1000 + Finals (pass all five for everything).
 CALENDAR_CATEGORIES = (22, 23, 24, 25, 26)
+# The full id space (World Tour + Superseries/Grand Prix/International/Continental/
+# Junior/Para/…). Pass all of them to enumerate every tier for a year, then
+# filter by the `category` label. Empirically the archive runs 1990→present.
+ALL_CATEGORIES = tuple(range(1, 61))
 
 # Sent on every request (see BwfClient). The vue-* endpoints require them.
 REQUEST_ORIGIN = "https://bwfworldtour.bwfbadminton.com"
