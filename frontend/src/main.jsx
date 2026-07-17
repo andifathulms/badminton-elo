@@ -5,6 +5,8 @@ import App from './App.jsx'
 import Leaderboard from './pages/Leaderboard.jsx'
 import Player from './pages/Player.jsx'
 import Match from './pages/Match.jsx'
+import Tournaments from './pages/Tournaments.jsx'
+import Tournament from './pages/Tournament.jsx'
 import './styles.css'
 
 const router = createBrowserRouter([
@@ -15,6 +17,8 @@ const router = createBrowserRouter([
       { index: true, element: <Leaderboard /> },
       { path: 'players/:id', element: <Player /> },
       { path: 'matches/:id', element: <Match /> },
+      { path: 'tournaments', element: <Tournaments /> },
+      { path: 'tournaments/:id', element: <Tournament /> },
     ],
   },
 ])

@@ -151,6 +151,39 @@ def test_xd_gender_split(api):
     assert allxd["count"] >= men["count"] + women["count"]
 
 
+def test_player_records(api):
+    pid = Match.objects.get(match_id=1518158).lineup.filter(side=2).first().player_id
+    body = api.get(f"/api/players/{pid}").json()
+    rec = {r["event"]: r for r in body["records"]}
+    assert "XD" in rec
+    assert rec["XD"]["matches"] == rec["XD"]["wins"] + rec["XD"]["losses"]
+    assert rec["XD"]["wins"] >= 1  # they advanced at least once
+
+
+def test_player_search(api):
+    # search by a substring of a real name in the fixture
+    r = api.get("/api/players?q=GAO")
+    assert r.status_code == 200
+    results = r.json()["results"]
+    assert results and all("GAO" in p["name_display"].upper() for p in results)
+
+
+def test_tournaments_list_and_detail(api):
+    lst = api.get("/api/tournaments").json()
+    assert lst["count"] >= 1
+    row = lst["results"][0]
+    assert row["tournament_id"] == 5229
+    assert row["match_count"] == 31
+
+    detail = api.get("/api/tournaments/5229").json()
+    assert "Malaysia Masters" in detail["name"]
+    assert any(d["event"] == "XD" for d in detail["draws"])
+    assert any(e["event"] == "XD" for e in detail["events"])
+    # the XD final crowns champions (side that advanced)
+    xd_final = next(f for f in detail["finals"] if f["event"] == "XD")
+    assert len(xd_final["champions"]) == 2
+
+
 def test_events_endpoint(api):
     r = api.get("/api/events")
     assert r.status_code == 200

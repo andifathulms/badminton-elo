@@ -30,7 +30,27 @@ export default function Player() {
         {player.plays && <span>Plays: {player.plays}</span>}
         {player.height_cm && <span>{player.height_cm} cm</span>}
         {player.dob && <span>DOB: {player.dob}</span>}
+        {player.records?.length > 0 && (
+          <span>
+            {player.records.reduce((a, r) => a + r.wins, 0)}–
+            {player.records.reduce((a, r) => a + r.losses, 0)} overall
+          </span>
+        )}
       </div>
+
+      {player.records?.length > 0 && (
+        <div className="records">
+          {player.records.map((r) => (
+            <span key={r.event} className="record-pill">
+              <b>{r.event}</b> {r.wins}–{r.losses}
+              <span className="muted small">
+                {' '}
+                {r.matches ? Math.round((100 * r.wins) / r.matches) : 0}%
+              </span>
+            </span>
+          ))}
+        </div>
+      )}
 
       <h2>Ratings by discipline</h2>
       <table className="board compact">

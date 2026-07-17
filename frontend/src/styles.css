@@ -34,6 +34,30 @@ code { background: var(--line); padding: 1px 5px; border-radius: 4px; }
 }
 .brand { font-size: 20px; font-weight: 700; }
 .tagline { color: var(--muted); font-size: 13px; }
+.nav { display: flex; gap: 14px; }
+.nav a { color: var(--muted); font-weight: 600; font-size: 14px; }
+.nav a.active { color: var(--accent); }
+.search { position: relative; margin-left: auto; }
+.search input {
+  background: var(--bg); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 8px; padding: 7px 12px; width: 200px; font-size: 14px;
+}
+.search-results {
+  position: absolute; top: 110%; right: 0; z-index: 20; list-style: none;
+  margin: 0; padding: 4px; background: var(--card); border: 1px solid var(--line);
+  border-radius: 8px; width: 260px; box-shadow: 0 8px 24px rgba(0,0,0,.15);
+}
+.search-results button {
+  display: block; width: 100%; text-align: left; background: none; border: none;
+  color: var(--ink); padding: 7px 10px; border-radius: 6px; cursor: pointer;
+}
+.search-results button:hover { background: var(--hi); }
+.records { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 4px; }
+.record-pill {
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+  padding: 4px 10px; font-size: 13px;
+}
+.page-title { margin: 0; }
 .content { flex: 1; width: 100%; max-width: 900px; margin: 0 auto; padding: 22px; }
 .footer {
   color: var(--muted); font-size: 12px; text-align: center;

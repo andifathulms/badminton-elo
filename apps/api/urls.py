@@ -9,12 +9,14 @@ from .views import (
     PairsView,
     PlayerMatchesView,
     PlayerViewSet,
+    TournamentViewSet,
 )
 
 # No trailing slash — cleaner URLs for the React/JSON client.
 router = DefaultRouter(trailing_slash=False)
 router.register("players", PlayerViewSet, basename="player")
 router.register("matches", MatchViewSet, basename="match")
+router.register("tournaments", TournamentViewSet, basename="tournament")
 
 urlpatterns = [
     path("leaderboard", LeaderboardView.as_view(), name="leaderboard"),

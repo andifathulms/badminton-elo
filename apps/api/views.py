@@ -16,22 +16,29 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from django.db.models import Count
+
 from apps.ingest.models import (
+    Draw,
     Match,
     MatchPlayer,
     Partnership,
     Player,
     PlayerRating,
     RatingHistory,
+    Tournament,
 )
 
 from .serializers import (
+    DrawBriefSerializer,
     LeaderboardEntrySerializer,
     MatchSerializer,
     PairSerializer,
+    PlayerBriefSerializer,
     PlayerDetailSerializer,
     PlayerMatchSerializer,
     RatingHistoryPointSerializer,
+    TournamentListSerializer,
 )
 
 EVENTS = ("MS", "WS", "MD", "WD", "XD")
@@ -82,11 +89,22 @@ class LeaderboardView(generics.ListAPIView):
 
 
 class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
-    """GET /api/players/{id} — player with ratings across disciplines."""
+    """GET /api/players/{id} — player detail; GET /api/players?q=lin — search."""
 
     queryset = Player.objects.all().prefetch_related("ratings")
-    serializer_class = PlayerDetailSerializer
     lookup_field = "player_id"
+
+    def get_serializer_class(self):
+        return (
+            PlayerBriefSerializer if self.action == "list" else PlayerDetailSerializer
+        )
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        q = self.request.query_params.get("q")
+        if q:
+            qs = qs.filter(name_display__icontains=q).order_by("name_display")
+        return qs
 
     @action(detail=True, methods=["get"])
     def history(self, request, player_id=None):
@@ -161,6 +179,67 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
     )
     serializer_class = MatchSerializer
     lookup_field = "match_id"
+
+
+class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
+    """GET /api/tournaments[?year=&q=] — list; GET /api/tournaments/{id} — detail
+    with its draws and the finals (champions)."""
+
+    lookup_field = "tournament_id"
+    serializer_class = TournamentListSerializer
+
+    def get_queryset(self):
+        qs = (
+            Tournament.objects.annotate(match_count=Count("matches"))
+            .filter(match_count__gt=0)
+            .order_by("-start_date")
+        )
+        year = self.request.query_params.get("year")
+        if year and year.isdigit():
+            qs = qs.filter(start_date__year=int(year))
+        q = self.request.query_params.get("q")
+        if q:
+            qs = qs.filter(name__icontains=q)
+        return qs
+
+    def retrieve(self, request, *args, **kwargs):
+        t = self.get_object()
+        draws = Draw.objects.filter(tournament=t).order_by("event", "stage")
+        events = list(
+            Match.objects.filter(tournament=t)
+            .values("event")
+            .annotate(n=Count("match_id"))
+            .order_by("-n")
+        )
+        finals = (
+            Match.objects.filter(tournament=t, round_name__in=("Final", "F"))
+            .select_related("tournament")
+            .prefetch_related("lineup__player")
+        )
+        return Response(
+            {
+                **TournamentListSerializer(
+                    Tournament.objects.annotate(match_count=Count("matches")).get(
+                        pk=t.pk
+                    )
+                ).data,
+                "slug": t.slug,
+                "draws": DrawBriefSerializer(draws, many=True).data,
+                "events": events,
+                "finals": [
+                    {
+                        "match_id": m.match_id,
+                        "event": m.event,
+                        "winner_side": m.winner_side,
+                        "champions": PlayerBriefSerializer(
+                            [l.player for l in m.lineup.all() if l.side == m.winner_side],
+                            many=True,
+                        ).data,
+                    }
+                    for m in finals
+                ],
+            }
+        )
 
 
 class EventsView(APIView):

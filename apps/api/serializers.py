@@ -125,6 +125,7 @@ class RatingHistoryPointSerializer(serializers.ModelSerializer):
 
 class PlayerDetailSerializer(serializers.ModelSerializer):
     ratings = serializers.SerializerMethodField()
+    records = serializers.SerializerMethodField()
 
     class Meta:
         model = Player
@@ -138,18 +139,76 @@ class PlayerDetailSerializer(serializers.ModelSerializer):
             "dob",
             "height_cm",
             "plays",
+            "gender",
             "ratings",
+            "records",
         )
 
     def get_ratings(self, obj):
         qs = obj.ratings.all().order_by("-mu")
         return PlayerRatingSerializer(qs, many=True).data
 
+    def get_records(self, obj):
+        """Win/loss per discipline, computed from the lineup + winner side."""
+        from django.db.models import Case, Count, F, IntegerField, Q, Sum, When
+
+        rows = (
+            MatchPlayer.objects.filter(player=obj)
+            .values("match__event")
+            .annotate(
+                matches=Count("id"),
+                wins=Sum(
+                    Case(
+                        When(side=F("match__winner_side"), then=1),
+                        default=0,
+                        output_field=IntegerField(),
+                    )
+                ),
+            )
+            .order_by("-matches")
+        )
+        return [
+            {
+                "event": r["match__event"],
+                "matches": r["matches"],
+                "wins": r["wins"] or 0,
+                "losses": r["matches"] - (r["wins"] or 0),
+            }
+            for r in rows
+        ]
+
 
 class TournamentBriefSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tournament
         fields = ("tournament_id", "name", "category_name", "start_date", "end_date")
+
+
+class TournamentListSerializer(serializers.ModelSerializer):
+    match_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Tournament
+        fields = (
+            "tournament_id",
+            "name",
+            "category_name",
+            "start_date",
+            "end_date",
+            "venue_name",
+            "prize_money",
+            "match_count",
+        )
+
+
+class DrawBriefSerializer(serializers.Serializer):
+    def to_representation(self, draw):
+        return {
+            "draw_value": draw.draw_value,
+            "event": draw.event,
+            "stage": draw.stage,
+            "size": draw.size,
+        }
 
 
 class GameSerializer(serializers.ModelSerializer):
