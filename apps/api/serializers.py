@@ -11,6 +11,7 @@ from apps.ingest.models import (
     Game,
     Match,
     MatchPlayer,
+    Partnership,
     Player,
     PlayerRating,
     RatingHistory,
@@ -22,6 +23,36 @@ class PlayerBriefSerializer(serializers.ModelSerializer):
     class Meta:
         model = Player
         fields = ("player_id", "name_display", "country_code", "avatar_url")
+
+
+class PairSerializer(serializers.ModelSerializer):
+    player1 = PlayerBriefSerializer(read_only=True)
+    player2 = PlayerBriefSerializer(read_only=True)
+    rating = serializers.SerializerMethodField()
+    win_pct = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Partnership
+        fields = (
+            "event",
+            "player1",
+            "player2",
+            "rating",
+            "combined_mu",
+            "combined_rd",
+            "matches_together",
+            "wins_together",
+            "win_pct",
+            "last_match_utc",
+        )
+
+    def get_rating(self, obj) -> float:
+        return round(obj.combined_mu - 2.0 * obj.combined_rd, 1)
+
+    def get_win_pct(self, obj):
+        if not obj.matches_together:
+            return None
+        return round(100.0 * obj.wins_together / obj.matches_together, 1)
 
 
 class LeaderboardEntrySerializer(serializers.ModelSerializer):

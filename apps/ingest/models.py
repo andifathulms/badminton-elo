@@ -50,6 +50,9 @@ class Player(models.Model):
     dob = models.DateField(null=True, blank=True)
     height_cm = models.IntegerField(null=True, blank=True)
     plays = models.CharField(max_length=8, blank=True)
+    # Inferred from discipline participation (MS/MD -> M, WS/WD -> F), NOT from
+    # the payload. Blank when only XD/unknown events are seen. See infer_gender.
+    gender = models.CharField(max_length=1, blank=True)  # "M" | "F" | ""
 
     class Meta:
         ordering = ["name_display"]
@@ -186,6 +189,33 @@ class RatingHistory(models.Model):
 
     def __str__(self) -> str:
         return f"{self.player_id}/{self.event} @M{self.match_id}: {self.delta:+.1f}"
+
+
+class Partnership(models.Model):
+    """A doubles/mixed partnership (derived, PRD domain rule 5: no PAIR rating is
+    computed by the engine — this is a read-side aggregate of two members who
+    played together, with their combined current strength for ranking)."""
+
+    event = models.CharField(max_length=8)  # MD / WD / XD
+    player1 = models.ForeignKey(
+        Player, on_delete=models.CASCADE, related_name="partnerships_as_p1"
+    )
+    player2 = models.ForeignKey(
+        Player, on_delete=models.CASCADE, related_name="partnerships_as_p2"
+    )
+    matches_together = models.IntegerField(default=0)
+    wins_together = models.IntegerField(default=0)
+    combined_mu = models.FloatField()  # mean of members' current mu
+    combined_rd = models.FloatField()  # RMS of members' current rd
+    last_match_utc = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ("event", "player1", "player2")
+        ordering = ["event", "-combined_mu"]
+        indexes = [models.Index(fields=["event", "-combined_mu"])]
+
+    def __str__(self) -> str:
+        return f"{self.event}: {self.player1_id}+{self.player2_id} ({self.matches_together})"
 
 
 class RawCache(models.Model):

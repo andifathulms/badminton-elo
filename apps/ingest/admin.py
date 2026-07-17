@@ -10,12 +10,27 @@ from .models import (
     Game,
     Match,
     MatchPlayer,
+    Partnership,
     Player,
     PlayerRating,
     RatingHistory,
     RawCache,
     Tournament,
 )
+
+
+@admin.register(Partnership)
+class PartnershipAdmin(admin.ModelAdmin):
+    list_display = (
+        "event",
+        "player1",
+        "player2",
+        "combined_mu",
+        "matches_together",
+        "wins_together",
+    )
+    list_filter = ("event",)
+    search_fields = ("player1__name_display", "player2__name_display")
 
 
 @admin.register(Tournament)

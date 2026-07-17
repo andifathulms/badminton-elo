@@ -19,6 +19,7 @@ from rest_framework.views import APIView
 from apps.ingest.models import (
     Match,
     MatchPlayer,
+    Partnership,
     Player,
     PlayerRating,
     RatingHistory,
@@ -27,12 +28,14 @@ from apps.ingest.models import (
 from .serializers import (
     LeaderboardEntrySerializer,
     MatchSerializer,
+    PairSerializer,
     PlayerDetailSerializer,
     PlayerMatchSerializer,
     RatingHistoryPointSerializer,
 )
 
 EVENTS = ("MS", "WS", "MD", "WD", "XD")
+DOUBLES = ("MD", "WD", "XD")
 
 
 class LeaderboardView(generics.ListAPIView):
@@ -61,6 +64,10 @@ class LeaderboardView(generics.ListAPIView):
             PlayerRating.objects.filter(event=event, matches_played__gte=min_matches)
             .select_related("player")
         )
+        # XD holds both men and women — split the individual board by gender.
+        gender = self.request.query_params.get("gender")
+        if gender in ("M", "F"):
+            qs = qs.filter(player__gender=gender)
         ranking = self.request.query_params.get("ranking", "current")
         if ranking == "peak":
             return qs.exclude(peak_mu=None).order_by("-peak_mu")
@@ -89,6 +96,30 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
         if event:
             qs = qs.filter(event=event)
         return Response(RatingHistoryPointSerializer(qs, many=True).data)
+
+
+class PairsView(generics.ListAPIView):
+    """GET /api/pairs?event=MD[&min_matches=5] — doubles/mixed partnerships
+    ranked by combined strength (conservative), with their record together."""
+
+    serializer_class = PairSerializer
+
+    def get_queryset(self):
+        event = self.request.query_params.get("event")
+        if event not in DOUBLES:
+            raise ValidationError({"event": f"required; one of {', '.join(DOUBLES)}"})
+        try:
+            min_matches = int(self.request.query_params.get("min_matches", 5))
+        except ValueError:
+            raise ValidationError({"min_matches": "must be an integer"})
+        return (
+            Partnership.objects.filter(
+                event=event, matches_together__gte=min_matches
+            )
+            .select_related("player1", "player2")
+            .annotate(_rating=F("combined_mu") - 2.0 * F("combined_rd"))
+            .order_by("-_rating")
+        )
 
 
 class PlayerMatchesView(generics.ListAPIView):

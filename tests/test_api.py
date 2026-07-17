@@ -29,6 +29,8 @@ def api(db):
     data = DrawData.model_validate(json.loads(FIXTURE.read_text()))
     normalize_draw_data(data, tournament=t, draw=draw)
     call_command("rate", verbosity=0)
+    call_command("infer_gender", verbosity=0)
+    call_command("build_pairs", "--min-matches", "1", verbosity=0)
     return APIClient()
 
 
@@ -120,6 +122,33 @@ def test_peak_ranking(api):
     # Peak mu is always >= current mu (best-ever can't be below now).
     for row in results:
         assert row["peak_mu"] >= row["mu"] - 1e-6
+
+
+def test_pairs_ranking(api):
+    # XD draw -> XD partnerships ranked by combined strength.
+    r = api.get("/api/pairs?event=XD&min_matches=1")
+    assert r.status_code == 200
+    results = r.json()["results"]
+    assert results
+    ratings = [row["rating"] for row in results]
+    assert ratings == sorted(ratings, reverse=True)
+    top = results[0]
+    assert {"player1", "player2", "matches_together", "win_pct"} <= set(top)
+    assert top["event"] == "XD"
+    assert top["player1"]["player_id"] != top["player2"]["player_id"]
+
+
+def test_pairs_requires_doubles_event(api):
+    assert api.get("/api/pairs?event=MS").status_code == 400
+
+
+def test_xd_gender_split(api):
+    # XD players get a gender from the (implicit) singles/doubles context; here
+    # the fixture is XD-only so gender is blank — the filter should return empty.
+    men = api.get("/api/leaderboard?event=XD&min_matches=1&gender=M").json()
+    women = api.get("/api/leaderboard?event=XD&min_matches=1&gender=F").json()
+    allxd = api.get("/api/leaderboard?event=XD&min_matches=1").json()
+    assert allxd["count"] >= men["count"] + women["count"]
 
 
 def test_events_endpoint(api):

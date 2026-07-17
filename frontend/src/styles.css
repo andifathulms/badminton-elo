@@ -54,6 +54,7 @@ code { background: var(--line); padding: 1px 5px; border-radius: 4px; }
   display: flex; justify-content: space-between; align-items: center;
   margin: 18px 2px 8px; color: var(--muted); font-size: 14px;
 }
+.toolbar.wrap { flex-wrap: wrap; gap: 10px; justify-content: flex-start; }
 .order select {
   background: var(--card); color: var(--ink);
   border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px;
