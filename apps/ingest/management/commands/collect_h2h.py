@@ -21,10 +21,10 @@ from django.utils import timezone
 
 from apps.ingest.api import endpoints
 from apps.ingest.api.client import BwfClient
+from apps.ingest.h2h import fetch_and_store_stats
 from apps.ingest.models import (
     Match,
     MatchPlayer,
-    MatchStatistics,
     Player,
     PlayerSeedRank,
 )
@@ -109,32 +109,7 @@ class Command(BaseCommand):
 
     # -- h2h/match: rally stats + point progression -------------------------
     def _collect_match_stats(self, client, m) -> bool:
-        raw = client.get_json(endpoints.h2h_match(m.tournament_id, m.code))
-        if not isinstance(raw, dict) or "stats" not in raw:
-            return False
-        s = raw.get("stats") or {}
-        progression = [
-            [[_int(d.get("team1")), _int(d.get("team2"))]
-             for d in (g.get("match_set_details_model") or [])]
-            for g in (raw.get("games") or [])
-        ]
-        MatchStatistics.objects.update_or_create(
-            match=m,
-            defaults={
-                "team1_rallies_won": _int(s.get("team1_rallies_won")),
-                "team1_rallies_played": _int(s.get("team1_rallies_played")),
-                "team2_rallies_won": _int(s.get("team2_rallies_won")),
-                "team2_rallies_played": _int(s.get("team2_rallies_played")),
-                "team1_consecutive_points": _int(s.get("team1_consecutive_points")),
-                "team2_consecutive_points": _int(s.get("team2_consecutive_points")),
-                "team1_game_points": _int(s.get("team1_game_points")),
-                "team2_game_points": _int(s.get("team2_game_points")),
-                "duration_min": _int((raw.get("progress") or {}).get("duration")),
-                "point_progression": progression or None,
-                "fetched_utc": timezone.now(),
-            },
-        )
-        return True
+        return fetch_and_store_stats(m, client) is not None
 
     # -- h2h/statistics: bio + ranks ----------------------------------------
     def _collect_h2h(self, client, m, line) -> bool:

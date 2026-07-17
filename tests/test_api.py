@@ -184,6 +184,27 @@ def test_tournaments_list_and_detail(api):
     assert len(xd_final["champions"]) == 2
 
 
+def test_match_statistics_served_from_cache(api):
+    from apps.ingest.models import MatchStatistics
+
+    MatchStatistics.objects.create(
+        match_id=1518158,
+        team1_rallies_won=40,
+        team1_rallies_played=90,
+        team2_rallies_won=50,
+        team2_rallies_played=90,
+        duration_min=62,
+        point_progression=[[[0, 1], [1, 1]], [[1, 0]]],
+    )
+    r = api.get("/api/matches/1518158/statistics")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is True
+    assert body["team2_rallies_won"] == 50
+    assert body["duration_min"] == 62
+    assert len(body["point_progression"]) == 2
+
+
 def test_events_endpoint(api):
     r = api.get("/api/events")
     assert r.status_code == 200

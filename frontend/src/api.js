@@ -25,6 +25,7 @@ export const api = {
   playerMatches: (id, { event, limit = 25, offset = 0 } = {}) =>
     get(`/players/${id}/matches?${qs({ event, limit, offset })}`),
   match: (id) => get(`/matches/${id}`),
+  matchStatistics: (id) => get(`/matches/${id}/statistics`),
   searchPlayers: (q) => get(`/players?${qs({ q, limit: 12 })}`),
   tournaments: ({ year, q, limit = 40, offset = 0 } = {}) =>
     get(`/tournaments?${qs({ year, q, limit, offset })}`),

@@ -11,12 +11,30 @@ from apps.ingest.models import (
     Game,
     Match,
     MatchPlayer,
+    MatchStatistics,
     Partnership,
     Player,
     PlayerRating,
     RatingHistory,
     Tournament,
 )
+
+
+class MatchStatisticsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MatchStatistics
+        fields = (
+            "team1_rallies_won",
+            "team1_rallies_played",
+            "team2_rallies_won",
+            "team2_rallies_played",
+            "team1_consecutive_points",
+            "team2_consecutive_points",
+            "team1_game_points",
+            "team2_game_points",
+            "duration_min",
+            "point_progression",
+        )
 
 
 class PlayerBriefSerializer(serializers.ModelSerializer):

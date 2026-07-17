@@ -123,6 +123,19 @@ code { background: var(--line); padding: 1px 5px; border-radius: 4px; }
 .chart .band { fill: var(--accent); opacity: .12; }
 .chart .line { stroke: var(--accent); stroke-width: 2; }
 .chart .dot { fill: var(--accent); }
+.chart .worm { stroke: var(--accent); stroke-width: 2; }
+
+.statbars { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
+.statbar {
+  display: grid; grid-template-columns: 44px 1fr 44px; grid-template-rows: auto auto;
+  align-items: center; gap: 2px 8px;
+}
+.statbar-a { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.statbar-b { text-align: left; font-weight: 700; font-variant-numeric: tabular-nums; }
+.statbar-label { grid-column: 1 / 4; text-align: center; color: var(--muted);
+  font-size: 12px; }
+.statbar-track { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; }
+.statbar-fill { height: 100%; background: var(--accent); }
 
 .pos { color: #2e9e5b; font-weight: 600; }
 .neg { color: var(--accent); font-weight: 600; }

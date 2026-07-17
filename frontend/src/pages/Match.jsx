@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
+import MatchStats from '../components/MatchStats.jsx'
 
 export default function Match() {
   const { id } = useParams()
@@ -86,6 +87,9 @@ export default function Match() {
       {m.rating_excluded && (
         <p className="muted">This match is excluded from rating (walkover/no-play).</p>
       )}
+
+      <h2>Match statistics</h2>
+      <MatchStats matchId={id} />
     </div>
   )
 }

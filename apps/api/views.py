@@ -170,7 +170,9 @@ class PlayerMatchesView(generics.ListAPIView):
 
 
 class MatchViewSet(viewsets.ReadOnlyModelViewSet):
-    """GET /api/matches/{id} — one match with lineup and games."""
+    """GET /api/matches/{id} — one match with lineup and games.
+    GET /api/matches/{id}/statistics — rally stats + point progression
+    (served from cache, fetched live from BWF on first request)."""
 
     queryset = (
         Match.objects.all()
@@ -179,6 +181,26 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
     )
     serializer_class = MatchSerializer
     lookup_field = "match_id"
+
+    @action(detail=True, methods=["get"])
+    def statistics(self, request, match_id=None):
+        from apps.ingest.h2h import fetch_and_store_stats
+        from apps.ingest.models import MatchStatistics
+
+        from .serializers import MatchStatisticsSerializer
+
+        match = self.get_object()
+        stats = MatchStatistics.objects.filter(match=match).first()
+        if stats is None:
+            try:
+                stats = fetch_and_store_stats(match)
+            except Exception:  # noqa: BLE001 - live fetch is best-effort
+                stats = None
+        if stats is None:
+            return Response({"available": False})
+        data = MatchStatisticsSerializer(stats).data
+        data["available"] = True
+        return Response(data)
 
 
 class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
