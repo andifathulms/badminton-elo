@@ -1,0 +1,48 @@
+# Phase 3 stack: Postgres + Django/DRF web + nginx-served React frontend.
+#   docker compose up --build
+#   docker compose run --rm web python manage.py sync_calendar --year 2026
+#   docker compose run --rm web python manage.py scrape --all
+#   docker compose run --rm web python manage.py rate
+# Frontend: http://localhost:8080   API/admin: http://localhost:8000
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: badminton
+      POSTGRES_USER: badminton
+      POSTGRES_PASSWORD: badminton
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U badminton"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build: .
+    environment:
+      POSTGRES_DB: badminton
+      POSTGRES_USER: badminton
+      POSTGRES_PASSWORD: badminton
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      DJANGO_DEBUG: "false"
+      DJANGO_ALLOWED_HOSTS: "*"
+      DJANGO_SECRET_KEY: "change-me-in-real-deployments"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+    depends_on:
+      - web
+    ports:
+      - "8080:80"
+
+volumes:
+  pgdata:
