@@ -51,6 +51,8 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--year", type=int, help="Limit to a tournament year.")
+        parser.add_argument("--start-year", type=int, help="First year of a range.")
+        parser.add_argument("--end-year", type=int, help="Last year of a range.")
         parser.add_argument("--code", help="Limit to one tournament GUID.")
         parser.add_argument("--limit", type=int, default=None)
         parser.add_argument(
@@ -69,6 +71,11 @@ class Command(BaseCommand):
         )
         if opts["year"]:
             qs = qs.filter(tournament__start_date__year=opts["year"])
+        if opts["start_year"] and opts["end_year"]:
+            qs = qs.filter(
+                tournament__start_date__year__gte=opts["start_year"],
+                tournament__start_date__year__lte=opts["end_year"],
+            )
         if opts["code"]:
             qs = qs.filter(tournament__code=opts["code"])
         # Resume: skip matches already enriched.
@@ -77,25 +84,40 @@ class Command(BaseCommand):
             qs = qs[: opts["limit"]]
 
         lineups = self._lineups()
-        n_stats = n_h2h = n_fail = 0
+        # Coverage sets so we skip the h2h/statistics call once a player already
+        # has bio + a seed rank — this makes later years far cheaper.
+        self._has_bio = set(
+            Player.objects.exclude(dob=None).values_list("player_id", flat=True)
+        )
+        self._has_rank = {
+            (pid, ev)
+            for pid, ev in PlayerSeedRank.objects.values_list("player_id", "event")
+        }
+
+        n_stats = n_h2h = n_skip = n_fail = 0
         with BwfClient(use_cache=not opts["no_cache"]) as client:
             for m in qs.iterator():
                 try:
                     if not opts["no_stats"]:
                         if self._collect_match_stats(client, m):
                             n_stats += 1
-                    if self._collect_h2h(client, m, lineups.get(m.match_id)):
+                    r = self._collect_h2h(client, m, lineups.get(m.match_id))
+                    if r is True:
                         n_h2h += 1
+                    elif r == "skip":
+                        n_skip += 1
                 except Exception:  # noqa: BLE001 - isolate one match, keep going
                     logger.exception("h2h failed for match %s", m.match_id)
                     n_fail += 1
-                if (n_stats + n_h2h) and (n_stats + n_h2h) % 200 == 0:
+                if (n_stats + n_h2h) and (n_stats + n_h2h) % 500 == 0:
                     self.stdout.write(
-                        f"  …{n_stats} stats, {n_h2h} h2h, {n_fail} failed"
+                        f"  …{n_stats} stats, {n_h2h} h2h, {n_skip} h2h-skipped, "
+                        f"{n_fail} failed"
                     )
         self.stdout.write(
             self.style.SUCCESS(
-                f"done: {n_stats} match-stats, {n_h2h} h2h captured, {n_fail} failed."
+                f"done: {n_stats} match-stats, {n_h2h} h2h captured, "
+                f"{n_skip} h2h-skipped, {n_fail} failed."
             )
         )
 
@@ -112,10 +134,17 @@ class Command(BaseCommand):
         return fetch_and_store_stats(m, client) is not None
 
     # -- h2h/statistics: bio + ranks ----------------------------------------
-    def _collect_h2h(self, client, m, line) -> bool:
+    def _collect_h2h(self, client, m, line):
         if not line or not line.get(1) or not line.get(2):
             return False
         s1, s2 = line[1], line[2]
+        # Skip the request entirely once every player already has bio + a seed
+        # rank for this event — no new information to gain.
+        players = s1 + s2
+        if all(p in self._has_bio for p in players) and all(
+            (p, m.event) in self._has_rank for p in players
+        ):
+            return "skip"
         url = endpoints.h2h_statistics(
             s1[0], s1[1] if len(s1) > 1 else None,
             s2[0], s2[1] if len(s2) > 1 else None,
@@ -151,6 +180,8 @@ class Command(BaseCommand):
             fields["plays"] = str(bio["plays"])
         if fields:
             Player.objects.filter(player_id=pid).update(**fields)
+            if "dob" in fields:
+                self._has_bio.add(pid)
 
     def _bwf_rank(self, team_ranks):
         for r in team_ranks or []:
@@ -164,6 +195,7 @@ class Command(BaseCommand):
             PlayerSeedRank.objects.create(
                 player_id=pid, event=event, rank=rank, observed_date=date
             )
+            self._has_rank.add((pid, event))
         elif date and (existing.observed_date is None or date < existing.observed_date):
             existing.rank = rank
             existing.observed_date = date
