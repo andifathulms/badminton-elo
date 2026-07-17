@@ -28,8 +28,12 @@ from django.utils import timezone
 from apps.ingest.api import endpoints
 from apps.ingest.api.client import BwfClient
 from apps.ingest.models import Draw, Tournament
-from apps.ingest.normalize import normalize_draw_data, upsert_tournament
-from apps.ingest.schemas import DrawData, DrawInfo, TournamentDetail
+from apps.ingest.normalize import (
+    normalize_day_matches,
+    normalize_draw_data,
+    upsert_tournament,
+)
+from apps.ingest.schemas import DayMatches, DrawData, DrawInfo, TournamentDetail
 
 logger = logging.getLogger(__name__)
 
@@ -141,10 +145,33 @@ class Command(BaseCommand):
                 + (f", {skipped} skipped" if skipped else "")
             )
 
+        # Some older tournaments return a match-less draw-data payload (no
+        # `matches` array). Fall back to day-matches over the date range — it
+        # carries the full match shape for every tournament.
+        if total_ingested == 0 and tournament.start_date and tournament.end_date:
+            fb = self._day_matches_fallback(client, tournament)
+            if fb:
+                self.stdout.write(f"  draw-data empty; day-matches fallback: {fb} matches")
+                total_ingested += fb
+
         summary = f"  -> {total_ingested} matches"
         if total_skipped:
             summary += f", {total_skipped} skipped"
         self.stdout.write(self.style.SUCCESS(summary))
+
+    def _day_matches_fallback(self, client, tournament) -> int:
+        from datetime import timedelta
+
+        total = 0
+        d = tournament.start_date
+        while d <= tournament.end_date:
+            raw = client.get_json(endpoints.day_matches(tournament.code, d))
+            if isinstance(raw, list) and raw:
+                matches = DayMatches.validate_python(raw)
+                ingested, _ = normalize_day_matches(matches, tournament=tournament)
+                total += ingested
+            d = d + timedelta(days=1)
+        return total
 
     def _upsert_draw(self, tournament, info: DrawInfo) -> Draw:
         draw, _ = Draw.objects.update_or_create(

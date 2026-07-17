@@ -305,21 +305,26 @@ def upsert_tournament_from_code(code: str, name: str = "") -> Tournament:
 
 
 def _upsert_draw_from_match(tournament: Tournament, raw: MatchRaw) -> Draw | None:
-    """Group day-matches into Draw rows by drawCode (+eventName)."""
+    """Group day-matches into Draw rows by drawCode (+eventName).
+
+    If a Draw already exists (e.g. created by the draw-data path with its real
+    stage/qualification), reuse it untouched — day-matches can't tell qualifying
+    from main, so it must not clobber that richer info.
+    """
     if not raw.draw_code:
         return None
-    doubles = raw.event_name in {"MD", "WD", "XD"}
-    draw, _ = Draw.objects.update_or_create(
+    existing = Draw.objects.filter(
+        tournament=tournament, draw_value=raw.draw_code
+    ).first()
+    if existing is not None:
+        return existing
+    return Draw.objects.create(
         tournament=tournament,
         draw_value=raw.draw_code,
-        defaults={
-            "event": raw.event_name,
-            # day-matches doesn't expose qualification/stage; default Main Draw.
-            "stage": "Main Draw",
-            "doubles": doubles,
-        },
+        event=raw.event_name,
+        stage="Main Draw",  # day-matches doesn't expose qualification/stage
+        doubles=raw.event_name in {"MD", "WD", "XD"},
     )
-    return draw
 
 
 def normalize_day_matches(
