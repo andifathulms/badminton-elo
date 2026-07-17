@@ -54,9 +54,12 @@ VUE_BASE = BASE
 #     ?year=YYYY&category[]=..(repeated)..&state=all. Each entry has the real
 #     numeric id, GUID code, dates, and category/tier — 200.
 #   * match-center/vue-current-live .. currently-live tournaments — 200.
-# Still to capture (exist but 500 with every guessed param; need the exact
-# query string from the network tab):
-#   * vue-tournament-detail, vue-tournament-draws, vue-tournament-draw-data
+#   * vue-tournament-detail .......... ?tmtId={numeric id} — full metadata.
+#   * vue-tournament-draws ........... ?tmtTab=draw&tmtId={id} — draw list WITH
+#     the qualification flag, stage_name and size.
+#   * vue-tournament-draw-data ....... ?tmtTab=draw&tmtId={id}&drawId={value} —
+#     PRIMARY results source; top-level `matches` array + `results` bracket map.
+# The key was `tmtId` (NUMERIC id, from the calendar), not the GUID code.
 #
 # Category ids for the calendar/live filters map to World Tour tiers:
 #   22..26 span Super 300 → Super 1000 + Finals (pass all five for everything).
@@ -70,9 +73,9 @@ CONFIRMED = {
     "day_matches": True,
     "vue_grouped_year_tournaments": True,
     "vue_current_live": True,
-    "vue_tournament_detail": False,
-    "vue_tournament_draws": False,
-    "vue_tournament_draw_data": False,
+    "vue_tournament_detail": True,
+    "vue_tournament_draws": True,
+    "vue_tournament_draw_data": True,
     "players": False,
     "match_statistics": False,
 }
@@ -131,38 +134,34 @@ def vue_current_live(categories=None) -> str:
 
 # --- TO CONFIRM (response shapes known; request params are best guesses) ------
 
-def vue_tournament_detail(tournament_code: str) -> str:
-    """Tournament metadata (id, name, dates, categoryModel.name = tier, ...).
+def vue_tournament_detail(tmt_id: int | str) -> str:
+    """Tournament metadata (id, name, dates, categoryModel.name = tier,
+    tournament_series_id, prize_money, venue_*). CONFIRMED 2026-07-17.
 
-    Path corrected 2026-07-17 (drop tournaments/ prefix). Still 500 with
-    tournamentCode / tournamentId / id — TO CONFIRM the exact query string from
-    the network tab. Not blocking: the calendar already yields id + tier.
+    Keyed by the NUMERIC id via `tmtId` (not the GUID code) — get the id from
+    the calendar (vue_grouped_year_tournaments) or a stored Tournament.
     """
-    return _url(VUE_BASE, "vue-tournament-detail",
-                tournamentCode=tournament_code)
+    return _url(VUE_BASE, "vue-tournament-detail", tmtId=tmt_id)
 
 
-def vue_tournament_draws(tournament_code: str) -> str:
-    """List of draws in a tournament (results[]: value, text=MS/WS/MD/WD/XD,
-    doubles, qualification, stage_name, size, ...). Filter qualification==0.
-
-    Path corrected 2026-07-17. Returns 200 but an EMPTY results set with
-    tournamentCode/tournamentId — TO CONFIRM the exact param from the network tab.
+def vue_tournament_draws(tmt_id: int | str) -> str:
+    """List of draws in a tournament: results[] with value, text (e.g. "XD" or
+    "XD - Qualification"), doubles, qualification (0/1), stage_name, size.
+    Filter qualification==0 for the main draw. CONFIRMED 2026-07-17.
     """
-    return _url(VUE_BASE, "vue-tournament-draws",
-                tournamentCode=tournament_code)
+    return _url(VUE_BASE, "vue-tournament-draws", tmtTab="draw", tmtId=tmt_id)
 
 
-def vue_tournament_draw_data(tournament_code: str, draw_value: str | int) -> str:
-    """PRIMARY results source: full bracket for one draw, incl. a flat `matches`
-    array with every match (all rounds), game-by-game scores, player ids, status.
+def vue_tournament_draw_data(tmt_id: int | str, draw_value: str | int) -> str:
+    """PRIMARY results source: full bracket for one draw. Top level carries a
+    flat `matches` array (every round, game-by-game scores, player ids, status)
+    plus a `results` bracket map. CONFIRMED 2026-07-17.
 
-    Path corrected 2026-07-17. Still 500 with tournamentCode/Id × draw/drawId/
-    drawCode — TO CONFIRM the exact param names from the network tab.
+    `draw_value` is the `value` from vue_tournament_draws (e.g. "10" = XD main),
+    passed as `drawId`.
     """
     return _url(VUE_BASE, "vue-tournament-draw-data",
-                tournamentCode=tournament_code,
-                draw=draw_value)  # TO CONFIRM key: draw | drawId | drawCode | value
+                tmtTab="draw", tmtId=tmt_id, drawId=draw_value)
 
 
 def players(tournament_code: str) -> str:

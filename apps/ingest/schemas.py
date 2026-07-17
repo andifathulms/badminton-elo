@@ -43,7 +43,7 @@ class TournamentDetail(_Base):
 # --- vue-tournament-draws ---------------------------------------------------
 class DrawInfo(_Base):
     value: str
-    text: str  # event: MS/WS/MD/WD/XD
+    text: str  # "XD" (main) or "XD - Qualification" (qualifying)
     slug: str = ""
     size: int | None = None
     doubles: bool = False
@@ -55,6 +55,11 @@ class DrawInfo(_Base):
     @classmethod
     def _stringify(cls, v):
         return str(v)
+
+    @property
+    def event(self) -> str:
+        """Clean discipline code (MS/WS/MD/WD/XD) parsed from `text`."""
+        return self.text.split(" - ")[0].split("-")[0].strip()
 
 
 # --- vue-tournament-draw-data (PRIMARY results source) ----------------------

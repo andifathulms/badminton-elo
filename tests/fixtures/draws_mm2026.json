@@ -1,0 +1,124 @@
+{
+  "results": [
+    {
+      "value": "1",
+      "text": "MS - Qualification",
+      "qualification": 1,
+      "type": 5,
+      "size": 16,
+      "slug": "ms-qualification",
+      "doubles": false,
+      "stage_name": "Qualifying",
+      "stage_type": 2,
+      "stage_order": 2
+    },
+    {
+      "value": "2",
+      "text": "MS",
+      "qualification": 0,
+      "type": 0,
+      "size": 32,
+      "slug": "ms",
+      "doubles": false,
+      "stage_name": "Main Draw",
+      "stage_type": 1,
+      "stage_order": 1
+    },
+    {
+      "value": "3",
+      "text": "WS - Qualification",
+      "qualification": 1,
+      "type": 5,
+      "size": 8,
+      "slug": "ws-qualification",
+      "doubles": false,
+      "stage_name": "Qualifying",
+      "stage_type": 2,
+      "stage_order": 2
+    },
+    {
+      "value": "4",
+      "text": "WS",
+      "qualification": 0,
+      "type": 0,
+      "size": 32,
+      "slug": "ws",
+      "doubles": false,
+      "stage_name": "Main Draw",
+      "stage_type": 1,
+      "stage_order": 1
+    },
+    {
+      "value": "5",
+      "text": "MD - Qualification",
+      "qualification": 1,
+      "type": 5,
+      "size": 8,
+      "slug": "md-qualification",
+      "doubles": true,
+      "stage_name": "Qualifying",
+      "stage_type": 2,
+      "stage_order": 2
+    },
+    {
+      "value": "6",
+      "text": "MD",
+      "qualification": 0,
+      "type": 0,
+      "size": 32,
+      "slug": "md",
+      "doubles": true,
+      "stage_name": "Main Draw",
+      "stage_type": 1,
+      "stage_order": 1
+    },
+    {
+      "value": "7",
+      "text": "WD - Qualification",
+      "qualification": 1,
+      "type": 5,
+      "size": 8,
+      "slug": "wd-qualification",
+      "doubles": true,
+      "stage_name": "Qualifying",
+      "stage_type": 2,
+      "stage_order": 2
+    },
+    {
+      "value": "8",
+      "text": "WD",
+      "qualification": 0,
+      "type": 0,
+      "size": 32,
+      "slug": "wd",
+      "doubles": true,
+      "stage_name": "Main Draw",
+      "stage_type": 1,
+      "stage_order": 1
+    },
+    {
+      "value": "9",
+      "text": "XD - Qualification",
+      "qualification": 1,
+      "type": 5,
+      "size": 8,
+      "slug": "xd-qualification",
+      "doubles": true,
+      "stage_name": "Qualifying",
+      "stage_type": 2,
+      "stage_order": 2
+    },
+    {
+      "value": "10",
+      "text": "XD",
+      "qualification": 0,
+      "type": 0,
+      "size": 32,
+      "slug": "xd",
+      "doubles": true,
+      "stage_name": "Main Draw",
+      "stage_type": 1,
+      "stage_order": 1
+    }
+  ]
+}

@@ -1,19 +1,21 @@
-"""`manage.py scrape` — the Phase-1 ingestion driver (CLAUDE.md "Ingestion flow").
+"""`manage.py scrape` — draw-level ingestion via the PRIMARY results source.
 
-Flow per tournament:
-  1. vue-tournament-detail  -> upsert Tournament (captures categoryModel.name = tier)
-  2. vue-tournament-draws   -> upsert each main-draw Draw (qualification==0 unless
-                               INCLUDE_QUALIFYING)
-  3. vue-tournament-draw-data?draw={value} -> consume the flat `matches` array,
-                               normalize into Match/MatchPlayer/Game rows
-  4. scoring_format defaults from date (PRD §6.5) unless --scoring-format overrides
+Now that the vue-tournament-* endpoints are confirmed (keyed by the numeric
+tmtId), this is the authoritative per-tournament flow (CLAUDE.md "Ingestion
+flow"):
 
-Every fetch goes through BwfClient (cache-first, rate-limited). Re-running is a
-no-op: all writes upsert on stable ids.
+  1. vue-tournament-detail?tmtId=  -> upsert Tournament (full metadata + tier)
+  2. vue-tournament-draws?tmtId=    -> upsert each Draw (with qualification flag)
+  3. vue-tournament-draw-data?...&drawId= -> flat `matches` array -> normalize
+  4. scoring_format defaults from date (PRD §6.5) unless --scoring-format
 
-    python manage.py scrape --code <GUID>
-    python manage.py scrape --all               # settings.TOURNAMENT_CODES
-    python manage.py scrape --code <GUID> --scoring-format 3x15 --no-cache
+Unlike day-matches, this associates every match with its Draw and knows which
+draws are qualifying, so main-draw filtering is exact.
+
+    python manage.py scrape --id 5229
+    python manage.py scrape --code 71AC3AB2-...        # resolves id via the DB
+    python manage.py scrape --all                       # every Tournament in the DB
+    python manage.py scrape --id 5229 --include-qualifying
 """
 from __future__ import annotations
 
@@ -24,89 +26,86 @@ from django.core.management.base import BaseCommand, CommandError
 
 from apps.ingest.api import endpoints
 from apps.ingest.api.client import BwfClient
-from apps.ingest.models import Draw
-from apps.ingest.normalize import (
-    normalize_draw_data,
-    upsert_tournament,
-)
+from apps.ingest.models import Draw, Tournament
+from apps.ingest.normalize import normalize_draw_data, upsert_tournament
 from apps.ingest.schemas import DrawData, DrawInfo, TournamentDetail
 
 logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
-    help = "Scrape BWF tournament(s): detail -> draws -> draw-data -> normalize."
+    help = "Scrape a tournament's draws/draw-data (detail -> draws -> draw-data)."
 
     def add_arguments(self, parser):
         group = parser.add_mutually_exclusive_group(required=True)
-        group.add_argument("--code", help="Tournament GUID to scrape.")
+        group.add_argument("--id", type=int, help="Numeric tournament id (tmtId).")
+        group.add_argument("--code", help="Tournament GUID (resolved to id via the DB).")
         group.add_argument(
             "--all",
             action="store_true",
-            help="Scrape every code in settings.TOURNAMENT_CODES.",
+            help="Every Tournament already in the DB (run sync_calendar first).",
         )
         parser.add_argument(
-            "--scoring-format",
-            default=None,
-            help="Override scoring_format for all matches (e.g. 3x15).",
-        )
-        parser.add_argument(
-            "--no-cache",
+            "--include-qualifying",
             action="store_true",
-            help="Bypass RawCache and re-fetch from the network.",
+            help="Also ingest qualifying draws (default: main draw only).",
         )
+        parser.add_argument("--scoring-format", default=None)
+        parser.add_argument("--no-cache", action="store_true")
 
     def handle(self, *args, **opts):
-        if opts["all"]:
-            codes = list(settings.TOURNAMENT_CODES)
-            if not codes:
-                raise CommandError(
-                    "settings.TOURNAMENT_CODES is empty; set it or use --code."
+        ids = self._resolve_ids(opts)
+        include_qual = opts["include_qualifying"] or settings.INCLUDE_QUALIFYING
+        with BwfClient(use_cache=not opts["no_cache"]) as client:
+            for tmt_id in ids:
+                self._scrape_one(
+                    client, tmt_id, include_qual, opts["scoring_format"]
                 )
-        else:
-            codes = [opts["code"]]
 
-        unconfirmed = endpoints.unconfirmed()
-        if unconfirmed:
-            self.stderr.write(
-                self.style.WARNING(
-                    "Endpoints with unconfirmed request params (verify vs network "
-                    f"tab if a fetch 404s): {', '.join(unconfirmed)}"
+    def _resolve_ids(self, opts) -> list[int]:
+        if opts["all"]:
+            ids = list(
+                Tournament.objects.order_by("start_date").values_list(
+                    "tournament_id", flat=True
                 )
             )
+            if not ids:
+                raise CommandError("no tournaments in the DB; run sync_calendar first.")
+            return ids
+        if opts["code"]:
+            t = Tournament.objects.filter(code=opts["code"]).first()
+            if not t:
+                raise CommandError(
+                    f"code {opts['code']} not found; run sync_calendar or use --id."
+                )
+            return [t.tournament_id]
+        return [opts["id"]]
 
-        with BwfClient(use_cache=not opts["no_cache"]) as client:
-            for code in codes:
-                self._scrape_one(client, code, opts["scoring_format"])
-
-    # -- per-tournament -----------------------------------------------------
-    def _scrape_one(self, client: BwfClient, code: str, scoring_format: str | None):
-        self.stdout.write(self.style.MIGRATE_HEADING(f"Scraping {code}"))
-
-        # 1. detail -> Tournament
-        detail_raw = client.get_json(endpoints.vue_tournament_detail(code))
-        detail = TournamentDetail.model_validate(_results(detail_raw))
+    # -- per tournament -----------------------------------------------------
+    def _scrape_one(self, client, tmt_id, include_qual, scoring_format):
+        # 1. detail
+        detail_raw = _results(client.get_json(endpoints.vue_tournament_detail(tmt_id)))
+        detail = TournamentDetail.model_validate(detail_raw)
         tournament = upsert_tournament(detail)
-        self.stdout.write(f"  tournament: {tournament.name} [{tournament.category_name}]")
+        self.stdout.write(
+            self.style.MIGRATE_HEADING(
+                f"[{tmt_id}] {tournament.name} ({tournament.category_name})"
+            )
+        )
 
-        # 2. draws -> Draw (main draw only unless INCLUDE_QUALIFYING)
-        draws_raw = client.get_json(endpoints.vue_tournament_draws(code))
-        draw_rows = [DrawInfo.model_validate(d) for d in _results(draws_raw)]
+        # 2. draws
+        draws_raw = _results(client.get_json(endpoints.vue_tournament_draws(tmt_id)))
+        draw_rows = [DrawInfo.model_validate(d) for d in draws_raw]
         total_ingested = total_skipped = 0
 
         for info in draw_rows:
-            if info.qualification != 0 and not settings.INCLUDE_QUALIFYING:
+            if info.qualification != 0 and not include_qual:
                 continue
             draw = self._upsert_draw(tournament, info)
 
-            # 3. draw-data -> matches
-            data_raw = client.get_json(
-                endpoints.vue_tournament_draw_data(code, info.value)
-            )
+            # 3. draw-data -> flat matches array
             data = DrawData.model_validate(
-                data_raw.get("results", data_raw)
-                if isinstance(data_raw, dict) and "matches" not in data_raw
-                else data_raw
+                client.get_json(endpoints.vue_tournament_draw_data(tmt_id, info.value))
             )
             ingested, skipped = normalize_draw_data(
                 data,
@@ -121,7 +120,7 @@ class Command(BaseCommand):
                 + (f", {skipped} skipped" if skipped else "")
             )
 
-        summary = f"Done {code}: {total_ingested} matches ingested"
+        summary = f"  -> {total_ingested} matches"
         if total_skipped:
             summary += f", {total_skipped} skipped"
         self.stdout.write(self.style.SUCCESS(summary))
@@ -131,8 +130,9 @@ class Command(BaseCommand):
             tournament=tournament,
             draw_value=info.value,
             defaults={
-                "event": info.text,
-                "stage": info.stage_name or ("Qualifying" if info.qualification else "Main Draw"),
+                "event": info.event,
+                "stage": info.stage_name
+                or ("Qualifying" if info.qualification else "Main Draw"),
                 "doubles": info.doubles,
                 "size": info.size,
             },
@@ -141,7 +141,7 @@ class Command(BaseCommand):
 
 
 def _results(payload):
-    """BWF wraps most responses in a `results` key; fall back to the payload."""
+    """vue-* responses wrap the body in `results`; fall back to the payload."""
     if isinstance(payload, dict) and "results" in payload:
         return payload["results"]
     return payload

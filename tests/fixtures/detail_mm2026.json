@@ -1,0 +1,27 @@
+{
+  "results": {
+    "id": 5229,
+    "code": "71AC3AB2-C072-444C-B479-4AC73C756C14",
+    "name": "PERODUA Malaysia Masters 2026",
+    "start_date": "2026-05-19 00:00:00",
+    "end_date": "2026-05-24 00:00:00",
+    "tournament_category_id": 25,
+    "tournament_series_id": 50,
+    "slug": "perodua-malaysia-masters-2026",
+    "prize_money": "500000.00",
+    "venue_name": "UNIFI ARENA",
+    "venue_address1": "KL SPORTS CITY, BUKIT JALIL",
+    "categoryModel": {
+      "id": 25,
+      "name": "HSBC BWF World Tour Super 500"
+    },
+    "date": "19 - 24 May",
+    "tmtLink": "https://bwfworldtour.bwfbadminton.com/tournament/5229/perodua-malaysia-masters-2026/results/",
+    "tmtLogo": "https://img.bwfbadminton.com/image/upload/v1770622796/assets/tournaments/logo/71AC3AB2-C072-444C-B479-4AC73C756C14.png",
+    "tmtHeaderImage": "https://img.bwfbadminton.com/image/upload/t_Fansite_Homepage_Tourament_Header_big/v1767678250/assets/tournaments/header/71AC3AB2-C072-444C-B479-4AC73C756C14.png",
+    "tmtHeaderImageMobile": "https://img.bwfbadminton.com/image/upload/t_Fansite_Homepage_Tourament_Header_mobile/v1767678250/assets/tournaments/header/71AC3AB2-C072-444C-B479-4AC73C756C14.png",
+    "catLogo": "https://extranet.bwfbadminton.com/docs/tmt-category/WT_500.svg",
+    "catLogoOnWhite": "https://bwfbadminton.com/wp-content/themes/fansite-2020/assets/images/tournament/suffix_500-01.svg",
+    "isEtihad": true
+  }
+}
