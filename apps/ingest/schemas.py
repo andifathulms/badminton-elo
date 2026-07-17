@@ -33,11 +33,18 @@ class TournamentDetail(_Base):
     tournament_series_id: int | None = None
     prize_money: Decimal | None = None
     venue_name: str = ""
+    venue_address1: str = ""
 
     @field_validator("start_date", "end_date", mode="before")
     @classmethod
     def _empty_date(cls, v):
         return None if v in ("", None) else v
+
+    @field_validator("slug", "venue_name", "venue_address1", mode="before")
+    @classmethod
+    def _none_to_str(cls, v):
+        # The detail payload sends null for missing venue/slug fields.
+        return "" if v is None else v
 
 
 # --- vue-tournament-draws ---------------------------------------------------
