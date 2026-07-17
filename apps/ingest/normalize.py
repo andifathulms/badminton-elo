@@ -15,6 +15,7 @@ pure `rating/` package).
 from __future__ import annotations
 
 import logging
+import re
 import zlib
 from datetime import date
 
@@ -66,6 +67,72 @@ STATUS_MAP = {
     "Promoted": ("Promoted", True),
     "Bye": ("Bye", True),
 }
+
+
+# --- event canonicalization (PRD §6.6 discipline bucket) --------------------
+# BWF payloads spell the discipline inconsistently across eras/languages
+# ("MS", "Men's Singles", "Mens Singles", "ms", "Individual Masculino", …).
+# Fold these into the five open codes; keep age-group (masters) and youth events
+# as distinct suffixed buckets so they never pollute the open pools; flag
+# exhibitions for rating exclusion.
+OPEN_EVENTS = ("MS", "WS", "MD", "WD", "XD")
+_AGE = re.compile(r"\b(35|40|45|50|55|60|65|70|75)\b")
+_YOUTH = re.compile(r"u[\s-]?(1[3-9])\b")
+
+
+def _detect_discipline(low: str) -> str | None:
+    """Best-effort open-discipline code from a lowercased label, else None."""
+    if "mixed" in low or "mixto" in low or "mixte" in low or low.startswith(("xd", "mx")):
+        return "XD"
+    women = (
+        "women" in low or "woman" in low or "girl" in low or "female" in low
+        or "femenin" in low or "dames" in low or "damen" in low
+        or low.startswith(("ws", "wd", "gs", "gd"))
+    )
+    # "men" is a substring of "women" — only credit it when women isn't present.
+    men = (
+        "boy" in low or "masculino" in low or "hommes" in low or "herren" in low
+        or (("men" in low or "man" in low) and not women)
+        or low.startswith(("ms", "md", "bs", "bd"))
+    )
+    doubles = (
+        "double" in low or "dobles" in low or "doppel" in low
+        or low.startswith(("md", "wd", "bd", "gd", "dd"))
+    )
+    if doubles:
+        if women and not men:
+            return "WD"
+        return "MD" if men else None
+    if "single" in low or "individual" in low or low.startswith(("ms", "ws", "bs", "gs")):
+        if women and not men:
+            return "WS"
+        return "MS" if men else None
+    return None
+
+
+def canonical_event(raw: str) -> tuple[str, bool]:
+    """Return (event_code, is_exhibition).
+
+    Open disciplines fold to MS/WS/MD/WD/XD; masters keep an age suffix (MS45),
+    youth a U-age suffix (MSU19); unmappable labels pass through unchanged.
+    """
+    if not raw:
+        return raw, False
+    s = raw.strip()
+    if s in OPEN_EVENTS:
+        return s, False
+    low = s.lower()
+    exhibition = any(w in low for w in ("exhibition", "farewell", "unified", "plate"))
+    base = _detect_discipline(low)
+    if base is None:
+        return s, exhibition
+    youth = _YOUTH.search(low)
+    if youth:
+        return f"{base}U{youth.group(1)}", exhibition
+    age = _AGE.search(s)
+    if age:
+        return f"{base}{age.group(1)}", exhibition
+    return base, exhibition
 
 
 def round_order(round_name: str) -> int:
@@ -151,6 +218,7 @@ def normalize_match(
 ) -> Match:
     """Upsert one match with its lineup and games. Idempotent on match_id."""
     status_label, rating_excluded = map_status(raw.score_status_value)
+    event_code, is_exhibition = canonical_event(raw.event_name)
     match_date = raw.match_time_utc.date() if raw.match_time_utc else tournament.start_date
     scoring_format = scoring_format_override or default_scoring_format(match_date)
 
@@ -160,7 +228,7 @@ def normalize_match(
             "code": raw.code,
             "tournament": tournament,
             "draw": draw,
-            "event": raw.event_name,
+            "event": event_code,
             "round_name": raw.round_name,
             "round_order": round_order(raw.round_name),
             "match_time_utc": raw.match_time_utc,
@@ -172,7 +240,7 @@ def normalize_match(
             "side1_seed": raw.team1_seed,
             "side2_seed": raw.team2_seed,
             "scoring_format": scoring_format,
-            "rating_excluded": rating_excluded,
+            "rating_excluded": rating_excluded or is_exhibition,
         },
     )
 
