@@ -57,11 +57,21 @@ class Command(BaseCommand):
     def handle(self, *args, **opts):
         ids = self._resolve_ids(opts)
         include_qual = opts["include_qualifying"] or settings.INCLUDE_QUALIFYING
+        failed = 0
         with BwfClient(use_cache=not opts["no_cache"]) as client:
             for tmt_id in ids:
-                self._scrape_one(
-                    client, tmt_id, include_qual, opts["scoring_format"]
-                )
+                try:
+                    self._scrape_one(
+                        client, tmt_id, include_qual, opts["scoring_format"]
+                    )
+                except Exception:  # noqa: BLE001 - isolate one tournament, keep going
+                    logger.exception("skipping tournament %s", tmt_id)
+                    self.stderr.write(
+                        self.style.WARNING(f"  [{tmt_id}] skipped (see logs)")
+                    )
+                    failed += 1
+        if failed:
+            self.stderr.write(self.style.WARNING(f"{failed} tournament(s) skipped."))
 
     def _resolve_ids(self, opts) -> list[int]:
         if opts["all"]:
@@ -88,6 +98,11 @@ class Command(BaseCommand):
     def _scrape_one(self, client, tmt_id, include_qual, scoring_format):
         # 1. detail
         detail_raw = _results(client.get_json(endpoints.vue_tournament_detail(tmt_id)))
+        if not detail_raw:
+            self.stderr.write(
+                self.style.WARNING(f"  [{tmt_id}] no detail (cancelled?) — skipped")
+            )
+            return
         detail = TournamentDetail.model_validate(detail_raw)
         tournament = upsert_tournament(detail)
         self.stdout.write(
@@ -96,8 +111,11 @@ class Command(BaseCommand):
             )
         )
 
-        # 2. draws
+        # 2. draws — a cancelled/unpublished tournament returns null results
         draws_raw = _results(client.get_json(endpoints.vue_tournament_draws(tmt_id)))
+        if not draws_raw:
+            self.stdout.write("  no draws published — skipped")
+            return
         draw_rows = [DrawInfo.model_validate(d) for d in draws_raw]
         total_ingested = total_skipped = 0
 
