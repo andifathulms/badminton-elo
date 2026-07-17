@@ -56,6 +56,11 @@ class Command(BaseCommand):
             help="Only upsert the tournament list; skip day-matches collection.",
         )
         parser.add_argument(
+            "--skip-collected",
+            action="store_true",
+            help="Skip tournaments that already have matches (resumable bulk pull).",
+        )
+        parser.add_argument(
             "--limit", type=int, default=None, help="Process at most N tournaments."
         )
         parser.add_argument(
@@ -116,14 +121,25 @@ class Command(BaseCommand):
             self.style.MIGRATE_HEADING(f"{year}: {len(tours)} tournaments")
         )
         today = timezone.now().date()
-        matches = 0
+        matches = failed = 0
         for t in tours:
-            tournament = upsert_tournament_from_calendar(t)
-            if opts["no_matches"] or not t.start or not t.end or t.start > today:
-                continue
-            matches += self._collect_matches(client, tournament, t, today)
+            try:
+                tournament = upsert_tournament_from_calendar(t)
+                if opts["no_matches"] or not t.start or not t.end or t.start > today:
+                    continue
+                if opts["skip_collected"] and tournament.matches.exists():
+                    continue
+                if not t.code:  # day-matches needs the GUID
+                    continue
+                matches += self._collect_matches(client, tournament, t, today)
+            except Exception:  # noqa: BLE001 - isolate one tournament, keep going
+                logger.exception("skipping tournament %s (%s)", t.id, t.name)
+                failed += 1
         if not opts["no_matches"]:
-            self.stdout.write(f"  {year}: {matches} matches")
+            self.stdout.write(
+                f"  {year}: {matches} matches"
+                + (f", {failed} tournaments failed" if failed else "")
+            )
         return len(tours), matches
 
     def _collect_matches(self, client, tournament, cal, today) -> int:
