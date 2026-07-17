@@ -218,6 +218,49 @@ class Partnership(models.Model):
         return f"{self.event}: {self.player1_id}+{self.player2_id} ({self.matches_together})"
 
 
+class MatchStatistics(models.Model):
+    """Rich per-match statistics from the h2h/match endpoint (rally counts +
+    point-by-point progression). Optional enrichment, fetched lazily/in bulk."""
+
+    match = models.OneToOneField(
+        Match, on_delete=models.CASCADE, related_name="stats", primary_key=True
+    )
+    team1_rallies_won = models.IntegerField(null=True, blank=True)
+    team1_rallies_played = models.IntegerField(null=True, blank=True)
+    team2_rallies_won = models.IntegerField(null=True, blank=True)
+    team2_rallies_played = models.IntegerField(null=True, blank=True)
+    team1_consecutive_points = models.IntegerField(null=True, blank=True)
+    team2_consecutive_points = models.IntegerField(null=True, blank=True)
+    team1_game_points = models.IntegerField(null=True, blank=True)
+    team2_game_points = models.IntegerField(null=True, blank=True)
+    duration_min = models.IntegerField(null=True, blank=True)
+    # Per-game running score after every rally: [[[t1,t2], ...], ...per game].
+    point_progression = models.JSONField(null=True, blank=True)
+    fetched_utc = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self) -> str:
+        return f"stats M{self.match_id}"
+
+
+class PlayerSeedRank(models.Model):
+    """Earliest-observed BWF World Ranking per (player, event), captured from
+    h2h/statistics. Used to seed the rating engine (PRD §7.6)."""
+
+    player = models.ForeignKey(
+        Player, on_delete=models.CASCADE, related_name="seed_ranks"
+    )
+    event = models.CharField(max_length=8)
+    rank = models.IntegerField()
+    observed_date = models.DateField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ("player", "event")
+        indexes = [models.Index(fields=["event", "rank"])]
+
+    def __str__(self) -> str:
+        return f"{self.player_id}/{self.event} rank {self.rank}"
+
+
 class RawCache(models.Model):
     """Read-through cache of every raw API response (PRD §5, domain rule 9).
 

@@ -80,6 +80,9 @@ CONFIRMED = {
     "vue_tournament_detail": True,
     "vue_tournament_draws": True,
     "vue_tournament_draw_data": True,
+    # h2h/* live under bwfbadminton.com but work with our existing headers.
+    "h2h_match": True,          # per-match rally stats + point progression
+    "h2h_statistics": True,     # currentRank + careerStats + player bio
     "players": False,
     "match_statistics": False,
 }
@@ -134,6 +137,21 @@ def vue_grouped_year_tournaments(year: int, categories=None, state: str = "all")
 def vue_current_live(categories=None) -> str:
     """Currently-live tournaments (match-center). CONFIRMED (2026-07-17)."""
     return f"{BASE}/match-center/vue-current-live?{_category_qs(categories)}"
+
+
+def h2h_match(tmt_id: int | str, match_code: str) -> str:
+    """Rich per-match statistics: rally counts + point-by-point progression.
+    CONFIRMED (2026-07-17): ?tmt_id={numeric id}&match_code={Match.code}."""
+    return _url(BASE, "h2h/match", tmt_id=tmt_id, match_code=match_code)
+
+
+def h2h_statistics(t1p1, t1p2, t2p1, t2p2) -> str:
+    """Head-to-head between two sides — carries currentRank (BWF World Rankings),
+    careerStats, and player bio (dob/height/plays). Keyed by the four player ids
+    (t1p2/t2p2 omitted for singles). CONFIRMED (2026-07-17)."""
+    return _url(
+        BASE, "h2h/statistics", t1p1=t1p1, t1p2=t1p2, t2p1=t2p1, t2p2=t2p2
+    )
 
 
 # --- TO CONFIRM (response shapes known; request params are best guesses) ------

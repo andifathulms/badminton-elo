@@ -10,13 +10,18 @@ from .models import (
     Game,
     Match,
     MatchPlayer,
+    MatchStatistics,
     Partnership,
     Player,
     PlayerRating,
+    PlayerSeedRank,
     RatingHistory,
     RawCache,
     Tournament,
 )
+
+admin.site.register(MatchStatistics)
+admin.site.register(PlayerSeedRank)
 
 
 @admin.register(Partnership)
