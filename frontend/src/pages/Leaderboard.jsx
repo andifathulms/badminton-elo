@@ -44,14 +44,12 @@ export default function Leaderboard() {
           </div>
         )}
 
-        {!showPairs && (
-          <div className="segmented">
-            <button className={ranking === 'current' ? 'seg active' : 'seg'}
-                    onClick={() => setRanking('current')}>Current</button>
-            <button className={ranking === 'peak' ? 'seg active' : 'seg'}
-                    onClick={() => setRanking('peak')}>All-time peak</button>
-          </div>
-        )}
+        <div className="segmented">
+          <button className={ranking === 'current' ? 'seg active' : 'seg'}
+                  onClick={() => setRanking('current')}>Current</button>
+          <button className={ranking === 'peak' ? 'seg active' : 'seg'}
+                  onClick={() => setRanking('peak')}>All-time peak</button>
+        </div>
 
         {event === 'XD' && mode === 'individual' && (
           <div className="segmented">
@@ -66,7 +64,7 @@ export default function Leaderboard() {
       </div>
 
       {showPairs ? (
-        <PairsBoard event={event} />
+        <PairsBoard event={event} ranking={ranking} />
       ) : (
         <IndividualBoard
           event={event}
@@ -142,10 +140,11 @@ function IndividualBoard({ event, ranking, order, setOrder, gender }) {
   )
 }
 
-function PairsBoard({ event }) {
+function PairsBoard({ event, ranking }) {
+  const isPeak = ranking === 'peak'
   const { data, error, loading } = useAsync(
-    () => api.pairs(event, { minMatches: 5, limit: 50 }),
-    [event],
+    () => api.pairs(event, { minMatches: 5, ranking, limit: 50 }),
+    [event, ranking],
   )
   if (loading) return <p className="muted">Loading pairs…</p>
   if (error) return <p className="error">Could not load pairs: {error.message}</p>
@@ -154,7 +153,7 @@ function PairsBoard({ event }) {
       <thead>
         <tr>
           <th>#</th><th>Pair</th>
-          <th className="num">Rating</th>
+          <th className="num">{isPeak ? 'Peak' : 'Rating'}</th>
           <th className="num">Together</th>
           <th className="num">Win%</th>
         </tr>
@@ -174,7 +173,13 @@ function PairsBoard({ event }) {
                   : ''}
               </div>
             </td>
-            <td className="num strong">{row.rating.toFixed(1)}</td>
+            <td className="num strong">
+              {isPeak
+                ? row.peak_rating != null
+                  ? row.peak_rating.toFixed(0)
+                  : '—'
+                : row.rating.toFixed(1)}
+            </td>
             <td className="num muted">{row.matches_together}</td>
             <td className="num">{row.win_pct != null ? `${row.win_pct}%` : '—'}</td>
           </tr>

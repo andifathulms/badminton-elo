@@ -1,8 +1,56 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api, EVENTS } from '../api.js'
 import { useAsync } from '../useAsync.js'
 
 const eventLabel = (code) => EVENTS.find((e) => e.code === code)?.label || code
+const names = (players) => players.map((p) => p.name_display).join(' / ') || '—'
+
+function MatchList({ id, events }) {
+  const eventCodes = events.map((e) => e.event)
+  const [event, setEvent] = useState(eventCodes[0] || 'MS')
+  const { data, error, loading } = useAsync(
+    () => api.tournamentMatches(id, { event, limit: 200 }),
+    [id, event],
+  )
+  return (
+    <>
+      <div className="tabs">
+        {events.map((e) => (
+          <button key={e.event}
+            className={`tab ${e.event === event ? 'active' : ''}`}
+            onClick={() => setEvent(e.event)}>
+            {e.event}
+            <span className="tab-label">{e.n}</span>
+          </button>
+        ))}
+      </div>
+      {loading && <p className="muted">Loading…</p>}
+      {error && <p className="error">Could not load matches.</p>}
+      {data && (
+        <table className="board compact">
+          <tbody>
+            {data.results.map((m) => (
+              <tr key={m.match_id}>
+                <td className="muted small">{m.round_name}</td>
+                <td className={m.winner_side === 1 ? 'strong' : ''}>{names(m.side1)}</td>
+                <td className="score-cell">
+                  {m.score.map((g, i) => (
+                    <span key={i}>{g[0]}-{g[1]} </span>
+                  ))}
+                </td>
+                <td className={m.winner_side === 2 ? 'strong' : ''}>{names(m.side2)}</td>
+                <td className="num">
+                  <Link to={`/matches/${m.match_id}`} className="muted small">view →</Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  )
+}
 
 export default function Tournament() {
   const { id } = useParams()
@@ -52,21 +100,12 @@ export default function Tournament() {
         </>
       )}
 
-      <h2>Draws</h2>
-      <table className="board compact">
-        <thead>
-          <tr><th>Event</th><th>Stage</th><th className="num">Size</th></tr>
-        </thead>
-        <tbody>
-          {t.draws.map((d, i) => (
-            <tr key={`${d.event}-${d.draw_value}-${i}`}>
-              <td className="strong">{d.event}</td>
-              <td className="muted">{d.stage}</td>
-              <td className="num muted">{d.size ?? '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {t.events?.length > 0 && (
+        <>
+          <h2>Matches</h2>
+          <MatchList id={id} events={t.events} />
+        </>
+      )}
     </div>
   )
 }

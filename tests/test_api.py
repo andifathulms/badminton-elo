@@ -142,6 +142,26 @@ def test_pairs_requires_doubles_event(api):
     assert api.get("/api/pairs?event=MS").status_code == 400
 
 
+def test_pairs_peak_ranking(api):
+    r = api.get("/api/pairs?event=XD&min_matches=1&ranking=peak")
+    assert r.status_code == 200
+    results = r.json()["results"]
+    assert results
+    peaks = [row["combined_peak_mu"] for row in results]
+    assert all(p is not None for p in peaks)
+    assert peaks == sorted(peaks, reverse=True)
+
+
+def test_tournament_matches_clickable(api):
+    r = api.get("/api/tournaments/5229/matches?event=XD")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["count"] == 31
+    m = body["results"][0]
+    assert {"match_id", "side1", "side2", "score", "winner_side", "round_name"} <= set(m)
+    assert m["side1"] and m["side2"]  # both sides populated for linking
+
+
 def test_xd_gender_split(api):
     # XD players get a gender from the (implicit) singles/doubles context; here
     # the fixture is XD-only so gender is blank — the filter should return empty.

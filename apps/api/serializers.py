@@ -47,6 +47,7 @@ class PairSerializer(serializers.ModelSerializer):
     player1 = PlayerBriefSerializer(read_only=True)
     player2 = PlayerBriefSerializer(read_only=True)
     rating = serializers.SerializerMethodField()
+    peak_rating = serializers.SerializerMethodField()
     win_pct = serializers.SerializerMethodField()
 
     class Meta:
@@ -56,8 +57,10 @@ class PairSerializer(serializers.ModelSerializer):
             "player1",
             "player2",
             "rating",
+            "peak_rating",
             "combined_mu",
             "combined_rd",
+            "combined_peak_mu",
             "matches_together",
             "wins_together",
             "win_pct",
@@ -66,6 +69,11 @@ class PairSerializer(serializers.ModelSerializer):
 
     def get_rating(self, obj) -> float:
         return round(obj.combined_mu - 2.0 * obj.combined_rd, 1)
+
+    def get_peak_rating(self, obj):
+        if obj.combined_peak_mu is None:
+            return None
+        return round(obj.combined_peak_mu, 1)
 
     def get_win_pct(self, obj):
         if not obj.matches_together:
@@ -273,6 +281,33 @@ class MatchSerializer(serializers.ModelSerializer):
         return {
             h.player_id: round(h.delta, 1)
             for h in RatingHistory.objects.filter(match_id=obj.match_id)
+        }
+
+
+class MatchListSerializer(serializers.Serializer):
+    """Compact match row for tournament/draw listings (both sides + score)."""
+
+    def to_representation(self, m):
+        lineup = list(m.lineup.all())
+        games = [
+            (g.side1_points, g.side2_points)
+            for g in sorted(m.games.all(), key=lambda g: g.game_no)
+        ]
+        return {
+            "match_id": m.match_id,
+            "event": m.event,
+            "round_name": m.round_name,
+            "round_order": m.round_order,
+            "match_time_utc": m.match_time_utc,
+            "winner_side": m.winner_side,
+            "score_status": m.score_status,
+            "side1": PlayerBriefSerializer(
+                [l.player for l in lineup if l.side == 1], many=True
+            ).data,
+            "side2": PlayerBriefSerializer(
+                [l.player for l in lineup if l.side == 2], many=True
+            ).data,
+            "score": games,
         }
 
 

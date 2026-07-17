@@ -68,13 +68,19 @@ class Command(BaseCommand):
                 if m["utc"] and (a["utc"] is None or m["utc"] > a["utc"]):
                     a["utc"] = m["utc"]
 
-        # 3) combined current strength from member ratings.
+        # 3) combined current + peak strength from member ratings.
         ratings = {
-            (pid, ev): (mu, rd)
-            for pid, ev, mu, rd in PlayerRating.objects.filter(
+            (pid, ev): (mu, rd, pmu, prd)
+            for pid, ev, mu, rd, pmu, prd in PlayerRating.objects.filter(
                 event__in=DOUBLES
-            ).values_list("player_id", "event", "mu", "rd")
+            ).values_list("player_id", "event", "mu", "rd", "peak_mu", "peak_rd")
         }
+
+        def blend(a, b):
+            return (a + b) / 2.0
+
+        def blend_rd(a, b):
+            return math.sqrt((a * a + b * b) / 2.0)
 
         rows_out = []
         for (event, p1, p2), a in agg.items():
@@ -84,8 +90,10 @@ class Command(BaseCommand):
             r2 = ratings.get((p2, event))
             if not r1 or not r2:
                 continue
-            combined_mu = (r1[0] + r2[0]) / 2.0
-            combined_rd = math.sqrt((r1[1] ** 2 + r2[1] ** 2) / 2.0)
+            peak_mu = peak_rd = None
+            if r1[2] is not None and r2[2] is not None:
+                peak_mu = blend(r1[2], r2[2])
+                peak_rd = blend_rd(r1[3], r2[3])
             rows_out.append(
                 Partnership(
                     event=event,
@@ -93,8 +101,10 @@ class Command(BaseCommand):
                     player2_id=p2,
                     matches_together=a["matches"],
                     wins_together=a["wins"],
-                    combined_mu=combined_mu,
-                    combined_rd=combined_rd,
+                    combined_mu=blend(r1[0], r2[0]),
+                    combined_rd=blend_rd(r1[1], r2[1]),
+                    combined_peak_mu=peak_mu,
+                    combined_peak_rd=peak_rd,
                     last_match_utc=a["utc"],
                 )
             )

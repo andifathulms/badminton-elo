@@ -207,6 +207,9 @@ class Partnership(models.Model):
     wins_together = models.IntegerField(default=0)
     combined_mu = models.FloatField()  # mean of members' current mu
     combined_rd = models.FloatField()  # RMS of members' current rd
+    # Combined all-time peak — mean of members' peak mu / RMS of peak rd.
+    combined_peak_mu = models.FloatField(null=True, blank=True)
+    combined_peak_rd = models.FloatField(null=True, blank=True)
     last_match_utc = models.DateTimeField(null=True, blank=True)
 
     class Meta:

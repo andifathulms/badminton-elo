@@ -8,8 +8,8 @@
 """
 from __future__ import annotations
 
-from django.db.models import F, FloatField
-from django.db.models.functions import Cast
+from django.db.models import DateTimeField, F, FloatField
+from django.db.models.functions import Cast, Coalesce
 from rest_framework import generics, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -32,6 +32,7 @@ from apps.ingest.models import (
 from .serializers import (
     DrawBriefSerializer,
     LeaderboardEntrySerializer,
+    MatchListSerializer,
     MatchSerializer,
     PairSerializer,
     PlayerBriefSerializer,
@@ -130,14 +131,14 @@ class PairsView(generics.ListAPIView):
             min_matches = int(self.request.query_params.get("min_matches", 5))
         except ValueError:
             raise ValidationError({"min_matches": "must be an integer"})
-        return (
-            Partnership.objects.filter(
-                event=event, matches_together__gte=min_matches
-            )
-            .select_related("player1", "player2")
-            .annotate(_rating=F("combined_mu") - 2.0 * F("combined_rd"))
-            .order_by("-_rating")
-        )
+        qs = Partnership.objects.filter(
+            event=event, matches_together__gte=min_matches
+        ).select_related("player1", "player2")
+        if self.request.query_params.get("ranking") == "peak":
+            return qs.exclude(combined_peak_mu=None).order_by("-combined_peak_mu")
+        return qs.annotate(
+            _rating=F("combined_mu") - 2.0 * F("combined_rd")
+        ).order_by("-_rating")
 
 
 class PlayerMatchesView(generics.ListAPIView):
@@ -147,11 +148,20 @@ class PlayerMatchesView(generics.ListAPIView):
     serializer_class = PlayerMatchSerializer
 
     def get_queryset(self):
+        # Many historical matches lack match_time_utc; fall back to the
+        # tournament date so the sort is reliably most-recent-first.
         qs = (
             MatchPlayer.objects.filter(player_id=self.kwargs["player_id"])
             .select_related("match", "match__tournament")
             .prefetch_related("match__lineup__player", "match__games")
-            .order_by("-match__match_time_utc", "-match__match_id")
+            .annotate(
+                _when=Coalesce(
+                    "match__match_time_utc",
+                    "match__tournament__start_date",
+                    output_field=DateTimeField(),
+                )
+            )
+            .order_by(F("_when").desc(nulls_last=True), "-match__match_id")
         )
         event = self.request.query_params.get("event")
         return qs.filter(match__event=event) if event else qs
@@ -223,6 +233,21 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
         if q:
             qs = qs.filter(name__icontains=q)
         return qs
+
+    @action(detail=True, methods=["get"])
+    def matches(self, request, tournament_id=None):
+        """GET /api/tournaments/{id}/matches[?event=] — bracket-ordered matches."""
+        qs = (
+            Match.objects.filter(tournament_id=tournament_id)
+            .prefetch_related("lineup__player", "games")
+            .order_by("event", "round_order", "match_id")
+        )
+        event = request.query_params.get("event")
+        if event:
+            qs = qs.filter(event=event)
+        page = self.paginate_queryset(qs)
+        data = MatchListSerializer(page, many=True).data
+        return self.get_paginated_response(data)
 
     def retrieve(self, request, *args, **kwargs):
         t = self.get_object()

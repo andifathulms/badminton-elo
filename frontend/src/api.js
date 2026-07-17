@@ -18,8 +18,10 @@ export const api = {
   events: () => get('/events'),
   leaderboard: (event, { minMatches = 5, order = 'rating', ranking = 'current', gender, limit = 50, offset = 0 } = {}) =>
     get(`/leaderboard?${qs({ event, min_matches: minMatches, order, ranking, gender, limit, offset })}`),
-  pairs: (event, { minMatches = 5, limit = 50, offset = 0 } = {}) =>
-    get(`/pairs?${qs({ event, min_matches: minMatches, limit, offset })}`),
+  pairs: (event, { minMatches = 5, ranking = 'current', limit = 50, offset = 0 } = {}) =>
+    get(`/pairs?${qs({ event, min_matches: minMatches, ranking, limit, offset })}`),
+  tournamentMatches: (id, { event, limit = 100, offset = 0 } = {}) =>
+    get(`/tournaments/${id}/matches?${qs({ event, limit, offset })}`),
   player: (id) => get(`/players/${id}`),
   playerHistory: (id, event) => get(`/players/${id}/history?${qs({ event })}`),
   playerMatches: (id, { event, limit = 25, offset = 0 } = {}) =>
