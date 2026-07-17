@@ -143,15 +143,29 @@ class Command(BaseCommand):
         return len(tours), matches
 
     def _collect_matches(self, client, tournament, cal, today) -> int:
+        """Probe-first collection: many (esp. old, low-tier) tournaments have
+        calendar metadata but NO match data. Probe one or two representative
+        days; only sweep the full range if a probe finds matches. This turns a
+        data-less tournament from ~6 wasted requests into 1-2."""
+        last = min(cal.end, today)
+        if last < cal.start:
+            return 0
+        span = (last - cal.start).days
+        probe_days = {cal.start + timedelta(days=span // 2), cal.start}
+        if not any(self._day_has_matches(client, cal.code, d) for d in probe_days):
+            return 0
+
         total = 0
         d = cal.start
-        # Don't fetch beyond today for an in-progress event.
-        last = min(cal.end, today)
         while d <= last:
-            raw = client.get_json(endpoints.day_matches(cal.code, d))
+            raw = client.get_json(endpoints.day_matches(cal.code, d))  # probes cached
             if isinstance(raw, list) and raw:
                 matches = DayMatches.validate_python(raw)
                 ingested, _ = normalize_day_matches(matches, tournament=tournament)
                 total += ingested
             d = d + timedelta(days=1)
         return total
+
+    def _day_has_matches(self, client, code, d) -> bool:
+        raw = client.get_json(endpoints.day_matches(code, d))
+        return isinstance(raw, list) and len(raw) > 0
