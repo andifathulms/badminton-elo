@@ -20,6 +20,8 @@ export const api = {
     get(`/leaderboard?${qs({ event, min_matches: minMatches, order, ranking, limit, offset })}`),
   player: (id) => get(`/players/${id}`),
   playerHistory: (id, event) => get(`/players/${id}/history?${qs({ event })}`),
+  playerMatches: (id, { event, limit = 25, offset = 0 } = {}) =>
+    get(`/players/${id}/matches?${qs({ event, limit, offset })}`),
   match: (id) => get(`/matches/${id}`),
 }
 

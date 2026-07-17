@@ -89,6 +89,23 @@ def test_match_detail_has_lineup_and_games(api):
         (13, 21), (21, 15), (11, 21)
     ]
     assert body["tournament"]["tournament_id"] == 5229
+    # Per-player ELO deltas from this match; winners gain, losers lose.
+    elo = body["elo"]
+    assert len(elo) == 4
+    assert any(v > 0 for v in elo.values()) and any(v < 0 for v in elo.values())
+
+
+def test_player_matches_with_elo_delta(api):
+    pid = Match.objects.get(match_id=1518158).lineup.filter(side=2).first().player_id
+    r = api.get(f"/api/players/{pid}/matches")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["count"] >= 1
+    m = next(x for x in body["results"] if x["match_id"] == 1518158)
+    assert m["won"] is True  # side 2 advanced
+    assert m["elo_delta"] is not None
+    assert m["opponents"] and m["score"]
+    assert m["tournament"]["tournament_id"] == 5229
 
 
 def test_peak_ranking(api):

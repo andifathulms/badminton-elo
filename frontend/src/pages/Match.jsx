@@ -11,6 +11,17 @@ export default function Match() {
 
   const side = (n) => m.lineup.filter((l) => l.side === n).map((l) => l.player)
   const won = (n) => (m.winner_side === n ? 'winner' : '')
+  const elo = m.elo || {}
+  const eloTag = (pid) => {
+    const d = elo[pid]
+    if (d == null) return null
+    return (
+      <span className={`elo ${d >= 0 ? 'pos' : 'neg'}`}>
+        {d >= 0 ? '+' : ''}
+        {d.toFixed(1)}
+      </span>
+    )
+  }
 
   return (
     <div>
@@ -35,6 +46,7 @@ export default function Match() {
             {side(1).map((p) => (
               <Link key={p.player_id} to={`/players/${p.player_id}`}>
                 {p.name_display} <span className="country">{p.country_code}</span>
+                {eloTag(p.player_id)}
               </Link>
             ))}
           </div>
@@ -64,6 +76,7 @@ export default function Match() {
             {side(2).map((p) => (
               <Link key={p.player_id} to={`/players/${p.player_id}`}>
                 {p.name_display} <span className="country">{p.country_code}</span>
+                {eloTag(p.player_id)}
               </Link>
             ))}
           </div>

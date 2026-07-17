@@ -99,6 +99,17 @@ code { background: var(--line); padding: 1px 5px; border-radius: 4px; }
 .chart .line { stroke: var(--accent); stroke-width: 2; }
 .chart .dot { fill: var(--accent); }
 
+.pos { color: #2e9e5b; font-weight: 600; }
+.neg { color: var(--accent); font-weight: 600; }
+.wl { display: inline-block; width: 20px; height: 20px; line-height: 20px; text-align: center;
+  border-radius: 5px; font-size: 11px; font-weight: 700; color: #fff; }
+.wl.w { background: #2e9e5b; }
+.wl.l { background: #b1414f; }
+.elo { font-size: 11px; margin-left: 6px; }
+.matchlist td { vertical-align: top; }
+.score-cell { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.score-cell .hi { font-weight: 700; }
+
 .match-head { display: flex; gap: 8px; margin-bottom: 6px; }
 .pill.ghost { background: transparent; border: 1px solid var(--line); }
 .pill.warn { background: #f8e6b0; color: #5a4a00; }

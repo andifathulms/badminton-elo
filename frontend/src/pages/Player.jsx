@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import RatingChart from '../components/RatingChart.jsx'
+import MatchHistory from '../components/MatchHistory.jsx'
 
 export default function Player() {
   const { id } = useParams()
@@ -39,6 +40,7 @@ export default function Player() {
             <th className="num">Rating</th>
             <th className="num">mu</th>
             <th className="num">rd</th>
+            <th className="num">Peak</th>
             <th className="num">Matches</th>
           </tr>
         </thead>
@@ -53,6 +55,12 @@ export default function Player() {
               <td className="num strong">{r.rating.toFixed(1)}</td>
               <td className="num">{r.mu.toFixed(0)}</td>
               <td className="num muted">{r.rd.toFixed(0)}</td>
+              <td className="num">
+                {r.peak_mu != null ? r.peak_mu.toFixed(0) : '—'}
+                {r.peak_utc && (
+                  <span className="muted small"> ’{r.peak_utc.slice(2, 4)}</span>
+                )}
+              </td>
               <td className="num muted">{r.matches_played}</td>
             </tr>
           ))}
@@ -67,6 +75,9 @@ export default function Player() {
           <h2>{activeEvent} rating over time</h2>
           {history.loading && <p className="muted">Loading history…</p>}
           {history.data && <RatingChart points={history.data} />}
+
+          <h2>{activeEvent} match history</h2>
+          <MatchHistory playerId={id} event={activeEvent} />
         </>
       )}
     </div>

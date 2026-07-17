@@ -139,6 +139,7 @@ class MatchSerializer(serializers.ModelSerializer):
     tournament = TournamentBriefSerializer(read_only=True)
     lineup = MatchLineupSerializer(many=True, read_only=True)
     games = GameSerializer(many=True, read_only=True)
+    elo = serializers.SerializerMethodField()
 
     class Meta:
         model = Match
@@ -156,4 +157,46 @@ class MatchSerializer(serializers.ModelSerializer):
             "tournament",
             "lineup",
             "games",
+            "elo",
         )
+
+    def get_elo(self, obj):
+        """Per-player rating change from this match: {player_id: delta}."""
+        return {
+            h.player_id: round(h.delta, 1)
+            for h in RatingHistory.objects.filter(match_id=obj.match_id)
+        }
+
+
+class PlayerMatchSerializer(serializers.Serializer):
+    """One match from a given player's perspective (result + ELO gained)."""
+
+    def to_representation(self, mp):
+        m = mp.match
+        deltas = self.context.get("deltas", {})
+        lineup = list(m.lineup.all())
+        partners = [
+            l.player for l in lineup if l.side == mp.side and l.player_id != mp.player_id
+        ]
+        opponents = [l.player for l in lineup if l.side != mp.side]
+        games = [
+            (g.side1_points, g.side2_points)
+            for g in sorted(m.games.all(), key=lambda g: g.game_no)
+        ]
+        if mp.side == 2:  # orient the score to the player's side
+            games = [(b, a) for a, b in games]
+        return {
+            "match_id": m.match_id,
+            "event": m.event,
+            "round_name": m.round_name,
+            "match_time_utc": m.match_time_utc,
+            "score_status": m.score_status,
+            "won": m.winner_side == mp.side,
+            "tournament": TournamentBriefSerializer(m.tournament).data
+            if m.tournament_id
+            else None,
+            "partners": PlayerBriefSerializer(partners, many=True).data,
+            "opponents": PlayerBriefSerializer(opponents, many=True).data,
+            "score": games,
+            "elo_delta": deltas.get(m.match_id),
+        }

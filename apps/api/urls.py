@@ -6,6 +6,7 @@ from .views import (
     EventsView,
     LeaderboardView,
     MatchViewSet,
+    PlayerMatchesView,
     PlayerViewSet,
 )
 
@@ -17,5 +18,10 @@ router.register("matches", MatchViewSet, basename="match")
 urlpatterns = [
     path("leaderboard", LeaderboardView.as_view(), name="leaderboard"),
     path("events", EventsView.as_view(), name="events"),
+    path(
+        "players/<int:player_id>/matches",
+        PlayerMatchesView.as_view(),
+        name="player-matches",
+    ),
     path("", include(router.urls)),
 ]

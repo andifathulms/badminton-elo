@@ -16,12 +16,19 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.ingest.models import Match, Player, PlayerRating, RatingHistory
+from apps.ingest.models import (
+    Match,
+    MatchPlayer,
+    Player,
+    PlayerRating,
+    RatingHistory,
+)
 
 from .serializers import (
     LeaderboardEntrySerializer,
     MatchSerializer,
     PlayerDetailSerializer,
+    PlayerMatchSerializer,
     RatingHistoryPointSerializer,
 )
 
@@ -82,6 +89,35 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
         if event:
             qs = qs.filter(event=event)
         return Response(RatingHistoryPointSerializer(qs, many=True).data)
+
+
+class PlayerMatchesView(generics.ListAPIView):
+    """GET /api/players/{id}/matches[?event=] — the player's match history with
+    the ELO gained/lost in each (most recent first, paginated)."""
+
+    serializer_class = PlayerMatchSerializer
+
+    def get_queryset(self):
+        qs = (
+            MatchPlayer.objects.filter(player_id=self.kwargs["player_id"])
+            .select_related("match", "match__tournament")
+            .prefetch_related("match__lineup__player", "match__games")
+            .order_by("-match__match_time_utc", "-match__match_id")
+        )
+        event = self.request.query_params.get("event")
+        return qs.filter(match__event=event) if event else qs
+
+    def list(self, request, *args, **kwargs):
+        rows = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
+        pid = int(self.kwargs["player_id"])
+        deltas = dict(
+            RatingHistory.objects.filter(
+                player_id=pid, match_id__in=[mp.match_id for mp in rows]
+            ).values_list("match_id", "delta")
+        )
+        deltas = {mid: round(d, 1) for mid, d in deltas.items()}
+        data = self.get_serializer(rows, many=True, context={"deltas": deltas}).data
+        return self.get_paginated_response(data)
 
 
 class MatchViewSet(viewsets.ReadOnlyModelViewSet):
