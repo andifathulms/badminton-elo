@@ -1,15 +1,20 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
+import Pager from './Pager.jsx'
 
 const names = (players) =>
   players.map((p) => p.name_display).join(' / ') || '—'
+const PAGE = 20
 
 export default function MatchHistory({ playerId, event }) {
   const navigate = useNavigate()
+  const [page, setPage] = useState(0)
+  useEffect(() => setPage(0), [playerId, event])
   const { data, error, loading } = useAsync(
-    () => api.playerMatches(playerId, { event, limit: 25 }),
-    [playerId, event],
+    () => api.playerMatches(playerId, { event, limit: PAGE, offset: page * PAGE }),
+    [playerId, event, page],
   )
 
   if (loading) return <p className="muted">Loading matches…</p>
@@ -17,6 +22,7 @@ export default function MatchHistory({ playerId, event }) {
   if (!data.results.length) return <p className="muted">No matches.</p>
 
   return (
+    <>
     <table className="board compact matchlist">
       <thead>
         <tr>
@@ -77,5 +83,7 @@ export default function MatchHistory({ playerId, event }) {
         ))}
       </tbody>
     </table>
+    <Pager page={page} setPage={setPage} count={data.count} pageSize={PAGE} unit="matches" />
+    </>
   )
 }
