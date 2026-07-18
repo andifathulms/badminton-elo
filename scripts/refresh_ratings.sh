@@ -31,6 +31,7 @@ PY
   .venv/bin/python manage.py build_pairs >/dev/null 2>&1
   .venv/bin/python manage.py build_analytics >/dev/null 2>&1
   .venv/bin/python manage.py build_cup_history >/dev/null 2>&1
+  .venv/bin/python manage.py build_records >/dev/null 2>&1
   unset SQLITE_PATH
   mv -f data/serve_stage.sqlite3 data/serve.sqlite3
   $COMPOSE restart web >/dev/null 2>&1

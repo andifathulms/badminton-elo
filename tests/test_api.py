@@ -296,6 +296,55 @@ def test_analytics_performances(api):
     assert perfs == sorted(perfs, reverse=True)
 
 
+def test_max_comeback():
+    from apps.ingest.h2h import max_comeback
+
+    # Down 10-20, won 22-20 => overcame a 10-point deficit.
+    prog = [[[i, min(i + 10, 20)] for i in range(0, 11)] + [[21, 20], [22, 20]]]
+    assert max_comeback(prog) == 10
+    # Wire-to-wire win => no deficit overcome.
+    assert max_comeback([[[i, 0] for i in range(0, 22)]]) == 0
+    assert max_comeback(None) is None
+
+
+def test_records_endpoints(api):
+    from apps.ingest.models import MatchStatistics
+
+    m = Match.objects.filter(score_status="Normal").first()
+    MatchStatistics.objects.create(
+        match_id=m.match_id,
+        team1_rallies_played=95, team2_rallies_played=95,
+        duration_min=88,
+        point_progression=[[[0, 5], [5, 5], [21, 18]]],  # side1 came from 5 down
+        max_comeback=5,
+    )
+    for kind, field in [("longest", "duration_min"), ("rallies", "rallies"),
+                        ("comebacks", "max_comeback")]:
+        r = api.get(f"/api/records/{kind}?limit=10")
+        assert r.status_code == 200
+        rows = r.json()["results"]
+        assert rows and rows[0]["match_id"] == m.match_id
+        assert rows[0]["side1"] and rows[0]["side2"]
+    # unknown kind rejected
+    assert api.get("/api/records/nonsense").status_code == 400
+
+
+def test_player_style(api):
+    from apps.ingest.models import MatchStatistics
+
+    m = Match.objects.filter(score_status="Normal", event="XD").first()
+    MatchStatistics.objects.create(
+        match_id=m.match_id, team1_rallies_played=80, team2_rallies_played=80,
+        duration_min=50, point_progression=[[[21, 15]]],
+    )
+    pid = m.lineup.filter(side=1).first().player_id
+    r = api.get(f"/api/players/{pid}/style")
+    assert r.status_code == 200
+    style = r.json()["style"]
+    xd = next(s for s in style if s["event"] == "XD")
+    assert xd["avg_rallies"] == 80 and xd["avg_duration"] == 50
+
+
 def test_analytics_upsets(api):
     r = api.get("/api/analytics/upsets?event=XD&min_matches=1&include_new=1")
     assert r.status_code == 200
