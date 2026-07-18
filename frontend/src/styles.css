@@ -692,6 +692,28 @@ tr.clickable .link { color: var(--brand); font-weight: 600; }
 .race-chart .race-dot.s2 { fill: var(--ink-2); }
 .race-key.s1 { color: var(--brand); }
 .race-key.s2 { color: var(--ink-2); }
+.race-chart .lead-mark { stroke: var(--accent-amber); stroke-width: 2;
+  stroke-dasharray: 3 2; opacity: .8; }
+.race-chart .race-cursor { stroke: var(--line-2); stroke-width: 1; }
+.gc { margin-bottom: 6px; }
+.gc-big { margin-bottom: 4px; }
+.gc-facts { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px;
+  color: var(--muted); margin: 2px 4px 10px; }
+.gc-facts b { color: var(--ink-2); font-weight: 700; }
+.gc-facts .comeback { color: var(--accent-amber); }
+.gc-facts .comeback b { color: var(--accent-amber); }
+
+/* Playing-style card (avg rallies / match length per discipline) */
+.style-card { margin: 24px 0; }
+.style-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.style-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px; }
+.style-cell { background: var(--surface-2); border: 1px solid var(--line-2);
+  border-radius: 10px; padding: 12px 14px; }
+.style-event { font-weight: 700; color: var(--ink-2); font-size: 13px; margin-bottom: 6px; }
+.style-nums { display: flex; gap: 16px; }
+.style-nums b { font-size: 20px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.style-nums span { color: var(--muted); font-size: 12px; margin-left: 3px; }
 
 /* Expandable analytics rows (performance path) */
 tr.expandable { cursor: pointer; }
