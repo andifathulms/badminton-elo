@@ -17,6 +17,7 @@ from apps.ingest.models import (
     PlayerRating,
     RatingHistory,
     Tournament,
+    TournamentPerformance,
 )
 
 
@@ -292,6 +293,25 @@ class MatchSerializer(serializers.ModelSerializer):
         }
 
 
+class TournamentPerformanceSerializer(serializers.ModelSerializer):
+    player = PlayerBriefSerializer(read_only=True)
+    tournament = TournamentBriefSerializer(read_only=True)
+
+    class Meta:
+        model = TournamentPerformance
+        fields = (
+            "player",
+            "event",
+            "tournament",
+            "net_delta",
+            "matches",
+            "mu_start",
+            "mu_end",
+            "best_match",
+            "best_delta",
+        )
+
+
 class MatchListSerializer(serializers.Serializer):
     """Compact match row for tournament/draw listings (both sides + score)."""
 
@@ -349,5 +369,6 @@ class PlayerMatchSerializer(serializers.Serializer):
             "partners": PlayerBriefSerializer(partners, many=True).data,
             "opponents": PlayerBriefSerializer(opponents, many=True).data,
             "score": games,
-            "elo_delta": deltas.get(m.match_id),
+            "elo": deltas.get(m.match_id),  # {before, after, delta} or None
+            "elo_delta": (deltas.get(m.match_id) or {}).get("delta"),
         }

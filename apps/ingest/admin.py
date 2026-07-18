@@ -18,10 +18,12 @@ from .models import (
     RatingHistory,
     RawCache,
     Tournament,
+    TournamentPerformance,
 )
 
 admin.site.register(MatchStatistics)
 admin.site.register(PlayerSeedRank)
+admin.site.register(TournamentPerformance)
 
 
 @admin.register(Partnership)

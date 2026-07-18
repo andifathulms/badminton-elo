@@ -7,6 +7,7 @@ import Player from './pages/Player.jsx'
 import Match from './pages/Match.jsx'
 import Tournaments from './pages/Tournaments.jsx'
 import Tournament from './pages/Tournament.jsx'
+import Insights from './pages/Insights.jsx'
 import './styles.css'
 
 const router = createBrowserRouter([
@@ -19,6 +20,7 @@ const router = createBrowserRouter([
       { path: 'matches/:id', element: <Match /> },
       { path: 'tournaments', element: <Tournaments /> },
       { path: 'tournaments/:id', element: <Tournament /> },
+      { path: 'insights', element: <Insights /> },
     ],
   },
 ])

@@ -57,6 +57,7 @@ export default function App() {
         <nav className="nav">
           <NavLink to="/" end>Rankings</NavLink>
           <NavLink to="/tournaments">Tournaments</NavLink>
+          <NavLink to="/insights">Insights</NavLink>
         </nav>
         <Search />
       </header>

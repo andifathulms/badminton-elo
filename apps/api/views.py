@@ -27,6 +27,7 @@ from apps.ingest.models import (
     PlayerRating,
     RatingHistory,
     Tournament,
+    TournamentPerformance,
 )
 
 from .serializers import (
@@ -40,6 +41,7 @@ from .serializers import (
     PlayerMatchSerializer,
     RatingHistoryPointSerializer,
     TournamentListSerializer,
+    TournamentPerformanceSerializer,
 )
 
 EVENTS = ("MS", "WS", "MD", "WD", "XD")
@@ -169,12 +171,12 @@ class PlayerMatchesView(generics.ListAPIView):
     def list(self, request, *args, **kwargs):
         rows = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
         pid = int(self.kwargs["player_id"])
-        deltas = dict(
-            RatingHistory.objects.filter(
+        deltas = {
+            mid: {"before": round(b), "after": round(a), "delta": round(d, 1)}
+            for mid, b, a, d in RatingHistory.objects.filter(
                 player_id=pid, match_id__in=[mp.match_id for mp in rows]
-            ).values_list("match_id", "delta")
-        )
-        deltas = {mid: round(d, 1) for mid, d in deltas.items()}
+            ).values_list("match_id", "mu_before", "mu_after", "delta")
+        }
         data = self.get_serializer(rows, many=True, context={"deltas": deltas}).data
         return self.get_paginated_response(data)
 
@@ -287,6 +289,33 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
                 ],
             }
         )
+
+
+class AnalyticsView(generics.ListAPIView):
+    """GET /api/analytics/{tournament-gains|upsets}[?event=&min_matches=].
+
+    tournament-gains: biggest net ELO gained across a single tournament.
+    upsets: biggest single-match ELO gains (the standout wins).
+    """
+
+    serializer_class = TournamentPerformanceSerializer
+
+    def get_queryset(self):
+        qs = TournamentPerformance.objects.select_related(
+            "player", "tournament"
+        )
+        event = self.request.query_params.get("event")
+        if event in EVENTS:
+            qs = qs.filter(event=event)
+        try:
+            min_matches = int(self.request.query_params.get("min_matches", 2))
+        except ValueError:
+            min_matches = 2
+        qs = qs.filter(matches__gte=min_matches)
+
+        if self.kwargs.get("kind") == "upsets":
+            return qs.exclude(best_delta=None).order_by("-best_delta")
+        return qs.order_by("-net_delta")
 
 
 class EventsView(APIView):

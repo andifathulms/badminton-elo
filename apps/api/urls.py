@@ -3,6 +3,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
+    AnalyticsView,
     EventsView,
     LeaderboardView,
     MatchViewSet,
@@ -21,6 +22,7 @@ router.register("tournaments", TournamentViewSet, basename="tournament")
 urlpatterns = [
     path("leaderboard", LeaderboardView.as_view(), name="leaderboard"),
     path("pairs", PairsView.as_view(), name="pairs"),
+    path("analytics/<str:kind>", AnalyticsView.as_view(), name="analytics"),
     path("events", EventsView.as_view(), name="events"),
     path(
         "players/<int:player_id>/matches",

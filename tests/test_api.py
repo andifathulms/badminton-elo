@@ -31,6 +31,7 @@ def api(db):
     call_command("rate", verbosity=0)
     call_command("infer_gender", verbosity=0)
     call_command("build_pairs", "--min-matches", "1", verbosity=0)
+    call_command("build_analytics", verbosity=0)
     return APIClient()
 
 
@@ -226,6 +227,37 @@ def test_match_statistics_served_from_cache(api):
     assert body["team2_rallies_won"] == 50
     assert body["duration_min"] == 62
     assert len(body["point_progression"]) == 2
+
+
+def test_analytics_tournament_gains(api):
+    r = api.get("/api/analytics/tournament-gains?event=XD&min_matches=1")
+    assert r.status_code == 200
+    results = r.json()["results"]
+    assert results
+    nets = [row["net_delta"] for row in results]
+    assert nets == sorted(nets, reverse=True)
+    top = results[0]
+    assert {"player", "tournament", "net_delta", "matches", "mu_start"} <= set(top)
+    # net_delta ≈ mu_end − mu_start
+    assert abs(top["net_delta"] - (top["mu_end"] - top["mu_start"])) < 1.0
+
+
+def test_analytics_upsets(api):
+    r = api.get("/api/analytics/upsets?event=XD&min_matches=1")
+    assert r.status_code == 200
+    results = r.json()["results"]
+    assert results
+    best = [row["best_delta"] for row in results]
+    assert best == sorted(best, reverse=True)
+    assert results[0]["best_delta"] > 0
+
+
+def test_player_match_history_has_before_after(api):
+    pid = Match.objects.get(match_id=1518158).lineup.filter(side=2).first().player_id
+    r = api.get(f"/api/players/{pid}/matches")
+    m = next(x for x in r.json()["results"] if x["match_id"] == 1518158)
+    assert m["elo"] is not None
+    assert {"before", "after", "delta"} <= set(m["elo"])
 
 
 def test_events_endpoint(api):

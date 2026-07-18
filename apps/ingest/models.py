@@ -264,6 +264,36 @@ class PlayerSeedRank(models.Model):
         return f"{self.player_id}/{self.event} rank {self.rank}"
 
 
+class TournamentPerformance(models.Model):
+    """Analytics: a player's net rating change across one tournament (a rating
+    period). Derived from RatingHistory by `build_analytics` for fast browsing —
+    e.g. the biggest ELO gainers of a tournament."""
+
+    player = models.ForeignKey(
+        Player, on_delete=models.CASCADE, related_name="tournament_perfs"
+    )
+    event = models.CharField(max_length=8)
+    tournament = models.ForeignKey(Tournament, on_delete=models.CASCADE)
+    net_delta = models.FloatField()  # rating gained/lost over the tournament
+    matches = models.IntegerField()
+    mu_start = models.FloatField()  # rating at tournament start (locked)
+    mu_end = models.FloatField()
+    best_match = models.ForeignKey(
+        Match, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    best_delta = models.FloatField(null=True, blank=True)  # biggest single win
+
+    class Meta:
+        unique_together = ("player", "event", "tournament")
+        indexes = [
+            models.Index(fields=["-net_delta"]),
+            models.Index(fields=["event", "-net_delta"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.player_id}/{self.event} @{self.tournament_id}: {self.net_delta:+.0f}"
+
+
 class RawCache(models.Model):
     """Read-through cache of every raw API response (PRD §5, domain rule 9).
 

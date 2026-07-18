@@ -56,13 +56,16 @@ export default function MatchHistory({ playerId, event }) {
               )}
             </td>
             <td className="num">
-              {m.elo_delta == null ? (
+              {m.elo == null ? (
                 <span className="muted">—</span>
               ) : (
-                <span className={m.elo_delta >= 0 ? 'pos' : 'neg'}>
-                  {m.elo_delta >= 0 ? '+' : ''}
-                  {m.elo_delta.toFixed(1)}
-                </span>
+                <>
+                  <span className={m.elo.delta >= 0 ? 'pos' : 'neg'}>
+                    {m.elo.delta >= 0 ? '+' : ''}
+                    {m.elo.delta.toFixed(1)}
+                  </span>
+                  <div className="muted small">{m.elo.before}→{m.elo.after}</div>
+                </>
               )}
             </td>
             <td className="muted small">{m.round_name}</td>
