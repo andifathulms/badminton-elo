@@ -90,6 +90,42 @@ class LeaderboardView(generics.ListAPIView):
             _rating=Cast(F("mu") - 2.0 * F("rd"), FloatField())
         ).order_by("-_rating")
 
+    def list(self, request, *args, **kwargs):
+        """Attach each page row's win% (batched over the page's players)."""
+        from django.db.models import Case, F, IntegerField, Sum, When
+
+        rows = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
+        event = request.query_params.get("event")
+        pids = [r.player_id for r in rows]
+        recs = {
+            r["player_id"]: r
+            for r in MatchPlayer.objects.filter(
+                player_id__in=pids, match__event=event
+            )
+            .values("player_id")
+            .annotate(
+                played=Count("id"),
+                won=Sum(
+                    Case(
+                        When(side=F("match__winner_side"), then=1),
+                        default=0,
+                        output_field=IntegerField(),
+                    )
+                ),
+            )
+        }
+        data = self.get_serializer(rows, many=True).data
+        for row in data:
+            r = recs.get(row["player"]["player_id"])
+            if r and r["played"]:
+                row["wins"] = r["won"] or 0
+                row["losses"] = r["played"] - (r["won"] or 0)
+                row["win_pct"] = round(100.0 * (r["won"] or 0) / r["played"], 1)
+            else:
+                row["wins"] = row["losses"] = 0
+                row["win_pct"] = None
+        return self.get_paginated_response(data)
+
 
 class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
     """GET /api/players/{id} — player detail; GET /api/players?q=lin — search."""

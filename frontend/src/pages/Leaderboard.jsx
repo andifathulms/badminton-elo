@@ -4,6 +4,17 @@ import { api, EVENTS } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import Avatar from '../components/Avatar.jsx'
 import Select from '../components/Select.jsx'
+import { flag } from '../flags.js'
+
+function Legend() {
+  return (
+    <div className="legend">
+      <span><b>Rating</b> conservative skill (mu − 2·rd)</span>
+      <span><b>mu</b> estimated skill</span>
+      <span><b>rd</b> rating deviation — how uncertain that estimate is (lower = more settled)</span>
+    </div>
+  )
+}
 
 const isDoubles = (e) => e === 'MD' || e === 'WD' || e === 'XD'
 const PAGE = 20
@@ -128,9 +139,9 @@ function IndividualBoard({ event, ranking, order, setOrder, gender }) {
 
   return (
     <>
-      {!isPeak && (
-        <div className="toolbar">
-          <span className="muted small">Ranked by mu − 2·rd (conservative)</span>
+      <div className="toolbar">
+        <Legend />
+        {!isPeak && (
           <Select
             label="Sort"
             value={order}
@@ -140,8 +151,8 @@ function IndividualBoard({ event, ranking, order, setOrder, gender }) {
               { value: 'mu', label: 'Skill (mu)' },
             ]}
           />
-        </div>
-      )}
+        )}
+      </div>
       {loading && <p className="muted">Loading…</p>}
       {error && <p className="error">Could not load: {error.message}</p>}
       {data && (
@@ -150,8 +161,9 @@ function IndividualBoard({ event, ranking, order, setOrder, gender }) {
             <tr>
               <th className="rank">#</th><th>Player</th>
               <th className="num">{isPeak ? 'Peak' : 'Rating'}</th>
-              <th className="num">{isPeak ? 'When' : 'mu'}</th>
-              <th className="num">rd</th>
+              <th className="num" title="Career win rate in this discipline">Win%</th>
+              <th className="num" title="Estimated skill">{isPeak ? 'When' : 'mu'}</th>
+              <th className="num" title="Rating deviation — uncertainty">rd</th>
               <th className="num">Matches</th>
             </tr>
           </thead>
@@ -166,13 +178,21 @@ function IndividualBoard({ event, ranking, order, setOrder, gender }) {
                     <Avatar player={row.player} />
                     <span className="pmeta">
                       <span className="pname">{row.player.name_display}</span>
-                      <span className="psub">{row.player.country_code}</span>
+                      <span className="psub">
+                        <span className="fl">{flag(row.player.country_code)}</span>
+                        {row.player.country_code}
+                      </span>
                     </span>
                   </Link>
                 </td>
                 <td className="num"><span className="metric">
                   {isPeak ? row.peak_mu.toFixed(0) : row.rating.toFixed(1)}
                 </span></td>
+                <td className="num">
+                  {row.win_pct != null
+                    ? <span className="winpct">{row.win_pct}%</span>
+                    : <span className="muted">—</span>}
+                </td>
                 <td className="num muted">
                   {isPeak ? (row.peak_utc ? row.peak_utc.slice(0, 7) : '—') : row.mu.toFixed(0)}
                 </td>
@@ -229,9 +249,11 @@ function PairsBoard({ event, ranking }) {
                         {row.player1.name_display} / {row.player2.name_display}
                       </span>
                       <span className="psub">
+                        <span className="fl">{flag(row.player1.country_code)}</span>
                         {row.player1.country_code}
                         {row.player2.country_code !== row.player1.country_code
-                          ? ` / ${row.player2.country_code}` : ''}
+                          ? <> <span className="fl">{flag(row.player2.country_code)}</span>{row.player2.country_code}</>
+                          : ''}
                       </span>
                     </span>
                   </Link>

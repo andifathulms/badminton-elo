@@ -193,6 +193,17 @@ code { font-family: var(--mono); background: var(--brand-soft); color: var(--bra
   font-weight: 700; color: var(--brand); margin-bottom: 6px; }
 .page-sub { color: var(--muted); font-size: 14px; margin: 6px 0 0; max-width: 62ch; }
 
+/* Legend explaining rating terms */
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px;
+  color: var(--muted); }
+.legend span { display: inline-flex; gap: 5px; }
+.legend b { color: var(--ink-2); font-weight: 700; }
+
+/* Country flag glyph + win-rate accent */
+.fl { font-size: 13px; line-height: 1; }
+.psub .fl { margin-right: 1px; }
+.winpct { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+
 /* --- Discipline tabs ------------------------------------------------------ */
 .tabs { display: flex; gap: 8px; flex-wrap: wrap; }
 .tab {
