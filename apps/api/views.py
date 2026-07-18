@@ -385,7 +385,69 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(event=event)
         page = self.paginate_queryset(qs)
         data = MatchListSerializer(page, many=True).data
+        # Attach each side's ELO for the match (pair mean for doubles), chained
+        # across the tournament so the running figures read correctly.
+        from .elo import tournament_match_elo
+
+        elo_map = tournament_match_elo(int(tournament_id))
+        for m, row in zip(page, data):
+            pm = elo_map.get(m.match_id, {})
+            team = {}
+            for side in (1, 2):
+                vals = [
+                    pm[l.player_id]
+                    for l in m.lineup.all()
+                    if l.side == side and l.player_id in pm
+                ]
+                if vals:
+                    team[side] = {
+                        "before": round(sum(v[0] for v in vals) / len(vals)),
+                        "after": round(sum(v[1] for v in vals) / len(vals)),
+                        "delta": round(sum(v[2] for v in vals) / len(vals), 1),
+                    }
+            row["team_elo"] = team
         return self.get_paginated_response(data)
+
+    def _movers(self, t):
+        """Top-3 ELO gainers and losers per discipline at this tournament.
+
+        Uses TournamentPerformance (net_delta per player/event), collapsing the
+        two members of a doubles pair into one entry.
+        """
+        tps = (
+            TournamentPerformance.objects.filter(tournament=t)
+            .select_related("player", "partner")
+            .order_by("event", "-net_delta")
+        )
+        by_event: dict = {}
+        for tp in tps:
+            by_event.setdefault(tp.event, []).append(tp)
+
+        def row(tp):
+            return {
+                "player": PlayerBriefSerializer(tp.player).data,
+                "partner": PlayerBriefSerializer(tp.partner).data if tp.partner_id else None,
+                "net_delta": round(tp.net_delta, 1),
+                "mu_start": round(tp.mu_start),
+                "mu_end": round(tp.mu_end),
+            }
+
+        out = {}
+        for event, rows in by_event.items():
+            seen: set = set()
+            uniq = []
+            for tp in rows:
+                if tp.partner_id:
+                    key = frozenset((tp.player_id, tp.partner_id))
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                uniq.append(tp)
+            gainers = [row(tp) for tp in uniq[:3] if tp.net_delta > 0]
+            losers = [row(tp) for tp in uniq[::-1][:3] if tp.net_delta < 0]
+            if gainers or losers:
+                out[event] = {"gainers": gainers, "losers": losers}
+        return out
 
     def retrieve(self, request, *args, **kwargs):
         t = self.get_object()
@@ -411,6 +473,7 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
                 "slug": t.slug,
                 "draws": DrawBriefSerializer(draws, many=True).data,
                 "events": events,
+                "movers": self._movers(t),
                 "finals": [
                     {
                         "match_id": m.match_id,

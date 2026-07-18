@@ -34,3 +34,25 @@ def cumulative_elo(player_id: int, tournament_id: int) -> dict[int, tuple[float,
         running[h.event] = after
         out[h.match_id] = (before, after, h.delta)
     return out
+
+
+def tournament_match_elo(tournament_id: int) -> dict[int, dict[int, tuple]]:
+    """{match_id: {player_id: (before, after, delta)}} for a whole tournament,
+    with before/after chained per (player, discipline). One query, cumulative."""
+    rows = list(
+        RatingHistory.objects.filter(match__tournament_id=tournament_id)
+        .select_related("match")
+        .order_by(
+            "player_id", "event", "match__round_order", "match__match_time_utc", "match_id"
+        )
+    )
+    out: dict[int, dict[int, tuple]] = {}
+    running: dict[tuple, float] = {}
+    for h in rows:
+        key = (h.player_id, h.event)
+        prev = running.get(key)
+        before = h.mu_before if prev is None else prev
+        after = before + h.delta
+        running[key] = after
+        out.setdefault(h.match_id, {})[h.player_id] = (before, after, h.delta)
+    return out
