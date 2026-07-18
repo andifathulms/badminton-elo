@@ -259,13 +259,18 @@ class PlayerMatchesView(generics.ListAPIView):
         return qs.filter(match__event=event) if event else qs
 
     def list(self, request, *args, **kwargs):
+        from .elo import cumulative_elo
+
         rows = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
         pid = int(self.kwargs["player_id"])
+        # Chain before/after within each tournament so a run reads cumulatively.
+        tour_ids = {mp.match.tournament_id for mp in rows if mp.match.tournament_id}
+        cum: dict = {}
+        for tid in tour_ids:
+            cum.update(cumulative_elo(pid, tid))
         deltas = {
             mid: {"before": round(b), "after": round(a), "delta": round(d, 1)}
-            for mid, b, a, d in RatingHistory.objects.filter(
-                player_id=pid, match_id__in=[mp.match_id for mp in rows]
-            ).values_list("match_id", "mu_before", "mu_after", "delta")
+            for mid, (b, a, d) in cum.items()
         }
         data = self.get_serializer(rows, many=True, context={"deltas": deltas}).data
         return self.get_paginated_response(data)

@@ -280,16 +280,27 @@ class MatchSerializer(serializers.ModelSerializer):
         )
 
     def _history(self, obj):
-        return {
-            h.player_id: (h.mu_before, h.mu_after, h.delta)
-            for h in RatingHistory.objects.filter(match_id=obj.match_id)
-        }
+        """{player_id: (before, after, delta)} with before/after chained across
+        the tournament so a run of wins reads cumulatively (see api/elo.py)."""
+        cached = getattr(obj, "_elo_cache", None)
+        if cached is not None:
+            return cached
+        from .elo import cumulative_elo
+
+        out = {}
+        for l in obj.lineup.all():
+            row = cumulative_elo(l.player_id, obj.tournament_id).get(obj.match_id)
+            if row:
+                out[l.player_id] = row
+        obj._elo_cache = out
+        return out
 
     def get_elo(self, obj):
         """Per-player rating for this match: {player_id: {before, after, delta}}.
 
-        `before` is the player's rating at the START of this tournament (the
-        locked figure the result is computed against), so the gain is legible.
+        `before` is the player's running rating going INTO this match (their
+        pre-tournament figure plus everything gained earlier in the run), so
+        consecutive matches chain correctly.
         """
         return {
             pid: {"before": round(b), "after": round(a), "delta": round(d, 1)}
