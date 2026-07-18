@@ -4,6 +4,7 @@ import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import Pager from '../components/Pager.jsx'
 import Avatar from '../components/Avatar.jsx'
+import StyleCard from '../components/StyleCard.jsx'
 import { flag } from '../flags.js'
 
 const names = (players) => players.map((p) => p.name_display).join(' / ') || '—'
@@ -65,6 +66,9 @@ export default function PairDetail() {
           <b>{data.matches_together}</b> matches
         </span>
       </div>
+
+      <StyleCard playerId={data.player1.player_id} partner={data.player2.player_id}
+                 title="This pair's style" />
 
       <h2>Matches together</h2>
       {data.matches.length === 0 ? (

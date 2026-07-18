@@ -4,6 +4,7 @@ import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import RatingChart from '../components/RatingChart.jsx'
 import MatchHistory from '../components/MatchHistory.jsx'
+import StyleCard from '../components/StyleCard.jsx'
 import Avatar from '../components/Avatar.jsx'
 
 export default function Player() {
@@ -126,6 +127,8 @@ export default function Player() {
       {player.ratings.length === 0 && (
         <p className="muted">No ratings yet for this player.</p>
       )}
+
+      <StyleCard playerId={id} />
 
       {activeEvent && (
         <>
