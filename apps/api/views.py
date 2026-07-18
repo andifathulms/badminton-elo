@@ -537,7 +537,12 @@ class AnalyticsView(APIView):
             qs = qs.filter(event=event)
         if request.query_params.get("include_new") != "1":
             qs = qs.filter(rd_start__lte=130)
-        qs = qs.order_by("-best_delta" if kind == "upsets" else "-net_delta")
+        if kind == "performances":
+            qs = qs.exclude(perf_rating=None).order_by("-perf_rating")
+        elif kind == "upsets":
+            qs = qs.order_by("-best_delta")
+        else:
+            qs = qs.order_by("-net_delta")
 
         # Collapse the two members of a doubles pair into one row.
         seen: set = set()

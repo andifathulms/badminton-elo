@@ -349,6 +349,7 @@ class TournamentPerformanceSerializer(serializers.ModelSerializer):
             "rd_start",
             "best_match",
             "best_delta",
+            "perf_rating",
         )
 
 

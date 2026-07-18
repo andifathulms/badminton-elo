@@ -283,6 +283,9 @@ class TournamentPerformance(models.Model):
         Match, on_delete=models.SET_NULL, null=True, blank=True
     )
     best_delta = models.FloatField(null=True, blank=True)  # biggest single win
+    # Chess-style performance rating for this tournament: the rating at which the
+    # player's/pair's results against this field of opponents would be expected.
+    perf_rating = models.FloatField(null=True, blank=True)
     # For doubles: the player's main partner this tournament (to collapse the
     # two members' rows into one pair in analytics). Null for singles.
     partner = models.ForeignKey(

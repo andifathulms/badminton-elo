@@ -258,6 +258,31 @@ def test_analytics_tournament_gains(api):
     assert abs(top["net_delta"] - (top["mu_end"] - top["mu_start"])) < 1.0
 
 
+def test_perf_rating_solver():
+    from apps.ingest.management.commands.build_analytics import _perf_rating
+
+    # Beating two 2000-rated opponents => performance well above 2000.
+    perf = _perf_rating([(2000.0, True), (2000.0, True)])
+    assert perf > 2000
+    # Split vs equal opponents => performance ≈ their level.
+    even = _perf_rating([(1800.0, True), (1800.0, False)])
+    assert abs(even - 1800) < 1
+    # Beating a strong field scores higher than beating a weak one.
+    strong = _perf_rating([(2200.0, True), (2100.0, True), (2000.0, True)])
+    weak = _perf_rating([(1500.0, True), (1400.0, True), (1300.0, True)])
+    assert strong > weak
+
+
+def test_analytics_performances(api):
+    r = api.get("/api/analytics/performances?event=XD&min_matches=1&include_new=1")
+    assert r.status_code == 200
+    results = r.json()["results"]
+    assert results
+    perfs = [row["perf_rating"] for row in results]
+    assert all(p is not None for p in perfs)
+    assert perfs == sorted(perfs, reverse=True)
+
+
 def test_analytics_upsets(api):
     r = api.get("/api/analytics/upsets?event=XD&min_matches=1&include_new=1")
     assert r.status_code == 200
