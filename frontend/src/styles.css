@@ -521,6 +521,19 @@ tr.clickable .link { color: var(--brand); font-weight: 600; }
   stroke-linecap: round; }
 .chart .dot { fill: var(--brand); opacity: .55; }
 .chart .worm { stroke: var(--brand); stroke-width: 2.5; stroke-linejoin: round; }
+.worm-chart .worm-title { fill: var(--ink-2); font-size: 12px; font-weight: 700; }
+.worm-chart .worm-score { fill: var(--muted); font-size: 12px; font-weight: 700;
+  font-variant-numeric: tabular-nums; }
+.worm-chart .wd { fill: var(--brand); opacity: .5; }
+.worm-chart .wd-tie { fill: var(--faint); }
+.worm-chart .wd-gp { fill: var(--accent-amber); stroke: var(--surface); stroke-width: 1.5; }
+.worm-chart .wd-final { fill: var(--pos); stroke: var(--surface); stroke-width: 1.5; }
+.worm-chart circle { cursor: pointer; }
+.worm-chart .worm-note { fill: var(--accent-amber); font-size: 10px; font-weight: 700; }
+.worm-tip rect { fill: var(--ink); opacity: .95; }
+.worm-tip text { fill: var(--surface); font-size: 12px; font-weight: 700;
+  font-variant-numeric: tabular-nums; }
+.gp-key { color: var(--accent-amber); }
 .chart .marker-line { stroke: var(--faint); stroke-width: 1; stroke-dasharray: 3 3; }
 .chart .peak-dot { fill: var(--accent-amber); stroke: var(--surface); stroke-width: 2; }
 .chart .now-dot { fill: var(--brand); stroke: var(--surface); stroke-width: 2; }
