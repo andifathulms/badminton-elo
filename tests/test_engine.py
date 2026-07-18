@@ -7,7 +7,10 @@ independence.
 import math
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from rating import MatchRecord, GameRecord, Rating, RatingConfig, run, update_match
+from rating.seeding import flat_seed, rank_seed
 
 CFG = RatingConfig(tier_weights={})
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -148,6 +151,31 @@ def test_period_deltas_sum_to_total_change():
     hist = [h for h in res.history if h.player_id == 10]
     total = sum(h.delta for h in hist)
     assert math.isclose(res.ratings[(10, "XD")].mu - 1500, total, rel_tol=1e-6)
+
+
+def test_rank_seed_curve():
+    # rank 1 seeds near the top; higher ranks decay to the flat baseline.
+    assert rank_seed(1, CFG).mu == pytest.approx(CFG.seed_rank_top_mu)
+    assert rank_seed(CFG.seed_rank_base, CFG).mu == pytest.approx(CFG.mu_init)
+    assert rank_seed(1000, CFG).mu == pytest.approx(CFG.mu_init)  # clamped
+    assert rank_seed(10, CFG).mu > rank_seed(100, CFG).mu > CFG.mu_init
+    # a rank-based seed carries high (but sub-350) uncertainty
+    assert rank_seed(1, CFG).rd == CFG.seed_rd
+    assert rank_seed(None, CFG).mu == flat_seed(CFG).mu  # no rank -> flat
+
+
+def test_rank_seeding_dampens_a_top_seed_cold_start():
+    """A #1-ranked debutant beating an unknown gains far less than if seeded
+    flat — the fix for newcomer over-inflation."""
+    m = [_match(1, 1, (1,), (2,), tournament_id=5)]
+    flat = run(m, CFG)
+    seeded = run(m, CFG, seed_ranks={(1, "XD"): 1})
+    # gain measured from each player's own seed
+    flat_gain = flat.ratings[(1, "XD")].mu - CFG.mu_init
+    seeded_gain = seeded.ratings[(1, "XD")].mu - rank_seed(1, CFG).mu
+    assert seeded_gain < flat_gain
+    # and the top seed still ends up far higher overall
+    assert seeded.ratings[(1, "XD")].mu > flat.ratings[(1, "XD")].mu
 
 
 def test_tier_weight_amplifies_movement():

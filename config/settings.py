@@ -176,6 +176,11 @@ RATING = {
     "D_FLOOR": 0.50,
     "K_RETIRE": 0.3,
     "RD_INFLATE_C": 34.6,
+    # Rank-based seeding (PRD §7.6): rank 1 -> SEED_RANK_TOP_MU, rank
+    # SEED_RANK_BASE+ -> MU_INIT, with a high SEED_RD (prior, not truth).
+    "SEED_RANK_TOP_MU": 2300.0,
+    "SEED_RANK_BASE": 400,
+    "SEED_RD": 300.0,
     "TIER_WEIGHTS": {
         "Super1000": 1.1,
         "Super750": 1.05,

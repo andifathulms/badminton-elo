@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from collections import defaultdict
 
 from .engine import update_period
-from .seeding import flat_seed
+from .seeding import flat_seed, rank_seed
 from .types import MatchRecord, Rating, RatingConfig, RatingDelta
 
 # One "rating period" for inactivity inflation, in days (~a month of tour play).
@@ -55,7 +55,11 @@ def _inflate_for_inactivity(
     r.rd = min(inflated, config.rd_init)
 
 
-def run(matches: list[MatchRecord], config: RatingConfig) -> RunResult:
+def run(
+    matches: list[MatchRecord],
+    config: RatingConfig,
+    seed_ranks: dict[tuple[int, str], int] | None = None,
+) -> RunResult:
     """Process tournaments (rating periods) chronologically (PRD §7.7).
 
     Each tournament is a rating period: a player's rating is frozen at the
@@ -64,15 +68,20 @@ def run(matches: list[MatchRecord], config: RatingConfig) -> RunResult:
     update is applied once at period end (`engine.update_period`). This is the
     tournament-locked model — meeting an opponent uses both sides' start-of-
     tournament strength, not a figure inflated by earlier-round wins.
+
+    `seed_ranks` maps (player_id, event) -> BWF World Ranking; a new key with a
+    rank is seeded from it (PRD §7.6), else flat.
     """
     result = RunResult()
     ratings = result.ratings
+    seed_ranks = seed_ranks or {}
 
     def rating_for(player_id: int, event: str) -> Rating:
         key = (player_id, event)
         r = ratings.get(key)
         if r is None:
-            r = flat_seed(config)
+            rank = seed_ranks.get(key)
+            r = rank_seed(rank, config) if rank else flat_seed(config)
             ratings[key] = r
         return r
 

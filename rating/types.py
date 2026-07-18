@@ -74,6 +74,13 @@ class RatingConfig:
     k_retire: float = 0.3
     rd_inflate_c: float = 34.6
     tier_weights: dict[str, float] = field(default_factory=dict)
+    # Rank-based seeding (PRD §7.6): a new (player, event) with a known BWF World
+    # Ranking is seeded on a log curve — rank 1 -> seed_rank_top_mu, rank
+    # seed_rank_base (and beyond) -> mu_init — with a deliberately HIGH rd
+    # (seed_rd) so the prior converges quickly to actual results.
+    seed_rank_top_mu: float = 2300.0
+    seed_rank_base: int = 400
+    seed_rd: float = 300.0
 
 
 @dataclass(frozen=True)

@@ -69,6 +69,9 @@ def _config() -> RatingConfig:
         k_retire=r["K_RETIRE"],
         rd_inflate_c=r["RD_INFLATE_C"],
         tier_weights=r["TIER_WEIGHTS"],
+        seed_rank_top_mu=r["SEED_RANK_TOP_MU"],
+        seed_rank_base=r["SEED_RANK_BASE"],
+        seed_rd=r["SEED_RD"],
     )
 
 
@@ -89,15 +92,30 @@ class Command(BaseCommand):
     def handle(self, *args, **opts):
         weights = settings.RATING["TIER_WEIGHTS"]
         records = self._load_matches(opts["event"], weights)
-        self.stdout.write(f"Loaded {len(records)} rated matches; running engine…")
+        seed_ranks = self._seed_ranks(opts["event"])
+        self.stdout.write(
+            f"Loaded {len(records)} rated matches, {len(seed_ranks)} seed ranks; "
+            "running engine…"
+        )
 
-        result = run(records, _config())
+        result = run(records, _config(), seed_ranks=seed_ranks)
         self.stdout.write(
             f"Computed {len(result.ratings)} (player, event) ratings, "
             f"{len(result.history)} history rows."
         )
         self._write(result, opts["event"], opts["batch_size"])
         self.stdout.write(self.style.SUCCESS("rate complete."))
+
+    def _seed_ranks(self, event) -> dict[tuple[int, str], int]:
+        from apps.ingest.models import PlayerSeedRank
+
+        qs = PlayerSeedRank.objects.all()
+        if event:
+            qs = qs.filter(event=event)
+        return {
+            (pid, ev): rank
+            for pid, ev, rank in qs.values_list("player_id", "event", "rank")
+        }
 
     # -- read ---------------------------------------------------------------
     def _load_matches(self, event, weights) -> list[MatchRecord]:
