@@ -32,6 +32,7 @@ def api(db):
     call_command("infer_gender", verbosity=0)
     call_command("build_pairs", "--min-matches", "1", verbosity=0)
     call_command("build_analytics", verbosity=0)
+    call_command("build_cup_history", verbosity=0)
     return APIClient()
 
 
@@ -352,6 +353,13 @@ def test_cup_power(db):
     assert top["power"] > 0
     # bad cup name -> 400
     assert c.get("/api/cups/nope").status_code == 400
+
+
+def test_cup_history_endpoint(api):
+    r = api.get("/api/cups/thomas/history")
+    assert r.status_code == 200
+    body = r.json()
+    assert {"cup", "years", "series"} <= set(body)
 
 
 def test_retirement_rule(db):

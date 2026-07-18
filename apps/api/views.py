@@ -766,3 +766,36 @@ class CupView(APIView):
             )
         rows.sort(key=lambda r: r["power"], reverse=True)
         return Response({"cup": cup, "results": rows})
+
+
+class CupHistoryView(APIView):
+    """GET /api/cups/{cup}/history — each top country's team power per year, so
+    the Cups timeline shows dominance eras."""
+
+    def get(self, request, cup):
+        from apps.ingest.models import CupPowerHistory
+
+        if cup not in CUP_SPECS:
+            raise ValidationError({"cup": f"one of {', '.join(CUP_SPECS)}"})
+        rows = list(
+            CupPowerHistory.objects.filter(cup=cup).values("country", "year", "power")
+        )
+        if not rows:
+            return Response({"cup": cup, "years": [], "series": []})
+        years = sorted({r["year"] for r in rows})
+        by_country: dict = defaultdict(dict)
+        peak: dict = defaultdict(float)
+        for r in rows:
+            by_country[r["country"]][r["year"]] = r["power"]
+            peak[r["country"]] = max(peak[r["country"]], r["power"])
+        top = sorted(peak, key=peak.get, reverse=True)[:8]
+        series = [
+            {
+                "country": cc,
+                "points": [
+                    {"year": y, "power": by_country[cc].get(y)} for y in years
+                ],
+            }
+            for cc in top
+        ]
+        return Response({"cup": cup, "years": years, "series": series})

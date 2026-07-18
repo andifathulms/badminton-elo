@@ -39,6 +39,7 @@ export const api = {
   tournamentTiers: () => get('/tournaments/tiers'),
   tournament: (id) => get(`/tournaments/${id}`),
   cup: (cup) => get(`/cups/${cup}`),
+  cupHistory: (cup) => get(`/cups/${cup}/history`),
 }
 
 export const EVENTS = [

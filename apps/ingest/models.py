@@ -304,6 +304,24 @@ class TournamentPerformance(models.Model):
         return f"{self.player_id}/{self.event} @{self.tournament_id}: {self.net_delta:+.0f}"
 
 
+class CupPowerHistory(models.Model):
+    """Analytics: a country's national-team power per year, reconstructed from
+    RatingHistory (each player's rating as-of that year, active only). Powers the
+    Cups timeline graph. cup in {thomas, uber, sudirman}."""
+
+    cup = models.CharField(max_length=16)
+    country = models.CharField(max_length=8)
+    year = models.IntegerField()
+    power = models.FloatField()
+
+    class Meta:
+        unique_together = ("cup", "country", "year")
+        indexes = [models.Index(fields=["cup", "year"])]
+
+    def __str__(self) -> str:
+        return f"{self.cup} {self.country} {self.year}: {self.power:.0f}"
+
+
 class RawCache(models.Model):
     """Read-through cache of every raw API response (PRD §5, domain rule 9).
 

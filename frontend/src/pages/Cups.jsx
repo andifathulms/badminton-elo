@@ -4,6 +4,7 @@ import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import { flag } from '../flags.js'
 import PageHeader from '../components/PageHeader.jsx'
+import CupTimeline from '../components/CupTimeline.jsx'
 
 const CUPS = [
   { key: 'thomas', label: 'Thomas Cup', sub: "Men's team · 3 MS + 2 MD" },
@@ -59,6 +60,10 @@ export default function Cups() {
       </div>
       <p className="muted small" style={{ marginTop: 8 }}>{meta.sub}</p>
 
+      <h2>📈 Dominance over time</h2>
+      <CupTimeline cup={cup} />
+
+      <h2 style={{ marginTop: 24 }}>Current standings</h2>
       {loading && <p className="muted">Loading…</p>}
       {error && <p className="error">Could not load: {error.message}</p>}
       {data && (

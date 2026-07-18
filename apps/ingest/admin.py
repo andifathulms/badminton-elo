@@ -24,6 +24,8 @@ from .models import (
 admin.site.register(MatchStatistics)
 admin.site.register(PlayerSeedRank)
 admin.site.register(TournamentPerformance)
+from .models import CupPowerHistory
+admin.site.register(CupPowerHistory)
 
 
 @admin.register(Partnership)
