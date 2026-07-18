@@ -79,6 +79,10 @@ code { background: var(--line); padding: 1px 5px; border-radius: 4px; }
 .tab .tab-label { font-size: 10px; font-weight: 400; color: var(--muted); }
 .tab.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .tab.active .tab-label { color: var(--accent-ink); opacity: .85; }
+.roundtabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 4px; }
+.rtab { border: 1px solid var(--line); background: var(--card); color: var(--muted);
+  border-radius: 7px; padding: 4px 10px; cursor: pointer; font-size: 12px; font-weight: 600; }
+.rtab.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 
 .toolbar {
   display: flex; justify-content: space-between; align-items: center;
@@ -150,6 +154,7 @@ code { background: var(--line); padding: 1px 5px; border-radius: 4px; }
 .wl.w { background: #2e9e5b; }
 .wl.l { background: #b1414f; }
 .elo { font-size: 11px; margin-left: 6px; }
+.team-elo { margin-top: 6px; display: flex; gap: 8px; align-items: baseline; }
 .elorow { margin-left: 6px; display: inline-flex; gap: 6px; align-items: baseline; }
 .elo-note { max-width: 640px; margin-top: 10px; }
 tr.clickable { cursor: pointer; }

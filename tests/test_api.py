@@ -99,6 +99,10 @@ def test_match_detail_has_lineup_and_games(api):
     assert any(d > 0 for d in deltas) and any(d < 0 for d in deltas)
     for v in elo.values():
         assert {"before", "after", "delta"} <= set(v)
+    # Per-side (pair) combined ELO: one entry per side, mean of members.
+    team = body["team_elo"]
+    assert set(team) == {"1", "2"}
+    assert {"before", "after", "delta"} <= set(team["1"])
 
 
 def test_player_matches_with_elo_delta(api):
@@ -262,6 +266,9 @@ def test_analytics_upsets(api):
     best = [row["best_delta"] for row in results]
     assert best == sorted(best, reverse=True)
     assert results[0]["best_delta"] > 0
+    # upsets are enriched with the round and the opponent(s) beaten
+    assert "best_round" in results[0]
+    assert "beat" in results[0]
 
 
 def test_player_match_history_has_before_after(api):

@@ -21,8 +21,8 @@ function GainsTable({ kind, event, includeNew }) {
         <tr>
           <th>#</th>
           <th>Player</th>
-          <th className="num">{isUpset ? 'Best win' : 'Net ELO'}</th>
-          <th className="num">{isUpset ? 'M' : 'Start→End'}</th>
+          <th className="num">{isUpset ? 'Gain' : 'Net ELO'}</th>
+          {isUpset ? <th>Beat (round)</th> : <th className="num">Start→End</th>}
           <th>Tournament</th>
         </tr>
       </thead>
@@ -50,9 +50,16 @@ function GainsTable({ kind, event, includeNew }) {
                 </span>
               )}
             </td>
-            <td className="num muted small">
-              {isUpset ? row.matches : `${Math.round(row.mu_start)}→${Math.round(row.mu_end)}`}
-            </td>
+            {isUpset ? (
+              <td className="small">
+                {(row.beat || []).map((p) => p.name_display).join(' / ') || '—'}
+                {row.best_round && <span className="muted"> · {row.best_round}</span>}
+              </td>
+            ) : (
+              <td className="num muted small">
+                {Math.round(row.mu_start)}→{Math.round(row.mu_end)}
+              </td>
+            )}
             <td className="muted small">
               <Link to={`/tournaments/${row.tournament.tournament_id}`}>
                 {row.tournament.name}

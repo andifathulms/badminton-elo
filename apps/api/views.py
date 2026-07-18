@@ -375,6 +375,34 @@ class AnalyticsView(generics.ListAPIView):
             return qs.exclude(best_delta=None).order_by("-best_delta")
         return qs.order_by("-net_delta")
 
+    def list(self, request, *args, **kwargs):
+        resp = super().list(request, *args, **kwargs)
+        if self.kwargs.get("kind") != "upsets":
+            return resp
+        # Attach the standout match's round + the opponent(s) beaten.
+        rows = resp.data.get("results", [])
+        ids = [r["best_match"] for r in rows if r.get("best_match")]
+        matches = {
+            m.match_id: m
+            for m in Match.objects.filter(match_id__in=ids).prefetch_related(
+                "lineup__player"
+            )
+        }
+        for r in rows:
+            m = matches.get(r.get("best_match"))
+            if not m:
+                r["best_round"], r["beat"] = None, []
+                continue
+            subj = r["player"]["player_id"]
+            side = next(
+                (l.side for l in m.lineup.all() if l.player_id == subj), None
+            )
+            r["best_round"] = m.round_name
+            r["beat"] = PlayerBriefSerializer(
+                [l.player for l in m.lineup.all() if l.side != side], many=True
+            ).data
+        return resp
+
 
 class EventsView(APIView):
     """GET /api/events — the discipline buckets and their rated-player counts."""

@@ -257,6 +257,7 @@ class MatchSerializer(serializers.ModelSerializer):
     lineup = MatchLineupSerializer(many=True, read_only=True)
     games = GameSerializer(many=True, read_only=True)
     elo = serializers.SerializerMethodField()
+    team_elo = serializers.SerializerMethodField()
 
     class Meta:
         model = Match
@@ -275,7 +276,14 @@ class MatchSerializer(serializers.ModelSerializer):
             "lineup",
             "games",
             "elo",
+            "team_elo",
         )
+
+    def _history(self, obj):
+        return {
+            h.player_id: (h.mu_before, h.mu_after, h.delta)
+            for h in RatingHistory.objects.filter(match_id=obj.match_id)
+        }
 
     def get_elo(self, obj):
         """Per-player rating for this match: {player_id: {before, after, delta}}.
@@ -284,13 +292,31 @@ class MatchSerializer(serializers.ModelSerializer):
         locked figure the result is computed against), so the gain is legible.
         """
         return {
-            h.player_id: {
-                "before": round(h.mu_before),
-                "after": round(h.mu_after),
-                "delta": round(h.delta, 1),
-            }
-            for h in RatingHistory.objects.filter(match_id=obj.match_id)
+            pid: {"before": round(b), "after": round(a), "delta": round(d, 1)}
+            for pid, (b, a, d) in self._history(obj).items()
         }
+
+    def get_team_elo(self, obj):
+        """Per-SIDE combined rating: {side: {before, after, delta}} — the PAIR's
+        ELO for doubles (mean of members), the individual's for singles."""
+        hist = self._history(obj)
+        out = {}
+        for side in (1, 2):
+            vals = [
+                hist[l.player_id]
+                for l in obj.lineup.all()
+                if l.side == side and l.player_id in hist
+            ]
+            if not vals:
+                continue
+            before = sum(v[0] for v in vals) / len(vals)
+            after = sum(v[1] for v in vals) / len(vals)
+            out[side] = {
+                "before": round(before),
+                "after": round(after),
+                "delta": round(after - before, 1),
+            }
+        return out
 
 
 class TournamentPerformanceSerializer(serializers.ModelSerializer):

@@ -9,28 +9,49 @@ const names = (players) => players.map((p) => p.name_display).join(' / ') || 'â€
 function MatchList({ id, events }) {
   const eventCodes = events.map((e) => e.event)
   const [event, setEvent] = useState(eventCodes[0] || 'MS')
+  const [round, setRound] = useState('All')
   const { data, error, loading } = useAsync(
-    () => api.tournamentMatches(id, { event, limit: 200 }),
+    () => api.tournamentMatches(id, { event, limit: 300 }),
     [id, event],
   )
+  // Distinct rounds present, ordered by the bracket (round_order).
+  const rounds = data
+    ? [...new Map(data.results.map((m) => [m.round_name, m.round_order])).entries()]
+        .sort((a, b) => a[1] - b[1])
+        .map(([name]) => name)
+    : []
+  const shown = data
+    ? data.results.filter((m) => round === 'All' || m.round_name === round)
+    : []
+
   return (
     <>
       <div className="tabs">
         {events.map((e) => (
           <button key={e.event}
             className={`tab ${e.event === event ? 'active' : ''}`}
-            onClick={() => setEvent(e.event)}>
+            onClick={() => { setEvent(e.event); setRound('All') }}>
             {e.event}
             <span className="tab-label">{e.n}</span>
           </button>
         ))}
       </div>
+      {rounds.length > 1 && (
+        <div className="roundtabs">
+          <button className={`rtab ${round === 'All' ? 'active' : ''}`}
+                  onClick={() => setRound('All')}>All</button>
+          {rounds.map((r) => (
+            <button key={r} className={`rtab ${round === r ? 'active' : ''}`}
+                    onClick={() => setRound(r)}>{r}</button>
+          ))}
+        </div>
+      )}
       {loading && <p className="muted">Loadingâ€¦</p>}
       {error && <p className="error">Could not load matches.</p>}
       {data && (
         <table className="board compact">
           <tbody>
-            {data.results.map((m) => (
+            {shown.map((m) => (
               <tr key={m.match_id}>
                 <td className="muted small">{m.round_name}</td>
                 <td className={m.winner_side === 1 ? 'strong' : ''}>{names(m.side1)}</td>

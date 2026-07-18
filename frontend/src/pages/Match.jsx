@@ -12,19 +12,20 @@ export default function Match() {
 
   const side = (n) => m.lineup.filter((l) => l.side === n).map((l) => l.player)
   const won = (n) => (m.winner_side === n ? 'winner' : '')
-  const elo = m.elo || {}
-  const hasElo = Object.keys(elo).length > 0
-  const eloTag = (pid) => {
-    const e = elo[pid]
+  const teamElo = m.team_elo || {}
+  const hasElo = Object.keys(teamElo).length > 0
+  const isDoubles = m.lineup.filter((l) => l.side === 1).length > 1
+  const teamEloTag = (side) => {
+    const e = teamElo[side]
     if (e == null) return null
     return (
-      <span className="elorow">
-        <span className="muted small">{e.before}</span>
+      <div className="team-elo">
+        <span className="muted small">{isDoubles ? 'pair ' : ''}{e.before}→{e.after}</span>
         <span className={`elo ${e.delta >= 0 ? 'pos' : 'neg'}`}>
           {e.delta >= 0 ? '+' : ''}
           {e.delta.toFixed(1)}
         </span>
-      </span>
+      </div>
     )
   }
 
@@ -51,10 +52,10 @@ export default function Match() {
             {side(1).map((p) => (
               <Link key={p.player_id} to={`/players/${p.player_id}`}>
                 {p.name_display} <span className="country">{p.country_code}</span>
-                {eloTag(p.player_id)}
               </Link>
             ))}
           </div>
+          {teamEloTag(1)}
         </div>
 
         <table className="games">
@@ -81,20 +82,21 @@ export default function Match() {
             {side(2).map((p) => (
               <Link key={p.player_id} to={`/players/${p.player_id}`}>
                 {p.name_display} <span className="country">{p.country_code}</span>
-                {eloTag(p.player_id)}
               </Link>
             ))}
           </div>
+          {teamEloTag(2)}
         </div>
       </div>
 
       {hasElo && (
         <p className="muted small elo-note">
-          Ratings shown are each player's rating at the <strong>start of this
-          tournament</strong> (the rating system is tournament-locked, so this
-          result is scored against both players' pre-tournament strength — not a
-          figure inflated by earlier rounds). The ± is the ELO contributed by
-          this match.
+          Ratings are each {isDoubles ? 'pair' : 'player'}'s rating at the{' '}
+          <strong>start of this tournament</strong> (the system is
+          tournament-locked, so the result is scored against pre-tournament
+          strength — not a figure inflated by earlier rounds).
+          {isDoubles && ' The pair figure is the mean of the two members.'} The ±
+          is the ELO this match contributed.
         </p>
       )}
 
