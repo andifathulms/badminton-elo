@@ -156,17 +156,21 @@ export default function Tournament() {
   return (
     <div>
       <Link to="/tournaments" className="back">← Tournaments</Link>
-      <div className="match-head">
-        {t.category_name && <span className="pill">{shortTier(t.category_name)}</span>}
-        {isOngoing(t) && <span className="badge-live">● Live</span>}
-      </div>
-      <h1>{t.name}</h1>
-      <div className="meta">
-        {t.venue_name && <span>📍 {t.venue_name}</span>}
-        <span>🗓 {t.start_date} → {t.end_date}</span>
-        {t.prize_money && <span>💰 ${Number(t.prize_money).toLocaleString()}</span>}
-        <span>🏸 {t.match_count} matches</span>
-      </div>
+      <header className="page-hero">
+        <div className="page-hero-text">
+          <div className="match-head">
+            {t.category_name && <span className="pill">{shortTier(t.category_name)}</span>}
+            {isOngoing(t) && <span className="badge-live">● Live</span>}
+          </div>
+          <h1>{t.name}</h1>
+          <div className="meta">
+            {t.venue_name && <span>📍 {t.venue_name}</span>}
+            <span>🗓 {t.start_date} → {t.end_date}</span>
+            {t.prize_money && <span>💰 ${Number(t.prize_money).toLocaleString()}</span>}
+            <span>🏸 {t.match_count} matches</span>
+          </div>
+        </div>
+      </header>
 
       {t.finals.length > 0 && (
         <>

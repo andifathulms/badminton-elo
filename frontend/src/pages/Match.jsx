@@ -32,19 +32,23 @@ export default function Match() {
   return (
     <div>
       <Link to="/rankings" className="back">← Rankings</Link>
-      <div className="match-head">
-        <span className="pill">{m.event}</span>
-        <span className="pill ghost">{m.round_name}</span>
-        {m.score_status !== 'Normal' && (
-          <span className="pill warn">{m.score_status}</span>
-        )}
-      </div>
-      <h1 className="tournament">{m.tournament?.name}</h1>
-      <div className="meta">
-        {m.tournament?.category_name && <span>{m.tournament.category_name}</span>}
-        {m.match_time_utc && <span>{new Date(m.match_time_utc).toUTCString()}</span>}
-        {m.scoring_format && <span>Format: {m.scoring_format}</span>}
-      </div>
+      <header className="page-hero">
+        <div className="page-hero-text">
+          <div className="match-head">
+            <span className="pill">{m.event}</span>
+            <span className="pill ghost">{m.round_name}</span>
+            {m.score_status !== 'Normal' && (
+              <span className="pill warn">{m.score_status}</span>
+            )}
+          </div>
+          <h1 className="tournament">{m.tournament?.name}</h1>
+          <div className="meta">
+            {m.tournament?.category_name && <span>{m.tournament.category_name}</span>}
+            {m.match_time_utc && <span>{new Date(m.match_time_utc).toUTCString()}</span>}
+            {m.scoring_format && <span>Format: {m.scoring_format}</span>}
+          </div>
+        </div>
+      </header>
 
       <div className="scorecard">
         <div className={`team ${won(1)}`}>

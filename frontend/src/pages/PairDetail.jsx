@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import Pager from '../components/Pager.jsx'
+import Avatar from '../components/Avatar.jsx'
 import { flag } from '../flags.js'
 
 const names = (players) => players.map((p) => p.name_display).join(' / ') || '—'
@@ -29,12 +30,24 @@ export default function PairDetail() {
   return (
     <div>
       <Link to="/rankings" className="back">← Rankings</Link>
-      <h1 className="player-name">
-        <Link to={`/players/${data.player1.player_id}`}>{data.player1.name_display}</Link>
-        {' / '}
-        <Link to={`/players/${data.player2.player_id}`}>{data.player2.name_display}</Link>
-        <span className="country-badge">{event}</span>
-      </h1>
+      <header className="profile">
+        <span className="pair-av">
+          <Avatar player={data.player1} size="lg" />
+          <Avatar player={data.player2} size="lg" />
+        </span>
+        <div className="pinfo">
+          <h1>
+            <Link to={`/players/${data.player1.player_id}`}>{data.player1.name_display}</Link>
+            {' / '}
+            <Link to={`/players/${data.player2.player_id}`}>{data.player2.name_display}</Link>
+            <span className="country-badge">{event}</span>
+          </h1>
+          <div className="meta">
+            <span>{flag(data.player1.country_code)} {data.player1.country_code}</span>
+            <span>{flag(data.player2.country_code)} {data.player2.country_code}</span>
+          </div>
+        </div>
+      </header>
       <div className="records">
         {pair && (
           <span className="record-pill">

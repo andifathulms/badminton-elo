@@ -4,6 +4,7 @@ import { api, EVENTS } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import Avatar from '../components/Avatar.jsx'
 import Select from '../components/Select.jsx'
+import PageHeader from '../components/PageHeader.jsx'
 import { flag } from '../flags.js'
 
 function Legend() {
@@ -55,14 +56,11 @@ export default function Leaderboard() {
 
   return (
     <div>
-      <div className="page-head">
-        <div className="kicker">BWF World Rankings · Elo</div>
-        <h1 className="page-title">{eventLabel(event)}</h1>
-        <p className="page-sub">
-          Skill ratings computed from head-to-head tournament results — not points
-          earned. Players ranked by a conservative Glicko-2 score.
-        </p>
-      </div>
+      <PageHeader
+        kicker="BWF World Rankings · Elo"
+        title={eventLabel(event)}
+        subtitle="Skill ratings computed from head-to-head tournament results — not points earned. Players ranked by a conservative Glicko-2 score."
+      />
 
       <div className="tabs">
         {EVENTS.map((e) => (

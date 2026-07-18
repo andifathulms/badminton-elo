@@ -4,6 +4,7 @@ import { api, EVENTS } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import { flag } from '../flags.js'
 import Pager from '../components/Pager.jsx'
+import PageHeader from '../components/PageHeader.jsx'
 
 const PAGE = 10
 
@@ -111,14 +112,11 @@ export default function Insights() {
 
   return (
     <div>
-      <div className="page-head">
-        <div className="kicker">Analytics</div>
-        <h1 className="page-title">Insights</h1>
-        <p className="page-sub">
-          Standout runs and giant-killings across two decades of BWF results —
-          ranked by how much they moved the needle.
-        </p>
-      </div>
+      <PageHeader
+        kicker="Analytics"
+        title="Insights"
+        subtitle="Standout runs and giant-killings across two decades of BWF results — ranked by how much they moved the needle."
+      />
       <div className="toolbar wrap">
         <div className="segmented">
           <button className={event === '' ? 'seg active' : 'seg'}

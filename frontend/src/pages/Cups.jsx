@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import { flag } from '../flags.js'
+import PageHeader from '../components/PageHeader.jsx'
 
 const CUPS = [
   { key: 'thomas', label: 'Thomas Cup', sub: "Men's team · 3 MS + 2 MD" },
@@ -36,15 +37,15 @@ export default function Cups() {
 
   return (
     <div>
-      <div className="page-head">
-        <div className="kicker">National Team Power</div>
-        <h1 className="page-title">Cup Power</h1>
-        <p className="page-sub">
-          Which country could field the strongest team <strong>right now</strong> —
+      <PageHeader
+        kicker="National Team Power"
+        title="Cup Power"
+        subtitle={
+          <>Which country could field the strongest team <strong>right now</strong> —
           summed rating of each nation's top active players/pairs. Retired players
-          (idle &gt; 1 year) don't count.
-        </p>
-      </div>
+          (idle &gt; 1 year) don't count.</>
+        }
+      />
 
       <div className="tabs">
         {CUPS.map((c) => (

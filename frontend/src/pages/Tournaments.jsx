@@ -4,6 +4,7 @@ import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import Select from '../components/Select.jsx'
 import Pager from '../components/Pager.jsx'
+import PageHeader from '../components/PageHeader.jsx'
 
 const YEARS = Array.from({ length: 21 }, (_, i) => 2026 - i)
 const YEAR_OPTS = [{ value: '', label: 'All years' }, ...YEARS.map((y) => ({ value: y, label: String(y) }))]
@@ -37,16 +38,10 @@ export default function Tournaments() {
 
   return (
     <div>
-      <div className="toolbar wrap" style={{ justifyContent: 'space-between' }}>
-        <div className="page-head" style={{ marginBottom: 0 }}>
-          <div className="kicker">BWF World Tour · History</div>
-          <h1 className="page-title">Tournaments</h1>
-        </div>
-        <div className="filters">
-          <Select label="Tier" value={tier} onChange={setTier} options={tierOpts} />
-          <Select label="Year" value={year} onChange={setYear} options={YEAR_OPTS} />
-        </div>
-      </div>
+      <PageHeader kicker="BWF World Tour · History" title="Tournaments">
+        <Select label="Tier" value={tier} onChange={setTier} options={tierOpts} />
+        <Select label="Year" value={year} onChange={setYear} options={YEAR_OPTS} />
+      </PageHeader>
       {loading && <p className="muted">Loading…</p>}
       {error && <p className="error">Could not load: {error.message}</p>}
       {data && (
