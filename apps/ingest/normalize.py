@@ -209,6 +209,54 @@ def _upsert_player(ref) -> Player:
 
 
 @transaction.atomic
+def _incoming_signature(raw: MatchRaw) -> tuple[frozenset[int], tuple]:
+    """The player set + ordered game scores that identify a real contest."""
+    pids = frozenset(
+        p.id
+        for team in (raw.team1, raw.team2)
+        if team
+        for p in team.players
+    )
+    scores = tuple((g.home, g.away) for g in raw.score)
+    return pids, scores
+
+
+def _find_duplicate_contest(tournament, event_code, pids, scores, exclude_id):
+    """An existing Match for the same contest under a DIFFERENT id, or None.
+
+    Some BWF sources assign a second match_id to a contest already ingested —
+    often the second copy lacks a round label — which double-counts in ratings.
+    We identify a contest by its exact player set plus game scores; scores are
+    required so we never merge two distinct walkovers between the same players.
+    """
+    from django.db.models import Count
+
+    if not pids or not scores:
+        return None
+    candidates = (
+        MatchPlayer.objects.filter(
+            match__tournament=tournament, match__event=event_code, player_id__in=pids
+        )
+        .exclude(match_id=exclude_id)
+        .values("match_id")
+        .annotate(n=Count("id"))
+    )
+    for row in candidates:
+        if row["n"] != len(pids):
+            continue
+        mid = row["match_id"]
+        if MatchPlayer.objects.filter(match_id=mid).count() != len(pids):
+            continue  # has extra players — different contest
+        gs = tuple(
+            Game.objects.filter(match_id=mid)
+            .order_by("game_no")
+            .values_list("side1_points", "side2_points")
+        )
+        if gs == scores:
+            return Match.objects.filter(match_id=mid).first()
+    return None
+
+
 def normalize_match(
     raw: MatchRaw,
     *,
@@ -216,11 +264,28 @@ def normalize_match(
     draw: Draw | None,
     scoring_format_override: str | None = None,
 ) -> Match:
-    """Upsert one match with its lineup and games. Idempotent on match_id."""
+    """Upsert one match with its lineup and games. Idempotent on match_id, and
+    de-duplicates contests re-ingested under a second match_id (see
+    _find_duplicate_contest) so ratings never double-count."""
     status_label, rating_excluded = map_status(raw.score_status_value)
     event_code, is_exhibition = canonical_event(raw.event_name)
     match_date = raw.match_time_utc.date() if raw.match_time_utc else tournament.start_date
     scoring_format = scoring_format_override or default_scoring_format(match_date)
+
+    # Root-cause dedup: if this contest already exists under another id, keep the
+    # richer copy (the one WITH a round label) and skip creating a duplicate.
+    pids, scores = _incoming_signature(raw)
+    dup = _find_duplicate_contest(tournament, event_code, pids, scores, raw.id)
+    if dup is not None:
+        incoming_has_round = bool(raw.round_name.strip())
+        existing_has_round = bool((dup.round_name or "").strip())
+        if incoming_has_round and not existing_has_round:
+            dup.delete()  # incoming is richer — replace the round-less copy
+        else:
+            # Existing copy is as good or better; drop any stale row under this
+            # id and keep the existing contest.
+            Match.objects.filter(match_id=raw.id).delete()
+            return dup
 
     match, _ = Match.objects.update_or_create(
         match_id=raw.id,
