@@ -143,6 +143,7 @@ class Command(BaseCommand):
                     side2_player_ids=tuple(sorted(line[2])),
                     games=tuple(g),
                     tier_weight=_tier_weight(m.tournament.category_name, weights),
+                    tournament_id=m.tournament_id,
                 )
             )
         return records
@@ -159,6 +160,15 @@ class Command(BaseCommand):
         rh.delete()
         ph.delete()
 
+        # Peak = highest mu_after ever reached per (player, event), with the
+        # rd/date at that moment. Built from the history stream.
+        peak: dict[tuple[int, str], tuple[float, float, object]] = {}
+        for d in result.history:
+            key = (d.player_id, d.event)
+            best = peak.get(key)
+            if best is None or d.mu_after > best[0]:
+                peak[key] = (d.mu_after, d.rd_after, d.applied_utc)
+
         PlayerRating.objects.bulk_create(
             [
                 PlayerRating(
@@ -169,6 +179,9 @@ class Command(BaseCommand):
                     sigma=r.sigma,
                     matches_played=r.matches_played,
                     last_match_utc=r.last_match_utc,
+                    peak_mu=peak.get((pid, ev), (r.mu, r.rd, r.last_match_utc))[0],
+                    peak_rd=peak.get((pid, ev), (r.mu, r.rd, r.last_match_utc))[1],
+                    peak_utc=peak.get((pid, ev), (r.mu, r.rd, r.last_match_utc))[2],
                 )
                 for (pid, ev), r in result.ratings.items()
             ],

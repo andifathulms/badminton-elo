@@ -277,9 +277,17 @@ class MatchSerializer(serializers.ModelSerializer):
         )
 
     def get_elo(self, obj):
-        """Per-player rating change from this match: {player_id: delta}."""
+        """Per-player rating for this match: {player_id: {before, after, delta}}.
+
+        `before` is the player's rating at the START of this tournament (the
+        locked figure the result is computed against), so the gain is legible.
+        """
         return {
-            h.player_id: round(h.delta, 1)
+            h.player_id: {
+                "before": round(h.mu_before),
+                "after": round(h.mu_after),
+                "delta": round(h.delta, 1),
+            }
             for h in RatingHistory.objects.filter(match_id=obj.match_id)
         }
 

@@ -13,13 +13,17 @@ export default function Match() {
   const side = (n) => m.lineup.filter((l) => l.side === n).map((l) => l.player)
   const won = (n) => (m.winner_side === n ? 'winner' : '')
   const elo = m.elo || {}
+  const hasElo = Object.keys(elo).length > 0
   const eloTag = (pid) => {
-    const d = elo[pid]
-    if (d == null) return null
+    const e = elo[pid]
+    if (e == null) return null
     return (
-      <span className={`elo ${d >= 0 ? 'pos' : 'neg'}`}>
-        {d >= 0 ? '+' : ''}
-        {d.toFixed(1)}
+      <span className="elorow">
+        <span className="muted small">{e.before}</span>
+        <span className={`elo ${e.delta >= 0 ? 'pos' : 'neg'}`}>
+          {e.delta >= 0 ? '+' : ''}
+          {e.delta.toFixed(1)}
+        </span>
       </span>
     )
   }
@@ -83,6 +87,16 @@ export default function Match() {
           </div>
         </div>
       </div>
+
+      {hasElo && (
+        <p className="muted small elo-note">
+          Ratings shown are each player's rating at the <strong>start of this
+          tournament</strong> (the rating system is tournament-locked, so this
+          result is scored against both players' pre-tournament strength — not a
+          figure inflated by earlier rounds). The ± is the ELO contributed by
+          this match.
+        </p>
+      )}
 
       {m.rating_excluded && (
         <p className="muted">This match is excluded from rating (walkover/no-play).</p>

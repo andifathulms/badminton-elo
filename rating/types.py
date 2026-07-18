@@ -34,6 +34,9 @@ class MatchRecord:
     # Tier multiplier (W_tier) resolved by the bridge from settings; 1.0 = no
     # weighting. The engine never parses tier strings itself.
     tier_weight: float = 1.0
+    # Rating-period key: all matches of a tournament are rated together against
+    # start-of-period ratings (tournament-locked model). 0 = ungrouped.
+    tournament_id: int = 0
 
     @property
     def is_retired(self) -> bool:

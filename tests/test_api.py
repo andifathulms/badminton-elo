@@ -91,10 +91,13 @@ def test_match_detail_has_lineup_and_games(api):
         (13, 21), (21, 15), (11, 21)
     ]
     assert body["tournament"]["tournament_id"] == 5229
-    # Per-player ELO deltas from this match; winners gain, losers lose.
+    # Per-player ELO for this match: before/after/delta; winners gain, losers lose.
     elo = body["elo"]
     assert len(elo) == 4
-    assert any(v > 0 for v in elo.values()) and any(v < 0 for v in elo.values())
+    deltas = [v["delta"] for v in elo.values()]
+    assert any(d > 0 for d in deltas) and any(d < 0 for d in deltas)
+    for v in elo.values():
+        assert {"before", "after", "delta"} <= set(v)
 
 
 def test_player_matches_with_elo_delta(api):

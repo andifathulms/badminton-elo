@@ -11,7 +11,7 @@ dominance/margin math (§7.3), and the deterministic chronological driver (§7.7
 `manage.py rate` is the only bridge to persistence.
 """
 from .dominance import dominance, margin_multiplier
-from .engine import update_match
+from .engine import update_match, update_period
 from .run import RunResult, match_sort_key, run
 from .types import (
     GameRecord,
@@ -25,6 +25,7 @@ __all__ = [
     "dominance",
     "margin_multiplier",
     "update_match",
+    "update_period",
     "run",
     "RunResult",
     "match_sort_key",

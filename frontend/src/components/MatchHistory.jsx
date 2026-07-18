@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
 
@@ -6,6 +6,7 @@ const names = (players) =>
   players.map((p) => p.name_display).join(' / ') || '—'
 
 export default function MatchHistory({ playerId, event }) {
+  const navigate = useNavigate()
   const { data, error, loading } = useAsync(
     () => api.playerMatches(playerId, { event, limit: 25 }),
     [playerId, event],
@@ -30,12 +31,16 @@ export default function MatchHistory({ playerId, event }) {
       </thead>
       <tbody>
         {data.results.map((m) => (
-          <tr key={m.match_id}>
+          <tr
+            key={m.match_id}
+            className="clickable"
+            onClick={() => navigate(`/matches/${m.match_id}`)}
+          >
             <td>
               <span className={`wl ${m.won ? 'w' : 'l'}`}>{m.won ? 'W' : 'L'}</span>
             </td>
             <td>
-              <Link to={`/matches/${m.match_id}`}>{names(m.opponents)}</Link>
+              <span className="link">{names(m.opponents)}</span>
               {m.partners.length > 0 && (
                 <div className="muted small">w/ {names(m.partners)}</div>
               )}

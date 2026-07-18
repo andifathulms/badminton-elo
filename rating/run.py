@@ -15,7 +15,9 @@ import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from .engine import update_match
+from collections import defaultdict
+
+from .engine import update_period
 from .seeding import flat_seed
 from .types import MatchRecord, Rating, RatingConfig, RatingDelta
 
@@ -54,7 +56,15 @@ def _inflate_for_inactivity(
 
 
 def run(matches: list[MatchRecord], config: RatingConfig) -> RunResult:
-    """Process matches chronologically; return final ratings + per-match history."""
+    """Process tournaments (rating periods) chronologically (PRD §7.7).
+
+    Each tournament is a rating period: a player's rating is frozen at the
+    period start (after inactivity inflation), all their matches in the
+    tournament are rated against those frozen ratings, and the accumulated
+    update is applied once at period end (`engine.update_period`). This is the
+    tournament-locked model — meeting an opponent uses both sides' start-of-
+    tournament strength, not a figure inflated by earlier-round wins.
+    """
     result = RunResult()
     ratings = result.ratings
 
@@ -66,18 +76,35 @@ def run(matches: list[MatchRecord], config: RatingConfig) -> RunResult:
             ratings[key] = r
         return r
 
-    for match in sorted(matches, key=match_sort_key):
-        if match.rating_excluded or match.winner_side not in (1, 2):
+    # Group into rating periods (tournaments), ordered by their earliest match.
+    periods: dict[int, list[MatchRecord]] = defaultdict(list)
+    for m in matches:
+        if m.rating_excluded or m.winner_side not in (1, 2):
             continue
-
-        side1 = [rating_for(pid, match.event) for pid in match.side1_player_ids]
-        side2 = [rating_for(pid, match.event) for pid in match.side2_player_ids]
-        if not side1 or not side2:
+        if not m.side1_player_ids or not m.side2_player_ids:
             continue
+        periods[m.tournament_id].append(m)
 
-        for r in (*side1, *side2):
-            _inflate_for_inactivity(r, match.match_time_utc, config)
+    ordered = sorted(
+        periods.values(), key=lambda ms: min(match_sort_key(x) for x in ms)
+    )
 
-        result.history.extend(update_match(match, side1, side2, config))
+    for period in ordered:
+        period_start = min(
+            (m.match_time_utc for m in period if m.match_time_utc),
+            default=None,
+        )
+        # Seed newcomers and inflate for inactivity ONCE, at the period start,
+        # so every match in the tournament sees the same frozen rating.
+        seen: set[tuple[int, str]] = set()
+        for m in period:
+            for pid in (*m.side1_player_ids, *m.side2_player_ids):
+                key = (pid, m.event)
+                if key in seen:
+                    continue
+                seen.add(key)
+                _inflate_for_inactivity(rating_for(pid, m.event), period_start, config)
+
+        result.history.extend(update_period(period, ratings, config))
 
     return result

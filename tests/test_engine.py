@@ -14,13 +14,16 @@ T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
 def _match(mid, w, s1, s2, games=((21, 10),), event="XD", status="Normal",
-           excluded=False, t=T0, tier_weight=1.0):
+           excluded=False, t=T0, tier_weight=1.0, tournament_id=None):
+    # Default each match to its OWN tournament (period), so the simple tests see
+    # sequential per-match updates; pass a shared tournament_id to test locking.
     return MatchRecord(
         match_id=mid, event=event, match_time_utc=t, round_order=1,
         winner_side=w, score_status=status, scoring_format="3x21",
         rating_excluded=excluded, side1_player_ids=s1, side2_player_ids=s2,
         games=tuple(GameRecord(i + 1, a, b) for i, (a, b) in enumerate(games)),
         tier_weight=tier_weight,
+        tournament_id=tournament_id if tournament_id is not None else mid,
     )
 
 
@@ -110,6 +113,41 @@ def test_disciplines_are_independent():
     assert res.ratings[(7, "XD")].mu > 1500  # won in XD
     assert res.ratings[(7, "MD")].mu < 1500  # lost in MD
     assert (7, "WS") not in res.ratings
+
+
+def test_tournament_locking_uses_start_of_period_ratings():
+    """Two wins in ONE tournament are both computed from the start rating, so a
+    player gains more than winning the same two across separate tournaments
+    (where the second win is computed from an already-raised rating)."""
+    locked = run(
+        [
+            _match(1, 1, (10,), (11,), tournament_id=99),
+            _match(2, 1, (10,), (12,), tournament_id=99, t=T0 + timedelta(hours=2)),
+        ],
+        CFG,
+    )
+    sequential = run(
+        [
+            _match(1, 1, (10,), (11,), tournament_id=1),
+            _match(2, 1, (10,), (12,), tournament_id=2, t=T0 + timedelta(days=1)),
+        ],
+        CFG,
+    )
+    assert locked.ratings[(10, "XD")].mu > sequential.ratings[(10, "XD")].mu
+
+
+def test_period_deltas_sum_to_total_change():
+    """Per-match attributed deltas sum to the player's period mu change."""
+    res = run(
+        [
+            _match(1, 1, (10,), (11,), tournament_id=7),
+            _match(2, 1, (10,), (12,), tournament_id=7, t=T0 + timedelta(hours=2)),
+        ],
+        CFG,
+    )
+    hist = [h for h in res.history if h.player_id == 10]
+    total = sum(h.delta for h in hist)
+    assert math.isclose(res.ratings[(10, "XD")].mu - 1500, total, rel_tol=1e-6)
 
 
 def test_tier_weight_amplifies_movement():

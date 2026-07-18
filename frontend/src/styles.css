@@ -144,6 +144,11 @@ code { background: var(--line); padding: 1px 5px; border-radius: 4px; }
 .wl.w { background: #2e9e5b; }
 .wl.l { background: #b1414f; }
 .elo { font-size: 11px; margin-left: 6px; }
+.elorow { margin-left: 6px; display: inline-flex; gap: 6px; align-items: baseline; }
+.elo-note { max-width: 640px; margin-top: 10px; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover { background: var(--hi); }
+tr.clickable .link { color: var(--accent); }
 .matchlist td { vertical-align: top; }
 .score-cell { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .score-cell .hi { font-weight: 700; }

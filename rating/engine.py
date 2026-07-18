@@ -124,6 +124,103 @@ def update_match(
     return deltas
 
 
+def update_period(
+    matches: list[MatchRecord],
+    ratings: dict[tuple[int, str], Rating],
+    config: RatingConfig,
+) -> list[RatingDelta]:
+    """Apply one rating period (a tournament) — the tournament-locked update.
+
+    All expectations use each player's rating at the START of the period (the
+    `ratings` passed in, left unmutated until the end): so when A and B meet,
+    the calc uses their start-of-tournament strength, not a mid-tournament
+    figure inflated by earlier-round wins. Each player's Glicko-2 update is
+    accumulated across all their matches in the period and applied once. Per-
+    match deltas are the marginal contributions (they sum to the period change),
+    so the UI can still attribute "+x from this win".
+    """
+    from collections import defaultdict
+
+    # Frozen (mu, rd) snapshot for team blending — never changes mid-period.
+    frozen = {k: (r.mu, r.rd) for k, r in ratings.items()}
+
+    def team(pids, event):
+        n = len(pids)
+        mu_nat = sum(frozen[(p, event)][0] for p in pids) / n
+        rd_rms = math.sqrt(sum(frozen[(p, event)][1] ** 2 for p in pids) / n)
+        return (mu_nat - 1500.0) / _SCALE, rd_rms / _SCALE
+
+    acc = defaultdict(
+        lambda: {"dsum": 0.0, "dsumw": 0.0, "vinv": 0.0, "n": 0,
+                 "last": None, "contribs": []}
+    )
+
+    for m in sorted(matches, key=lambda x: (x.round_order, x.match_id)):
+        if m.rating_excluded or m.winner_side not in (1, 2):
+            continue
+        if not m.side1_player_ids or not m.side2_player_ids:
+            continue
+        if m.is_retired:
+            magnitude = config.k_retire * m.tier_weight
+        else:
+            d = dominance(m.games, m.winner_side, d_floor=config.d_floor)
+            magnitude = margin_multiplier(d, config) * m.tier_weight
+
+        mu1, phi1 = team(m.side1_player_ids, m.event)
+        mu2, phi2 = team(m.side2_player_ids, m.event)
+        s1 = 1.0 if m.winner_side == 1 else 0.0
+        for ids, s, mu_t, mu_o, phi_o in (
+            (m.side1_player_ids, s1, mu1, mu2, phi2),
+            (m.side2_player_ids, 1.0 - s1, mu2, mu1, phi1),
+        ):
+            g = _g(phi_o)
+            e = _expected(mu_t, mu_o, phi_o)
+            term = g * (s - e)
+            for pid in ids:
+                a = acc[(pid, m.event)]
+                a["dsum"] += term
+                a["dsumw"] += term * magnitude
+                a["vinv"] += g * g * e * (1.0 - e)
+                a["n"] += 1
+                a["contribs"].append((m, term * magnitude))
+                if m.match_time_utc and (a["last"] is None or m.match_time_utc > a["last"]):
+                    a["last"] = m.match_time_utc
+
+    deltas: list[RatingDelta] = []
+    for (pid, event), a in acc.items():
+        if a["vinv"] <= 0.0:
+            continue
+        r = ratings[(pid, event)]
+        mu = (r.mu - 1500.0) / _SCALE
+        phi = r.rd / _SCALE
+        v = 1.0 / a["vinv"]
+        sigma_new = _new_sigma(r.sigma, phi, v, v * a["dsum"], config.tau)
+        phi_star = math.sqrt(phi * phi + sigma_new * sigma_new)
+        phi_new = 1.0 / math.sqrt(1.0 / (phi_star * phi_star) + 1.0 / v)
+
+        mu_before, rd_before = r.mu, r.rd
+        r.mu = (mu + phi_new * phi_new * a["dsumw"]) * _SCALE + 1500.0
+        r.rd = min(phi_new * _SCALE, config.rd_init)
+        r.sigma = sigma_new
+        r.matches_played += a["n"]
+        r.last_match_utc = a["last"] or r.last_match_utc
+
+        # Per-match marginal deltas (sum to r.mu - mu_before), in round order.
+        cum = 0.0
+        for m, contrib in a["contribs"]:
+            d_pts = phi_new * phi_new * contrib * _SCALE
+            cum += d_pts
+            deltas.append(
+                RatingDelta(
+                    player_id=pid, event=event, match_id=m.match_id,
+                    mu_before=mu_before, mu_after=mu_before + cum,
+                    rd_before=rd_before, rd_after=r.rd,
+                    delta=d_pts, applied_utc=m.match_time_utc,
+                )
+            )
+    return deltas
+
+
 def _update_side(
     match: MatchRecord,
     ratings: list[Rating],
