@@ -1,12 +1,23 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, EVENTS } from '../api.js'
 import { useAsync } from '../useAsync.js'
+import { flag } from '../flags.js'
+import Pager from '../components/Pager.jsx'
+
+const PAGE = 10
+
+function Achievement({ label }) {
+  if (!label) return null
+  const cls = label === 'Champion' ? 'champ' : label === 'Runner-up' ? 'runner' : ''
+  return <span className={`ach ${cls}`}>{label === 'Champion' ? '🏆 ' : ''}{label}</span>
+}
 
 function NameCell({ row }) {
   if (!row.player) return '—'
   return (
     <>
+      <span className="fl">{flag(row.player.country_code)}</span>{' '}
       <Link to={`/players/${row.player.player_id}`}>{row.player.name_display}</Link>
       {row.partner && (
         <>
@@ -14,35 +25,40 @@ function NameCell({ row }) {
           <Link to={`/players/${row.partner.player_id}`}>{row.partner.name_display}</Link>
         </>
       )}
-      <span className="muted small"> {row.event} · {row.player.country_code}</span>
+      <span className="muted small"> {row.event}</span>
     </>
   )
 }
 
 function GainsTable({ kind, event, includeNew }) {
+  const [page, setPage] = useState(0)
+  useEffect(() => setPage(0), [kind, event, includeNew])
   const { data, error, loading } = useAsync(
-    () => api.analytics(kind, { event, minMatches: 3, limit: 40, includeNew }),
+    () => api.analytics(kind, { event, minMatches: 3, limit: 100, includeNew }),
     [kind, event, includeNew],
   )
   const isUpset = kind === 'upsets'
   if (loading) return <p className="muted">Loading…</p>
   if (error) return <p className="error">Could not load: {error.message}</p>
 
+  const shown = data.results.slice(page * PAGE, page * PAGE + PAGE)
   return (
+    <>
     <table className="board">
       <thead>
         <tr>
-          <th>#</th>
+          <th className="rank">#</th>
           <th>Player</th>
           <th className="num">{isUpset ? 'Gain' : 'Net ELO'}</th>
+          <th>Result</th>
           {isUpset ? <th>Beat (round)</th> : <th className="num">Start→End</th>}
           <th>Tournament</th>
         </tr>
       </thead>
       <tbody>
-        {data.results.map((row, i) => (
+        {shown.map((row, i) => (
           <tr key={`${row.player.player_id}-${row.tournament.tournament_id}-${row.event}`}>
-            <td className="rank">{i + 1}</td>
+            <td className="rank">{page * PAGE + i + 1}</td>
             <td><NameCell row={row} /></td>
             <td className="num strong">
               {isUpset ? (
@@ -60,6 +76,7 @@ function GainsTable({ kind, event, includeNew }) {
                 </span>
               )}
             </td>
+            <td><Achievement label={row.achievement} /></td>
             {isUpset ? (
               <td className="small">
                 {(row.beat || []).map((p) => p.name_display).join(' / ') || '—'}
@@ -79,6 +96,8 @@ function GainsTable({ kind, event, includeNew }) {
         ))}
       </tbody>
     </table>
+    <Pager page={page} setPage={setPage} count={data.results.length} pageSize={PAGE} />
+    </>
   )
 }
 

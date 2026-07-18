@@ -532,9 +532,43 @@ class AnalyticsView(APIView):
             picked.append(tp)
 
         rows = TournamentPerformanceSerializer(picked, many=True).data
+        self._enrich_achievement(picked, rows)
         if kind == "upsets":
             self._enrich_upsets(picked, rows)
         return Response({"results": rows})
+
+    def _enrich_achievement(self, picked, rows):
+        """Tag each row with how far the player went (Champion/Runner-up/SF/…)."""
+        from django.db.models import Q
+
+        q = Q()
+        for tp in picked:
+            q |= Q(
+                player_id=tp.player_id,
+                match__tournament_id=tp.tournament_id,
+                match__event=tp.event,
+            )
+        best: dict = {}
+        if picked:
+            for mp in MatchPlayer.objects.filter(q).select_related("match"):
+                key = (mp.player_id, mp.match.tournament_id, mp.match.event)
+                ro = mp.match.round_order or 0
+                cur = best.get(key)
+                if cur is None or ro > cur[0]:
+                    best[key] = (ro, mp.match.round_name, mp.match.winner_side == mp.side)
+
+        friendly = {"SF": "Semi-final", "QF": "Quarter-final", "R16": "Last 16",
+                    "R32": "Last 32", "R64": "Last 64", "R128": "Last 128"}
+        for tp, r in zip(picked, rows):
+            info = best.get((tp.player_id, tp.tournament_id, tp.event))
+            if not info:
+                r["achievement"] = None
+                continue
+            _, round_name, won = info
+            if round_name in ("Final", "F"):
+                r["achievement"] = "Champion" if won else "Runner-up"
+            else:
+                r["achievement"] = friendly.get(round_name, round_name or None)
 
     def _enrich_upsets(self, picked, rows):
         ids = [tp.best_match_id for tp in picked if tp.best_match_id]
