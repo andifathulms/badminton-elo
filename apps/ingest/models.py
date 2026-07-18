@@ -239,7 +239,13 @@ class MatchStatistics(models.Model):
     duration_min = models.IntegerField(null=True, blank=True)
     # Per-game running score after every rally: [[[t1,t2], ...], ...per game].
     point_progression = models.JSONField(null=True, blank=True)
+    # Biggest points deficit a game-winner overcame (e.g. down 10-20 -> 10).
+    max_comeback = models.IntegerField(null=True, blank=True)
     fetched_utc = models.DateTimeField(null=True, blank=True)
+
+    @property
+    def total_rallies(self):
+        return self.team1_rallies_played or self.team2_rallies_played
 
     def __str__(self) -> str:
         return f"stats M{self.match_id}"

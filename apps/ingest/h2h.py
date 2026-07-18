@@ -16,6 +16,27 @@ def _int(v):
         return None
 
 
+def max_comeback(progression) -> int | None:
+    """Biggest points deficit a game-winner overcame across the match."""
+    if not progression:
+        return None
+    best = 0
+    for game in progression:
+        if not game:
+            continue
+        fa, fb = game[-1]
+        if fa is None or fb is None:
+            continue
+        winner = 0 if fa > fb else 1
+        for a, b in game:
+            if a is None or b is None:
+                continue
+            deficit = (b - a) if winner == 0 else (a - b)  # opp lead over winner
+            if deficit > best:
+                best = deficit
+    return best
+
+
 def parse_match_stats(raw: dict) -> dict | None:
     """h2h/match payload -> MatchStatistics field dict (None if not usable)."""
     if not isinstance(raw, dict) or "stats" not in raw:
