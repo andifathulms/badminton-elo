@@ -682,3 +682,23 @@ tr.clickable .link { color: var(--brand); font-weight: 600; }
 .team-slots { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; }
 .team-slots .slot b { color: var(--brand); margin-right: 3px; }
 .team-slots .slot .muted { font-variant-numeric: tabular-nums; }
+
+/* Score race — two running-score lines per game (BWF-style) */
+.race-chart .race-line { stroke-width: 2.5; fill: none; stroke-linejoin: round; }
+.race-chart .race-line.s1 { stroke: var(--brand); }
+.race-chart .race-line.s2 { stroke: var(--ink-2); }
+.race-chart .race-line.winner { stroke-width: 3; }
+.race-chart .race-dot.s1 { fill: var(--brand); }
+.race-chart .race-dot.s2 { fill: var(--ink-2); }
+.race-key.s1 { color: var(--brand); }
+.race-key.s2 { color: var(--ink-2); }
+
+/* Expandable analytics rows (performance path) */
+tr.expandable { cursor: pointer; }
+tr.expandable:hover { background: var(--surface-hover); }
+.caret { color: var(--muted); font-size: 11px; }
+.expand-row > td { background: var(--surface-2); padding: 0; }
+.path-wrap { padding: 8px 14px 12px; }
+.path-head { margin: 4px 2px 8px; }
+.path-table { box-shadow: none; }
+.path-table .rnd { white-space: nowrap; }

@@ -273,6 +273,18 @@ def test_perf_rating_solver():
     assert strong > weak
 
 
+def test_performance_path(api):
+    pid = Match.objects.get(match_id=1518158).lineup.filter(side=2).first().player_id
+    r = api.get(f"/api/performance/path?player={pid}&event=XD&tournament=5229")
+    assert r.status_code == 200
+    matches = r.json()["matches"]
+    assert matches
+    m = matches[0]
+    assert {"round_name", "won", "opponents", "score", "match_time_utc"} <= set(m)
+    # ordered by round (earliest first)
+    assert [x["round_order"] for x in matches] == sorted(x["round_order"] for x in matches)
+
+
 def test_analytics_performances(api):
     r = api.get("/api/analytics/performances?event=XD&min_matches=1&include_new=1")
     assert r.status_code == 200

@@ -25,6 +25,8 @@ export const api = {
     get(`/tournaments/${id}/matches?${qs({ event, limit, offset })}`),
   analytics: (kind, { event, minMatches = 2, limit = 40, includeNew } = {}) =>
     get(`/analytics/${kind}?${qs({ event, min_matches: minMatches, limit, include_new: includeNew ? 1 : '' })}`),
+  performancePath: (player, event, tournament) =>
+    get(`/performance/path?${qs({ player, event, tournament })}`),
   player: (id) => get(`/players/${id}`),
   playerHistory: (id, event) => get(`/players/${id}/history?${qs({ event })}`),
   playerMatches: (id, { event, limit = 25, offset = 0 } = {}) =>

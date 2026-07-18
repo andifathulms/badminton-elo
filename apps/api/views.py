@@ -255,6 +255,63 @@ class PairDetailView(APIView):
         )
 
 
+class PerformancePathView(APIView):
+    """GET /api/performance/path?player=&event=&tournament= — the player's/pair's
+    run through one tournament: each match's opponent, round, result, score, ELO
+    change and time. Powers the "who did they beat" dropdown on performances."""
+
+    def get(self, request):
+        try:
+            pid = int(request.query_params["player"])
+            tid = int(request.query_params["tournament"])
+        except (KeyError, ValueError):
+            raise ValidationError({"detail": "player, event, tournament required"})
+        event = request.query_params.get("event")
+
+        mps = (
+            MatchPlayer.objects.filter(
+                player_id=pid, match__tournament_id=tid, match__event=event
+            )
+            .select_related("match")
+            .prefetch_related("match__lineup__player", "match__games")
+            .order_by("match__round_order", "match__match_id")
+        )
+        deltas = dict(
+            RatingHistory.objects.filter(
+                player_id=pid, match__tournament_id=tid, event=event
+            ).values_list("match_id", "delta")
+        )
+        out = []
+        for mp in mps:
+            m = mp.match
+            lineup = list(m.lineup.all())
+            opp = [l.player for l in lineup if l.side != mp.side]
+            partners = [
+                l.player for l in lineup
+                if l.side == mp.side and l.player_id != pid
+            ]
+            games = [
+                (g.side1_points, g.side2_points)
+                for g in sorted(m.games.all(), key=lambda g: g.game_no)
+            ]
+            if mp.side == 2:
+                games = [(b, a) for a, b in games]
+            d = deltas.get(m.match_id)
+            out.append({
+                "match_id": m.match_id,
+                "round_name": m.round_name,
+                "round_order": m.round_order,
+                "won": m.winner_side == mp.side,
+                "match_time_utc": m.match_time_utc,
+                "score": games,
+                "score_status": m.score_status,
+                "partners": PlayerBriefSerializer(partners, many=True).data,
+                "opponents": PlayerBriefSerializer(opp, many=True).data,
+                "elo_delta": round(d, 1) if d is not None else None,
+            })
+        return Response({"matches": out})
+
+
 class PlayerMatchesView(generics.ListAPIView):
     """GET /api/players/{id}/matches[?event=] — the player's match history with
     the ELO gained/lost in each (most recent first, paginated)."""

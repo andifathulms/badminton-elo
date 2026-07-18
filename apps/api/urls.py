@@ -10,6 +10,7 @@ from .views import (
     MatchViewSet,
     PairDetailView,
     PairsView,
+    PerformancePathView,
     PlayerMatchesView,
     PlayerViewSet,
     TournamentViewSet,
@@ -27,6 +28,7 @@ urlpatterns = [
     path("pairs", PairsView.as_view(), name="pairs"),
     path("analytics/<str:kind>", AnalyticsView.as_view(), name="analytics"),
     path("cups/<str:cup>", CupView.as_view(), name="cups"),
+    path("performance/path", PerformancePathView.as_view(), name="performance-path"),
     path("events", EventsView.as_view(), name="events"),
     path(
         "players/<int:player_id>/matches",

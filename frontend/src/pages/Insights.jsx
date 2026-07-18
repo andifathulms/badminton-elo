@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, EVENTS } from '../api.js'
 import { useAsync } from '../useAsync.js'
@@ -31,9 +31,49 @@ function NameCell({ row }) {
   )
 }
 
+function PathDetail({ row }) {
+  const { data, loading, error } = useAsync(
+    () => api.performancePath(row.player.player_id, row.event, row.tournament.tournament_id),
+    [row.player.player_id, row.event, row.tournament.tournament_id],
+  )
+  if (loading) return <p className="muted small">Loading path…</p>
+  if (error || !data?.matches?.length) return <p className="muted small">No match path.</p>
+  return (
+    <table className="board compact path-table">
+      <tbody>
+        {data.matches.map((m) => (
+          <tr key={m.match_id}>
+            <td className="rnd muted small">{m.round_name}</td>
+            <td><span className={`wl ${m.won ? 'w' : 'l'}`}>{m.won ? 'W' : 'L'}</span></td>
+            <td>{m.opponents.map((p) => p.name_display).join(' / ') || '—'}</td>
+            <td className="score-cell">
+              {m.score.map((g, i) => <span key={i}>{g[0]}-{g[1]} </span>)}
+              {m.score_status !== 'Normal' && (
+                <span className="muted small">({m.score_status})</span>
+              )}
+            </td>
+            <td className="num">
+              {m.elo_delta != null && (
+                <span className={m.elo_delta >= 0 ? 'pos' : 'neg'}>
+                  {m.elo_delta >= 0 ? '+' : ''}{m.elo_delta.toFixed(1)}
+                </span>
+              )}
+            </td>
+            <td className="muted small">
+              {m.match_time_utc ? new Date(m.match_time_utc).toLocaleString() : '—'}
+            </td>
+            <td><Link to={`/matches/${m.match_id}`} className="muted small">view →</Link></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
 function GainsTable({ kind, event, includeNew }) {
   const [page, setPage] = useState(0)
-  useEffect(() => setPage(0), [kind, event, includeNew])
+  const [open, setOpen] = useState(null)
+  useEffect(() => { setPage(0); setOpen(null) }, [kind, event, includeNew])
   const { data, error, loading } = useAsync(
     () => api.analytics(kind, { event, minMatches: 3, limit: 100, includeNew }),
     [kind, event, includeNew],
@@ -59,10 +99,15 @@ function GainsTable({ kind, event, includeNew }) {
         </tr>
       </thead>
       <tbody>
-        {shown.map((row, i) => (
-          <tr key={`${row.player.player_id}-${row.tournament.tournament_id}-${row.event}`}>
+        {shown.map((row, i) => {
+          const rkey = `${row.player.player_id}-${row.tournament.tournament_id}-${row.event}`
+          const isOpen = open === rkey
+          return (
+          <Fragment key={rkey}>
+          <tr className="expandable"
+              onClick={() => setOpen(isOpen ? null : rkey)}>
             <td className="rank">{page * PAGE + i + 1}</td>
-            <td><NameCell row={row} /></td>
+            <td><span className="caret">{isOpen ? '▾' : '▸'}</span> <NameCell row={row} /></td>
             <td className="num strong">
               {isUpset ? (
                 row.best_match ? (
@@ -93,12 +138,29 @@ function GainsTable({ kind, event, includeNew }) {
               </td>
             )}
             <td className="muted small">
-              <Link to={`/tournaments/${row.tournament.tournament_id}`}>
+              <Link to={`/tournaments/${row.tournament.tournament_id}`}
+                    onClick={(e) => e.stopPropagation()}>
                 {row.tournament.name}
               </Link>
             </td>
           </tr>
-        ))}
+          {isOpen && (
+            <tr className="expand-row">
+              <td colSpan={6}>
+                <div className="path-wrap">
+                  <div className="muted small path-head">
+                    {row.player.name_display}
+                    {row.partner ? ` / ${row.partner.name_display}` : ''}'s run at{' '}
+                    {row.tournament.name}
+                  </div>
+                  <PathDetail row={row} />
+                </div>
+              </td>
+            </tr>
+          )}
+          </Fragment>
+          )
+        })}
       </tbody>
     </table>
     <Pager page={page} setPage={setPage} count={data.results.length} pageSize={PAGE} />
