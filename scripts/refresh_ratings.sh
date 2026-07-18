@@ -24,6 +24,9 @@ with d:
 s.close(); d.close()
 PY
   export SQLITE_PATH="$PWD/data/serve_stage.sqlite3"
+  # Drop duplicate match rows (same contest under two match_ids) before rating,
+  # so the served snapshot never double-counts even if the raw db still has them.
+  .venv/bin/python manage.py dedup_matches --apply >/dev/null 2>&1
   .venv/bin/python manage.py rate >/dev/null 2>&1 || { unset SQLITE_PATH; return 1; }
   .venv/bin/python manage.py build_pairs >/dev/null 2>&1
   .venv/bin/python manage.py build_analytics >/dev/null 2>&1
