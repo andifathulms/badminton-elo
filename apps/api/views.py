@@ -11,8 +11,8 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import timedelta
 
-from django.db.models import Count, DateTimeField, F, FloatField, Max
-from django.db.models.functions import Cast, Coalesce
+from django.db.models import Avg, Count, DateTimeField, F, FloatField, Max
+from django.db.models.functions import Cast, Coalesce, Round
 from django.utils import timezone
 from rest_framework import generics, viewsets
 from rest_framework.decorators import action
@@ -24,6 +24,7 @@ from apps.ingest.models import (
     Draw,
     Match,
     MatchPlayer,
+    MatchStatistics,
     Partnership,
     Player,
     PlayerRating,
@@ -172,6 +173,29 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(event=event)
         return Response(RatingHistoryPointSerializer(qs, many=True).data)
 
+    @action(detail=True, methods=["get"])
+    def style(self, request, player_id=None):
+        """Playing style: avg rallies per match & avg match duration, per
+        discipline. With ?partner=<id>, restrict to matches played as that
+        pair (both on the same side)."""
+        partner = request.query_params.get("partner")
+        if partner:
+            # matches where this player and the partner are on the same side
+            sides = defaultdict(dict)  # match_id -> {player_id: side}
+            for mp in MatchPlayer.objects.filter(
+                player_id__in=[player_id, partner]
+            ).values("match_id", "player_id", "side"):
+                sides[mp["match_id"]][mp["player_id"]] = mp["side"]
+            pid, par = int(player_id), int(partner)
+            match_ids = [
+                mid for mid, s in sides.items()
+                if s.get(pid) is not None and s.get(pid) == s.get(par)
+            ]
+            style = _style_by_event({"match_id__in": match_ids})
+        else:
+            style = _style_by_event({"match__lineup__player_id": player_id})
+        return Response({"style": style})
+
 
 class PairsView(generics.ListAPIView):
     """GET /api/pairs?event=MD[&min_matches=5] — doubles/mixed partnerships
@@ -310,6 +334,109 @@ class PerformancePathView(APIView):
                 "elo_delta": round(d, 1) if d is not None else None,
             })
         return Response({"matches": out})
+
+
+def _match_card(m):
+    """Compact match descriptor: both sides (as pairs), score, tournament, round."""
+    lineup = sorted(m.lineup.all(), key=lambda l: l.side)
+    side1 = [l.player for l in lineup if l.side == 1]
+    side2 = [l.player for l in lineup if l.side == 2]
+    games = [
+        [g.side1_points, g.side2_points]
+        for g in sorted(m.games.all(), key=lambda g: g.game_no)
+    ]
+    return {
+        "match_id": m.match_id,
+        "event": m.event,
+        "round_name": m.round_name,
+        "match_time_utc": m.match_time_utc,
+        "tournament": {"id": m.tournament_id, "name": m.tournament.name},
+        "winner_side": m.winner_side,
+        "score": games,
+        "side1": PlayerBriefSerializer(side1, many=True).data,
+        "side2": PlayerBriefSerializer(side2, many=True).data,
+    }
+
+
+RECORD_KINDS = {
+    # kind: (stats field, order, only Normal matches)
+    "longest": ("duration_min", "-duration_min", True),
+    "rallies": ("team1_rallies_played", "-team1_rallies_played", True),
+    "comebacks": ("max_comeback", "-max_comeback", True),
+}
+
+
+class RecordsView(APIView):
+    """GET /api/records/{longest|rallies|comebacks}?event=&limit= — leaderboards
+    of extreme matches, computed from the rally-by-rally match statistics.
+
+    - longest   : most minutes on court
+    - rallies   : most total rallies played
+    - comebacks : biggest points deficit a side clawed back to win a game
+    """
+
+    def get(self, request, kind):
+        if kind not in RECORD_KINDS:
+            raise ValidationError({"detail": f"unknown record kind '{kind}'"})
+        field, order, normal_only = RECORD_KINDS[kind]
+        event = request.query_params.get("event")
+        try:
+            limit = min(int(request.query_params.get("limit", 25)), 100)
+        except ValueError:
+            limit = 25
+
+        qs = (
+            MatchStatistics.objects.exclude(**{field: None})
+            .exclude(**{field: 0})
+            .select_related("match__tournament")
+            .prefetch_related("match__lineup__player", "match__games")
+        )
+        if normal_only:
+            qs = qs.filter(match__score_status="Normal")
+        if kind == "longest":
+            # BWF's longest ever was ~161 min; anything past 200 is bad data.
+            qs = qs.filter(duration_min__lte=200)
+        if event:
+            qs = qs.filter(match__event=event)
+        qs = qs.order_by(order)[:limit]
+
+        out = []
+        for st in qs:
+            card = _match_card(st.match)
+            card["value"] = getattr(st, field)
+            card["duration_min"] = st.duration_min
+            card["rallies"] = st.total_rallies
+            card["max_comeback"] = st.max_comeback
+            out.append(card)
+        return Response({"kind": kind, "event": event, "results": out})
+
+
+def _style_by_event(match_filter):
+    """Average rally count & match duration per discipline for a set of matches
+    (identified by `match_filter`, a dict of MatchStatistics lookups). Only
+    Normal matches with real stats contribute."""
+    rows = (
+        MatchStatistics.objects.filter(
+            match__score_status="Normal", **match_filter
+        )
+        .exclude(duration_min=None)
+        .values("match__event")
+        .annotate(
+            matches=Count("match_id"),
+            avg_duration=Round(Avg("duration_min"), 1),
+            avg_rallies=Round(Avg("team1_rallies_played"), 1),
+        )
+        .order_by("match__event")
+    )
+    return [
+        {
+            "event": r["match__event"],
+            "matches": r["matches"],
+            "avg_duration": r["avg_duration"],
+            "avg_rallies": r["avg_rallies"],
+        }
+        for r in rows
+    ]
 
 
 class PlayerMatchesView(generics.ListAPIView):
