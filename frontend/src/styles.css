@@ -1,37 +1,48 @@
 /* ============================================================================
    Badminton Ratings — design system
-   A clean, modern sports-analytics look. Indigo brand, emerald/rose semantics,
-   podium metals for the top ranks. Tokens first, then components.
+   A bright, badminton-branded look: court green + crisp white, with BWF red as
+   the punctuation accent. Light-first. Tokens first, then components.
    ========================================================================== */
 
 :root {
-  /* Surfaces & ink (light) — warm, paper-like neutrals */
-  --bg: #f5f6f2;
-  --bg-grad: radial-gradient(1200px 600px at 12% -10%, #e4f0e2 0%, rgba(228,240,226,0) 60%),
-             radial-gradient(1000px 520px at 100% 0%, #f2efe0 0%, rgba(242,239,224,0) 55%);
+  color-scheme: light;
+
+  /* Surfaces & ink — crisp white with a faint court-green wash */
+  --bg: #f2f7f2;
+  --bg-grad: radial-gradient(1150px 560px at 10% -12%, #dcefdd 0%, rgba(220,239,221,0) 60%),
+             radial-gradient(950px 480px at 100% -6%, #fde3e7 0%, rgba(253,227,231,0) 55%);
   --surface: #ffffff;
-  --surface-2: #fafbf7;
-  --surface-hover: #f2f6ef;
-  --ink: #17201a;
-  --ink-2: #3c463e;
-  --muted: #6d766e;
-  --faint: #99a29a;
-  --line: #e7eae2;
-  --line-2: #d8ddd2;
+  --surface-2: #f6faf6;
+  --surface-hover: #edf5ee;
+  --ink: #15241a;
+  --ink-2: #3a4a40;
+  --muted: #64756a;
+  --faint: #94a599;
+  --line: #e5efe7;
+  --line-2: #d3e1d6;
 
-  /* Brand: warm court green. Green also carries "win/positive" — a natural pairing. */
-  --brand: #12925a;
-  --brand-2: #5bb64a;
+  /* Brand: badminton court green. Green also carries "win/positive". */
+  --brand: #0f8a4e;
+  --brand-2: #38a860;
   --brand-ink: #ffffff;
-  --brand-soft: rgba(18, 146, 90, .11);
-  --brand-ring: rgba(18, 146, 90, .32);
-  --grad-brand: linear-gradient(135deg, #0d8a4f 0%, #57b552 100%);
+  --brand-soft: rgba(15, 138, 78, .10);
+  --brand-ring: rgba(15, 138, 78, .28);
+  --grad-brand: linear-gradient(135deg, #0c7d46 0%, #34a75d 100%);
 
-  --pos: #0e8b50;
-  --pos-soft: rgba(14, 139, 80, .13);
-  --neg: #d94a34;
-  --neg-soft: rgba(217, 74, 52, .13);
-  --warn-bg: #fbedcf;
+  /* Accent: BWF red — the shuttle-flash of colour against green + white. */
+  --accent: #e4002b;
+  --accent-2: #ff3b5c;
+  --accent-soft: rgba(228, 0, 43, .09);
+  --accent-ring: rgba(228, 0, 43, .28);
+  --grad-accent: linear-gradient(135deg, #e4002b 0%, #ff3b5c 100%);
+  --grad-court: linear-gradient(120deg, #0c7d46 0%, #0f8a4e 55%, #e4002b 190%);
+
+  /* Win = court green, loss = BWF red (one red across the app). */
+  --pos: #0f8a4e;
+  --pos-soft: rgba(15, 138, 78, .12);
+  --neg: #e4002b;
+  --neg-soft: rgba(228, 0, 43, .10);
+  --warn-bg: #fdeecf;
   --warn-ink: #7a5600;
   --accent-amber: #dd9e2e;
 
@@ -39,11 +50,11 @@
   --silver: linear-gradient(140deg, #e7eaee 0%, #a8afba 100%);
   --bronze: linear-gradient(140deg, #ecba84 0%, #b47238 100%);
 
-  /* Elevation */
-  --sh-sm: 0 1px 2px rgba(20, 22, 40, .05);
-  --sh: 0 1px 3px rgba(20, 22, 40, .06), 0 6px 20px -8px rgba(20, 22, 40, .10);
-  --sh-md: 0 4px 12px -4px rgba(20, 22, 40, .12), 0 12px 32px -12px rgba(20, 22, 40, .18);
-  --sh-pop: 0 12px 40px -8px rgba(20, 22, 40, .28);
+  /* Elevation — soft, green-tinted for a light, airy feel */
+  --sh-sm: 0 1px 2px rgba(18, 60, 36, .05);
+  --sh: 0 1px 3px rgba(18, 60, 36, .05), 0 6px 20px -8px rgba(18, 60, 36, .10);
+  --sh-md: 0 4px 12px -4px rgba(18, 60, 36, .12), 0 14px 34px -12px rgba(18, 60, 36, .16);
+  --sh-pop: 0 14px 42px -8px rgba(18, 60, 36, .24);
 
   /* Shape */
   --r-xs: 7px; --r-sm: 10px; --r: 14px; --r-lg: 18px; --r-xl: 24px;
@@ -52,41 +63,6 @@
   --font: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
           Helvetica, Arial, sans-serif;
   --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0b0f0c;
-    --bg-grad: radial-gradient(1200px 600px at 12% -10%, rgba(18,146,90,.20) 0%, rgba(0,0,0,0) 55%),
-               radial-gradient(1000px 520px at 100% -5%, rgba(221,158,46,.10) 0%, rgba(0,0,0,0) 55%);
-    --surface: #151a16;
-    --surface-2: #1a201b;
-    --surface-hover: #1f2720;
-    --ink: #eaf0ea;
-    --ink-2: #c1cbc2;
-    --muted: #8b968c;
-    --faint: #646e66;
-    --line: #26302a;
-    --line-2: #334036;
-
-    --brand: #35c079;
-    --brand-2: #7ed957;
-    --brand-soft: rgba(53, 192, 121, .15);
-    --brand-ring: rgba(53, 192, 121, .38);
-    --grad-brand: linear-gradient(135deg, #23a566 0%, #6cd35f 100%);
-
-    --pos: #37d17f;
-    --pos-soft: rgba(55, 209, 127, .16);
-    --neg: #f66a52;
-    --neg-soft: rgba(246, 106, 82, .16);
-    --warn-bg: #362d0e; --warn-ink: #f0d489;
-    --accent-amber: #e6b24c;
-
-    --sh-sm: 0 1px 2px rgba(0,0,0,.4);
-    --sh: 0 1px 3px rgba(0,0,0,.5), 0 8px 24px -10px rgba(0,0,0,.6);
-    --sh-md: 0 8px 28px -10px rgba(0,0,0,.7);
-    --sh-pop: 0 16px 48px -10px rgba(0,0,0,.75);
-  }
 }
 
 * { box-sizing: border-box; }
@@ -122,18 +98,23 @@ code { font-family: var(--mono); background: var(--brand-soft); color: var(--bra
   position: sticky; top: 0; z-index: 40;
   display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
   padding: 12px max(22px, calc((100vw - var(--maxw)) / 2 + 6px));
-  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
   backdrop-filter: saturate(180%) blur(14px);
   -webkit-backdrop-filter: saturate(180%) blur(14px);
   border-bottom: 1px solid var(--line);
+}
+/* Court-to-shuttle accent stripe: green → BWF red */
+.topbar::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--grad-court);
 }
 .brand { display: flex; align-items: center; gap: 11px; font-weight: 800;
   font-size: 17px; letter-spacing: -.02em; color: var(--ink); }
 .brand:hover { color: var(--ink); }
 .brand-mark {
   width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
-  background: var(--grad-brand); color: #fff; font-size: 18px;
-  box-shadow: 0 4px 14px -4px var(--brand-ring), inset 0 1px 0 rgba(255,255,255,.35);
+  background: var(--grad-court); color: #fff; font-size: 18px;
+  box-shadow: 0 4px 14px -4px var(--accent-ring), inset 0 1px 0 rgba(255,255,255,.35);
 }
 .brand-mark svg { width: 19px; height: 19px; }
 .brand b { font-weight: 800; }
@@ -193,8 +174,8 @@ code { font-family: var(--mono); background: var(--brand-soft); color: var(--bra
   padding: 34px 32px; box-shadow: var(--sh); position: relative; overflow: hidden;
 }
 .dash-hero::after { content: ''; position: absolute; right: -80px; top: -100px;
-  width: 380px; height: 380px; border-radius: 50%; background: var(--grad-brand);
-  opacity: .08; pointer-events: none; }
+  width: 380px; height: 380px; border-radius: 50%; background: var(--grad-court);
+  opacity: .10; pointer-events: none; }
 .dash-hero h1 { font-size: clamp(28px, 4vw, 40px); margin: 4px 0 0; }
 .dash-hero .page-sub { font-size: 15px; }
 .stat-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
@@ -500,8 +481,8 @@ tr.clickable .link { color: var(--brand); font-weight: 600; }
   padding: 20px 22px; box-shadow: var(--sh); position: relative; overflow: hidden;
   margin-bottom: 18px; }
 .profile::after { content: ''; position: absolute; right: -60px; top: -80px;
-  width: 260px; height: 260px; border-radius: 50%; background: var(--grad-brand);
-  opacity: .06; pointer-events: none; }
+  width: 260px; height: 260px; border-radius: 50%; background: var(--grad-court);
+  opacity: .08; pointer-events: none; }
 .profile .pinfo { min-width: 0; }
 .profile h1 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .player-name { margin: 6px 0 4px; display: flex; align-items: center; gap: 10px;
