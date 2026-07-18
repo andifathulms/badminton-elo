@@ -31,7 +31,7 @@ export default function Match() {
 
   return (
     <div>
-      <Link to="/" className="back">← Rankings</Link>
+      <Link to="/rankings" className="back">← Rankings</Link>
       <div className="match-head">
         <span className="pill">{m.event}</span>
         <span className="pill ghost">{m.round_name}</span>

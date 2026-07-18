@@ -70,7 +70,8 @@ export default function App() {
           <span><b>Badminton</b> <span>Ratings</span></span>
         </Link>
         <nav className="nav">
-          <NavLink to="/" end>Rankings</NavLink>
+          <NavLink to="/" end>Dashboard</NavLink>
+          <NavLink to="/rankings">Rankings</NavLink>
           <NavLink to="/tournaments">Tournaments</NavLink>
           <NavLink to="/insights">Insights</NavLink>
         </nav>

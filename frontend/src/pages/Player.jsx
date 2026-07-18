@@ -28,7 +28,7 @@ export default function Player() {
 
   return (
     <div>
-      <Link to="/" className="back">← Rankings</Link>
+      <Link to="/rankings" className="back">← Rankings</Link>
 
       <div className="profile">
         <Avatar player={player} size="lg" />

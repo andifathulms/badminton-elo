@@ -22,7 +22,7 @@ export default function PairDetail() {
 
   return (
     <div>
-      <Link to="/" className="back">← Rankings</Link>
+      <Link to="/rankings" className="back">← Rankings</Link>
       <h1 className="player-name">
         <Link to={`/players/${data.player1.player_id}`}>{data.player1.name_display}</Link>
         {' / '}
