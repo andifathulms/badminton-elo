@@ -321,12 +321,14 @@ class MatchSerializer(serializers.ModelSerializer):
 
 class TournamentPerformanceSerializer(serializers.ModelSerializer):
     player = PlayerBriefSerializer(read_only=True)
+    partner = PlayerBriefSerializer(read_only=True)
     tournament = TournamentBriefSerializer(read_only=True)
 
     class Meta:
         model = TournamentPerformance
         fields = (
             "player",
+            "partner",
             "event",
             "tournament",
             "net_delta",

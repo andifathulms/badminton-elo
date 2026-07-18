@@ -283,6 +283,12 @@ class TournamentPerformance(models.Model):
         Match, on_delete=models.SET_NULL, null=True, blank=True
     )
     best_delta = models.FloatField(null=True, blank=True)  # biggest single win
+    # For doubles: the player's main partner this tournament (to collapse the
+    # two members' rows into one pair in analytics). Null for singles.
+    partner = models.ForeignKey(
+        Player, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="tournament_perfs_as_partner",
+    )
 
     class Meta:
         unique_together = ("player", "event", "tournament")

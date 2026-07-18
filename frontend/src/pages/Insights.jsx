@@ -3,8 +3,21 @@ import { Link } from 'react-router-dom'
 import { api, EVENTS } from '../api.js'
 import { useAsync } from '../useAsync.js'
 
-const pair = (row) =>
-  row.player ? row.player.name_display : '—'
+function NameCell({ row }) {
+  if (!row.player) return '—'
+  return (
+    <>
+      <Link to={`/players/${row.player.player_id}`}>{row.player.name_display}</Link>
+      {row.partner && (
+        <>
+          {' / '}
+          <Link to={`/players/${row.partner.player_id}`}>{row.partner.name_display}</Link>
+        </>
+      )}
+      <span className="muted small"> {row.event} · {row.player.country_code}</span>
+    </>
+  )
+}
 
 function GainsTable({ kind, event, includeNew }) {
   const { data, error, loading } = useAsync(
@@ -30,10 +43,7 @@ function GainsTable({ kind, event, includeNew }) {
         {data.results.map((row, i) => (
           <tr key={`${row.player.player_id}-${row.tournament.tournament_id}-${row.event}`}>
             <td className="rank">{i + 1}</td>
-            <td>
-              <Link to={`/players/${row.player.player_id}`}>{pair(row)}</Link>
-              <span className="muted small"> {row.event} · {row.player.country_code}</span>
-            </td>
+            <td><NameCell row={row} /></td>
             <td className="num strong">
               {isUpset ? (
                 row.best_match ? (

@@ -345,63 +345,72 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
 
-class AnalyticsView(generics.ListAPIView):
-    """GET /api/analytics/{tournament-gains|upsets}[?event=&min_matches=].
+class AnalyticsView(APIView):
+    """GET /api/analytics/{tournament-gains|upsets}[?event=&min_matches=&limit=].
 
     tournament-gains: biggest net ELO gained across a single tournament.
     upsets: biggest single-match ELO gains (the standout wins).
+    Doubles rows are collapsed into one pair (both partners) instead of two.
     """
 
-    serializer_class = TournamentPerformanceSerializer
-
-    def get_queryset(self):
-        qs = TournamentPerformance.objects.select_related(
-            "player", "tournament"
-        )
-        event = self.request.query_params.get("event")
-        if event in EVENTS:
-            qs = qs.filter(event=event)
+    def get(self, request, kind):
+        event = request.query_params.get("event")
         try:
-            min_matches = int(self.request.query_params.get("min_matches", 2))
+            min_matches = int(request.query_params.get("min_matches", 2))
         except ValueError:
             min_matches = 2
-        qs = qs.filter(matches__gte=min_matches)
-        # Exclude cold-start spikes (debut players at high uncertainty) unless
-        # explicitly asked — a settled rd_start makes "breakouts" meaningful.
-        if self.request.query_params.get("include_new") != "1":
+        try:
+            limit = min(int(request.query_params.get("limit", 40)), 100)
+        except ValueError:
+            limit = 40
+
+        qs = TournamentPerformance.objects.select_related(
+            "player", "partner", "tournament"
+        ).filter(matches__gte=min_matches)
+        if event in EVENTS:
+            qs = qs.filter(event=event)
+        if request.query_params.get("include_new") != "1":
             qs = qs.filter(rd_start__lte=130)
+        qs = qs.order_by("-best_delta" if kind == "upsets" else "-net_delta")
 
-        if self.kwargs.get("kind") == "upsets":
-            return qs.exclude(best_delta=None).order_by("-best_delta")
-        return qs.order_by("-net_delta")
+        # Collapse the two members of a doubles pair into one row.
+        seen: set = set()
+        picked: list = []
+        for tp in qs[:2000]:
+            if len(picked) >= limit:
+                break
+            if tp.partner_id:
+                key = (tp.tournament_id, tp.event, frozenset((tp.player_id, tp.partner_id)))
+                if key in seen:
+                    continue
+                seen.add(key)
+            picked.append(tp)
 
-    def list(self, request, *args, **kwargs):
-        resp = super().list(request, *args, **kwargs)
-        if self.kwargs.get("kind") != "upsets":
-            return resp
-        # Attach the standout match's round + the opponent(s) beaten.
-        rows = resp.data.get("results", [])
-        ids = [r["best_match"] for r in rows if r.get("best_match")]
+        rows = TournamentPerformanceSerializer(picked, many=True).data
+        if kind == "upsets":
+            self._enrich_upsets(picked, rows)
+        return Response({"results": rows})
+
+    def _enrich_upsets(self, picked, rows):
+        ids = [tp.best_match_id for tp in picked if tp.best_match_id]
         matches = {
             m.match_id: m
             for m in Match.objects.filter(match_id__in=ids).prefetch_related(
                 "lineup__player"
             )
         }
-        for r in rows:
-            m = matches.get(r.get("best_match"))
+        for tp, r in zip(picked, rows):
+            m = matches.get(tp.best_match_id)
             if not m:
                 r["best_round"], r["beat"] = None, []
                 continue
-            subj = r["player"]["player_id"]
             side = next(
-                (l.side for l in m.lineup.all() if l.player_id == subj), None
+                (l.side for l in m.lineup.all() if l.player_id == tp.player_id), None
             )
             r["best_round"] = m.round_name
             r["beat"] = PlayerBriefSerializer(
                 [l.player for l in m.lineup.all() if l.side != side], many=True
             ).data
-        return resp
 
 
 class EventsView(APIView):
