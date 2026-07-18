@@ -6,10 +6,10 @@ import { useAsync } from '../useAsync.js'
 const pair = (row) =>
   row.player ? row.player.name_display : '—'
 
-function GainsTable({ kind, event }) {
+function GainsTable({ kind, event, includeNew }) {
   const { data, error, loading } = useAsync(
-    () => api.analytics(kind, { event, minMatches: 3, limit: 40 }),
-    [kind, event],
+    () => api.analytics(kind, { event, minMatches: 3, limit: 40, includeNew }),
+    [kind, event, includeNew],
   )
   const isUpset = kind === 'upsets'
   if (loading) return <p className="muted">Loading…</p>
@@ -67,6 +67,7 @@ function GainsTable({ kind, event }) {
 
 export default function Insights() {
   const [event, setEvent] = useState('')
+  const [includeNew, setIncludeNew] = useState(false)
 
   return (
     <div>
@@ -81,17 +82,24 @@ export default function Insights() {
               onClick={() => setEvent(e.code)}>{e.code}</button>
           ))}
         </div>
+        <label className="checkbox">
+          <input type="checkbox" checked={includeNew}
+                 onChange={(e) => setIncludeNew(e.target.checked)} />
+          {' '}include debut players
+        </label>
       </div>
 
       <h2>🚀 Biggest tournament breakouts</h2>
-      <p className="muted small">Most ELO gained across a single tournament — the
-        standout runs. (Start→End is the rating before and after.)</p>
-      <GainsTable kind="tournament-gains" event={event} />
+      <p className="muted small">Most ELO gained by an <strong>established</strong>{' '}
+        player across a single tournament — the standout runs. (Start→End is the
+        rating before and after; debut players are hidden by default since a
+        first-timer's rating swings hugely.)</p>
+      <GainsTable kind="tournament-gains" event={event} includeNew={includeNew} />
 
       <h2>⚡ Biggest upsets</h2>
       <p className="muted small">The single wins that moved a rating the most —
         beating someone you weren't supposed to.</p>
-      <GainsTable kind="upsets" event={event} />
+      <GainsTable kind="upsets" event={event} includeNew={includeNew} />
     </div>
   )
 }

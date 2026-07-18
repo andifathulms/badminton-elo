@@ -22,8 +22,8 @@ export const api = {
     get(`/pairs?${qs({ event, min_matches: minMatches, ranking, limit, offset })}`),
   tournamentMatches: (id, { event, limit = 100, offset = 0 } = {}) =>
     get(`/tournaments/${id}/matches?${qs({ event, limit, offset })}`),
-  analytics: (kind, { event, minMatches = 2, limit = 40 } = {}) =>
-    get(`/analytics/${kind}?${qs({ event, min_matches: minMatches, limit })}`),
+  analytics: (kind, { event, minMatches = 2, limit = 40, includeNew } = {}) =>
+    get(`/analytics/${kind}?${qs({ event, min_matches: minMatches, limit, include_new: includeNew ? 1 : '' })}`),
   player: (id) => get(`/players/${id}`),
   playerHistory: (id, event) => get(`/players/${id}/history?${qs({ event })}`),
   playerMatches: (id, { event, limit = 25, offset = 0 } = {}) =>

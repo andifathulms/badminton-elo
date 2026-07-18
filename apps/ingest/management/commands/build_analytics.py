@@ -21,21 +21,23 @@ class Command(BaseCommand):
     def handle(self, *args, **opts):
         # Group history rows by (player, event, tournament).
         agg: dict = defaultdict(
-            lambda: {"net": 0.0, "n": 0, "start": None, "end_delta": None,
+            lambda: {"net": 0.0, "n": 0, "start": None, "rd_start": None,
                      "end_after": None, "best_delta": None, "best_match": None,
                      "last_order": -1}
         )
         rows = RatingHistory.objects.select_related("match").values_list(
             "player_id", "event", "match__tournament_id", "match_id",
-            "match__round_order", "mu_before", "mu_after", "delta",
+            "match__round_order", "mu_before", "mu_after", "delta", "rd_before",
         )
-        for pid, ev, tid, mid, rorder, before, after, delta in rows.iterator():
+        for pid, ev, tid, mid, rorder, before, after, delta, rd_before in rows.iterator():
             if tid is None:
                 continue
             a = agg[(pid, ev, tid)]
             a["net"] += delta
             a["n"] += 1
-            a["start"] = before if a["start"] is None else a["start"]
+            if a["start"] is None:
+                a["start"] = before
+                a["rd_start"] = rd_before
             # end = mu_after of the last match by round order
             if rorder is None:
                 rorder = 0
@@ -55,6 +57,7 @@ class Command(BaseCommand):
                 matches=a["n"],
                 mu_start=a["start"] if a["start"] is not None else 0.0,
                 mu_end=a["end_after"] if a["end_after"] is not None else 0.0,
+                rd_start=a["rd_start"] if a["rd_start"] is not None else 350.0,
                 best_match_id=a["best_match"],
                 best_delta=a["best_delta"],
             )

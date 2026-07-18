@@ -230,7 +230,7 @@ def test_match_statistics_served_from_cache(api):
 
 
 def test_analytics_tournament_gains(api):
-    r = api.get("/api/analytics/tournament-gains?event=XD&min_matches=1")
+    r = api.get("/api/analytics/tournament-gains?event=XD&min_matches=1&include_new=1")
     assert r.status_code == 200
     results = r.json()["results"]
     assert results
@@ -243,7 +243,7 @@ def test_analytics_tournament_gains(api):
 
 
 def test_analytics_upsets(api):
-    r = api.get("/api/analytics/upsets?event=XD&min_matches=1")
+    r = api.get("/api/analytics/upsets?event=XD&min_matches=1&include_new=1")
     assert r.status_code == 200
     results = r.json()["results"]
     assert results

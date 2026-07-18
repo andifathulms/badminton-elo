@@ -312,6 +312,10 @@ class AnalyticsView(generics.ListAPIView):
         except ValueError:
             min_matches = 2
         qs = qs.filter(matches__gte=min_matches)
+        # Exclude cold-start spikes (debut players at high uncertainty) unless
+        # explicitly asked — a settled rd_start makes "breakouts" meaningful.
+        if self.request.query_params.get("include_new") != "1":
+            qs = qs.filter(rd_start__lte=130)
 
         if self.kwargs.get("kind") == "upsets":
             return qs.exclude(best_delta=None).order_by("-best_delta")

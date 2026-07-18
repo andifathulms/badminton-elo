@@ -278,6 +278,7 @@ class TournamentPerformance(models.Model):
     matches = models.IntegerField()
     mu_start = models.FloatField()  # rating at tournament start (locked)
     mu_end = models.FloatField()
+    rd_start = models.FloatField(default=350.0)  # uncertainty at start (low = settled)
     best_match = models.ForeignKey(
         Match, on_delete=models.SET_NULL, null=True, blank=True
     )
