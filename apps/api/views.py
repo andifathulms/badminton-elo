@@ -326,10 +326,51 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
         year = self.request.query_params.get("year")
         if year and year.isdigit():
             qs = qs.filter(start_date__year=int(year))
+        tier = self.request.query_params.get("tier")
+        if tier:
+            qs = qs.filter(category_name=tier)
         q = self.request.query_params.get("q")
         if q:
             qs = qs.filter(name__icontains=q)
         return qs
+
+    # Prestige order for the tier filter; anything unlisted sorts after, A–Z.
+    TIER_ORDER = [
+        "HSBC BWF World Tour Finals",
+        "HSBC BWF World Tour Super 1000",
+        "HSBC BWF World Tour Super 750",
+        "HSBC BWF World Tour Super 500",
+        "HSBC BWF World Tour Super 300",
+        "BWF Tour Super 100",
+        "World Superseries Premier",
+        "World Superseries",
+        "Grand Prix Gold",
+        "Grand Prix",
+        "Continental Individual Championships",
+        "Continental Team Championships",
+        "International Challenge",
+        "International Series",
+        "Future Series",
+    ]
+
+    @action(detail=False)
+    def tiers(self, request):
+        """Distinct non-empty tiers present, ordered by prestige then count."""
+        rows = (
+            Tournament.objects.annotate(mc=Count("matches"))
+            .filter(mc__gt=0)
+            .exclude(category_name="")
+            .exclude(category_name=None)
+            .values("category_name")
+            .annotate(n=Count("tournament_id", distinct=True))
+        )
+        rank = {name: i for i, name in enumerate(self.TIER_ORDER)}
+        ordered = sorted(
+            rows, key=lambda r: (rank.get(r["category_name"], 999), r["category_name"])
+        )
+        return Response(
+            [{"tier": r["category_name"], "count": r["n"]} for r in ordered]
+        )
 
     @action(detail=True, methods=["get"])
     def matches(self, request, tournament_id=None):

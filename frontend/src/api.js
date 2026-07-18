@@ -32,8 +32,9 @@ export const api = {
   match: (id) => get(`/matches/${id}`),
   matchStatistics: (id) => get(`/matches/${id}/statistics`),
   searchPlayers: (q) => get(`/players?${qs({ q, limit: 12 })}`),
-  tournaments: ({ year, q, limit = 40, offset = 0 } = {}) =>
-    get(`/tournaments?${qs({ year, q, limit, offset })}`),
+  tournaments: ({ year, tier, q, limit = 40, offset = 0 } = {}) =>
+    get(`/tournaments?${qs({ year, tier, q, limit, offset })}`),
+  tournamentTiers: () => get('/tournaments/tiers'),
   tournament: (id) => get(`/tournaments/${id}`),
 }
 
