@@ -8,15 +8,16 @@
 """
 from __future__ import annotations
 
-from django.db.models import DateTimeField, F, FloatField
+from datetime import timedelta
+
+from django.db.models import Count, DateTimeField, F, FloatField, Max
 from django.db.models.functions import Cast, Coalesce
+from django.utils import timezone
 from rest_framework import generics, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
-from django.db.models import Count
 
 from apps.ingest.models import (
     Draw,
@@ -46,6 +47,18 @@ from .serializers import (
 
 EVENTS = ("MS", "WS", "MD", "WD", "XD")
 DOUBLES = ("MD", "WD", "XD")
+ACTIVE_DAYS = 365  # a player/pair idle longer than this counts as retired
+
+_active_cutoff_cache = {}
+
+
+def active_cutoff():
+    """Anything last active before this is 'retired' — excluded from CURRENT
+    rankings (still counted in all-time/peak). Measured from the latest match in
+    the data (data-relative), so the rule holds even if collection pauses."""
+    latest = PlayerRating.objects.aggregate(m=Max("last_match_utc"))["m"]
+    ref = latest or timezone.now()
+    return ref - timedelta(days=ACTIVE_DAYS)
 
 
 class LeaderboardView(generics.ListAPIView):
@@ -81,6 +94,10 @@ class LeaderboardView(generics.ListAPIView):
         ranking = self.request.query_params.get("ranking", "current")
         if ranking == "peak":
             return qs.exclude(peak_mu=None).order_by("-peak_mu")
+
+        # Current board: hide retired players (idle > 1 year) unless asked.
+        if self.request.query_params.get("include_inactive") != "1":
+            qs = qs.filter(last_match_utc__gte=active_cutoff())
 
         order = self.request.query_params.get("order", "rating")
         if order == "mu":
@@ -174,6 +191,10 @@ class PairsView(generics.ListAPIView):
         ).select_related("player1", "player2")
         if self.request.query_params.get("ranking") == "peak":
             return qs.exclude(combined_peak_mu=None).order_by("-combined_peak_mu")
+        # Current pairs: hide partnerships that haven't played TOGETHER in a
+        # year (even if one member is still active with a different partner).
+        if self.request.query_params.get("include_inactive") != "1":
+            qs = qs.filter(last_match_utc__gte=active_cutoff())
         return qs.annotate(
             _rating=F("combined_mu") - 2.0 * F("combined_rd")
         ).order_by("-_rating")

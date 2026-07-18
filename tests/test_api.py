@@ -279,6 +279,38 @@ def test_player_match_history_has_before_after(api):
     assert {"before", "after", "delta"} <= set(m["elo"])
 
 
+def test_retirement_rule(db):
+    """A player idle > 1 year is hidden from CURRENT but kept in all-time peak."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.ingest.models import Player, PlayerRating
+
+    now = timezone.now()
+    Player.objects.create(player_id=1, name_display="Active")
+    Player.objects.create(player_id=2, name_display="Retired")
+    PlayerRating.objects.create(
+        player_id=1, event="MS", mu=2000, rd=50, sigma=0.06, matches_played=20,
+        last_match_utc=now, peak_mu=2000, peak_rd=50, peak_utc=now,
+    )
+    PlayerRating.objects.create(
+        player_id=2, event="MS", mu=2500, rd=50, sigma=0.06, matches_played=20,
+        last_match_utc=now - timedelta(days=800),
+        peak_mu=2600, peak_rd=50, peak_utc=now - timedelta(days=800),
+    )
+    c = APIClient()
+    cur = [r["player"]["player_id"] for r in c.get(
+        "/api/leaderboard?event=MS&min_matches=1").json()["results"]]
+    assert cur == [1]  # retired (id 2) excluded from current despite higher mu
+    peak = [r["player"]["player_id"] for r in c.get(
+        "/api/leaderboard?event=MS&min_matches=1&ranking=peak").json()["results"]]
+    assert 2 in peak  # but present in all-time peak
+    allc = [r["player"]["player_id"] for r in c.get(
+        "/api/leaderboard?event=MS&min_matches=1&include_inactive=1").json()["results"]]
+    assert set(allc) == {1, 2}
+
+
 def test_events_endpoint(api):
     r = api.get("/api/events")
     assert r.status_code == 200
