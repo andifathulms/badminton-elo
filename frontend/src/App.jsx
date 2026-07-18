@@ -74,6 +74,7 @@ export default function App() {
           <NavLink to="/rankings">Rankings</NavLink>
           <NavLink to="/tournaments">Tournaments</NavLink>
           <NavLink to="/insights">Insights</NavLink>
+          <NavLink to="/cups">Cups</NavLink>
         </nav>
         <Search />
       </header>

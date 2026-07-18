@@ -38,9 +38,11 @@ function GainsTable({ kind, event, includeNew }) {
     [kind, event, includeNew],
   )
   const isUpset = kind === 'upsets'
+  const isPerf = kind === 'performances'
   if (loading) return <p className="muted">Loading…</p>
   if (error) return <p className="error">Could not load: {error.message}</p>
 
+  const metricHead = isUpset ? 'Gain' : isPerf ? 'Perf' : 'Net ELO'
   const shown = data.results.slice(page * PAGE, page * PAGE + PAGE)
   return (
     <>
@@ -49,7 +51,7 @@ function GainsTable({ kind, event, includeNew }) {
         <tr>
           <th className="rank">#</th>
           <th>Player</th>
-          <th className="num">{isUpset ? 'Gain' : 'Net ELO'}</th>
+          <th className="num">{metricHead}</th>
           <th>Result</th>
           {isUpset ? <th>Beat (round)</th> : <th className="num">Start→End</th>}
           <th>Tournament</th>
@@ -69,6 +71,8 @@ function GainsTable({ kind, event, includeNew }) {
                 ) : (
                   <span className="pos">+{row.best_delta.toFixed(1)}</span>
                 )
+              ) : isPerf ? (
+                <span className="metric">{Math.round(row.perf_rating)}</span>
               ) : (
                 <span className={row.net_delta >= 0 ? 'pos' : 'neg'}>
                   {row.net_delta >= 0 ? '+' : ''}
@@ -143,6 +147,12 @@ export default function Insights() {
       <p className="muted small">The single wins that moved a rating the most —
         beating someone you weren't supposed to.</p>
       <GainsTable kind="upsets" event={event} includeNew={includeNew} />
+
+      <h2>🎯 Best tournament performances</h2>
+      <p className="muted small">Chess-style performance rating — the level a
+        player/pair played AT across a tournament, based on the strength of the
+        opponents they beat. Winning against a brutal field beats an easy title.</p>
+      <GainsTable kind="performances" event={event} includeNew={includeNew} />
     </div>
   )
 }

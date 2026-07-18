@@ -635,3 +635,8 @@ tr.clickable .link { color: var(--brand); font-weight: 600; }
   .topbar { gap: 10px 14px; }
   .hide-sm { display: none; }
 }
+
+/* Cup power — national team contributors */
+.team-slots { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; }
+.team-slots .slot b { color: var(--brand); margin-right: 3px; }
+.team-slots .slot .muted { font-variant-numeric: tabular-nums; }

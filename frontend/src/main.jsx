@@ -10,6 +10,7 @@ import Tournaments from './pages/Tournaments.jsx'
 import Tournament from './pages/Tournament.jsx'
 import Insights from './pages/Insights.jsx'
 import PairDetail from './pages/PairDetail.jsx'
+import Cups from './pages/Cups.jsx'
 import './styles.css'
 
 const router = createBrowserRouter([
@@ -24,6 +25,7 @@ const router = createBrowserRouter([
       { path: 'tournaments', element: <Tournaments /> },
       { path: 'tournaments/:id', element: <Tournament /> },
       { path: 'insights', element: <Insights /> },
+      { path: 'cups', element: <Cups /> },
       { path: 'pairs/:event/:p1/:p2', element: <PairDetail /> },
     ],
   },
