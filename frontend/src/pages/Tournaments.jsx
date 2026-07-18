@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
+import Select from '../components/Select.jsx'
 
 const YEARS = Array.from({ length: 21 }, (_, i) => 2026 - i)
+const YEAR_OPTS = [{ value: '', label: 'All years' }, ...YEARS.map((y) => ({ value: y, label: String(y) }))]
 
 export default function Tournaments() {
   const [year, setYear] = useState('')
@@ -15,16 +17,11 @@ export default function Tournaments() {
   return (
     <div>
       <div className="toolbar">
-        <h1 className="page-title">Tournaments</h1>
-        <label className="order">
-          Year:&nbsp;
-          <select value={year} onChange={(e) => setYear(e.target.value)}>
-            <option value="">All</option>
-            {YEARS.map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-        </label>
+        <div className="page-head" style={{ marginBottom: 0 }}>
+          <div className="kicker">BWF World Tour · History</div>
+          <h1 className="page-title">Tournaments</h1>
+        </div>
+        <Select label="Year" value={year} onChange={setYear} options={YEAR_OPTS} />
       </div>
       {loading && <p className="muted">Loading…</p>}
       {error && <p className="error">Could not load: {error.message}</p>}

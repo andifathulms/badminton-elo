@@ -2,10 +2,18 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api, EVENTS } from '../api.js'
 import { useAsync } from '../useAsync.js'
+import Avatar from '../components/Avatar.jsx'
+import Select from '../components/Select.jsx'
 
 const isDoubles = (e) => e === 'MD' || e === 'WD' || e === 'XD'
 const PAGE = 20
 const CAP = 200
+
+function Medal({ n }) {
+  return <span className={`medal ${n <= 3 ? `m${n}` : ''}`}>{n}</span>
+}
+
+const eventLabel = (code) => EVENTS.find((e) => e.code === code)?.label || code
 
 function Pager({ page, setPage, count }) {
   const shown = Math.min((page + 1) * PAGE, CAP)
@@ -36,6 +44,15 @@ export default function Leaderboard() {
 
   return (
     <div>
+      <div className="page-head">
+        <div className="kicker">BWF World Rankings · Elo</div>
+        <h1 className="page-title">{eventLabel(event)}</h1>
+        <p className="page-sub">
+          Skill ratings computed from head-to-head tournament results — not points
+          earned. Players ranked by a conservative Glicko-2 score.
+        </p>
+      </div>
+
       <div className="tabs">
         {EVENTS.map((e) => (
           <button
@@ -114,13 +131,15 @@ function IndividualBoard({ event, ranking, order, setOrder, gender }) {
       {!isPeak && (
         <div className="toolbar">
           <span className="muted small">Ranked by mu − 2·rd (conservative)</span>
-          <label className="order">
-            Sort:&nbsp;
-            <select value={order} onChange={(e) => setOrder(e.target.value)}>
-              <option value="rating">Rating (mu − 2·rd)</option>
-              <option value="mu">Skill (mu)</option>
-            </select>
-          </label>
+          <Select
+            label="Sort"
+            value={order}
+            onChange={setOrder}
+            options={[
+              { value: 'rating', label: 'Rating (mu − 2·rd)' },
+              { value: 'mu', label: 'Skill (mu)' },
+            ]}
+          />
         </div>
       )}
       {loading && <p className="muted">Loading…</p>}
@@ -129,33 +148,39 @@ function IndividualBoard({ event, ranking, order, setOrder, gender }) {
         <table className="board">
           <thead>
             <tr>
-              <th>#</th><th>Player</th><th></th>
+              <th className="rank">#</th><th>Player</th>
               <th className="num">{isPeak ? 'Peak' : 'Rating'}</th>
-              <th className="num">{isPeak ? 'when' : 'mu'}</th>
+              <th className="num">{isPeak ? 'When' : 'mu'}</th>
               <th className="num">rd</th>
-              <th className="num">M</th>
+              <th className="num">Matches</th>
             </tr>
           </thead>
           <tbody>
-            {data.results.map((row, i) => (
+            {data.results.map((row, i) => {
+              const rank = page * PAGE + i + 1
+              return (
               <tr key={row.player.player_id}>
-                <td className="rank">{page * PAGE + i + 1}</td>
+                <td className="rank"><Medal n={rank} /></td>
                 <td>
-                  <Link to={`/players/${row.player.player_id}`}>
-                    {row.player.name_display}
+                  <Link to={`/players/${row.player.player_id}`} className="pcell">
+                    <Avatar player={row.player} />
+                    <span className="pmeta">
+                      <span className="pname">{row.player.name_display}</span>
+                      <span className="psub">{row.player.country_code}</span>
+                    </span>
                   </Link>
                 </td>
-                <td className="country">{row.player.country_code}</td>
-                <td className="num strong">
+                <td className="num"><span className="metric">
                   {isPeak ? row.peak_mu.toFixed(0) : row.rating.toFixed(1)}
-                </td>
+                </span></td>
                 <td className="num muted">
                   {isPeak ? (row.peak_utc ? row.peak_utc.slice(0, 7) : '—') : row.mu.toFixed(0)}
                 </td>
                 <td className="num muted">{(isPeak ? row.peak_rd : row.rd).toFixed(0)}</td>
                 <td className="num muted">{row.matches_played}</td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       )}
@@ -179,7 +204,7 @@ function PairsBoard({ event, ranking }) {
       <table className="board">
         <thead>
           <tr>
-            <th>#</th><th>Pair</th>
+            <th className="rank">#</th><th>Pair</th>
             <th className="num">{isPeak ? 'Peak' : 'Rating'}</th>
             <th className="num">Together</th>
             <th className="num">Win%</th>
@@ -189,27 +214,35 @@ function PairsBoard({ event, ranking }) {
         <tbody>
           {data.results.map((row, i) => {
             const to = `/pairs/${event}/${row.player1.player_id}/${row.player2.player_id}`
+            const rank = page * PAGE + i + 1
             return (
               <tr key={`${row.player1.player_id}-${row.player2.player_id}`}>
-                <td className="rank">{page * PAGE + i + 1}</td>
+                <td className="rank"><Medal n={rank} /></td>
                 <td>
-                  <Link to={`/players/${row.player1.player_id}`}>{row.player1.name_display}</Link>
-                  {' / '}
-                  <Link to={`/players/${row.player2.player_id}`}>{row.player2.name_display}</Link>
-                  <div className="muted small">
-                    {row.player1.country_code}
-                    {row.player2.country_code !== row.player1.country_code
-                      ? ` / ${row.player2.country_code}`
-                      : ''}
-                  </div>
+                  <Link to={to} className="pcell">
+                    <span className="pair-av">
+                      <Avatar player={row.player1} size="sm" />
+                      <Avatar player={row.player2} size="sm" />
+                    </span>
+                    <span className="pmeta">
+                      <span className="pname">
+                        {row.player1.name_display} / {row.player2.name_display}
+                      </span>
+                      <span className="psub">
+                        {row.player1.country_code}
+                        {row.player2.country_code !== row.player1.country_code
+                          ? ` / ${row.player2.country_code}` : ''}
+                      </span>
+                    </span>
+                  </Link>
                 </td>
-                <td className="num strong">
+                <td className="num"><span className="metric">
                   {isPeak
                     ? row.peak_rating != null ? row.peak_rating.toFixed(0) : '—'
                     : row.rating.toFixed(1)}
-                </td>
+                </span></td>
                 <td className="num muted">{row.matches_together}</td>
-                <td className="num">{row.win_pct != null ? `${row.win_pct}%` : '—'}</td>
+                <td className="num strong">{row.win_pct != null ? `${row.win_pct}%` : '—'}</td>
                 <td className="num"><Link to={to} className="muted small">view →</Link></td>
               </tr>
             )

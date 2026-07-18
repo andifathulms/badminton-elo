@@ -88,7 +88,14 @@ export default function Insights() {
 
   return (
     <div>
-      <h1 className="page-title">Insights</h1>
+      <div className="page-head">
+        <div className="kicker">Analytics</div>
+        <h1 className="page-title">Insights</h1>
+        <p className="page-sub">
+          Standout runs and giant-killings across two decades of BWF results —
+          ranked by how much they moved the needle.
+        </p>
+      </div>
       <div className="toolbar wrap">
         <div className="segmented">
           <button className={event === '' ? 'seg active' : 'seg'}

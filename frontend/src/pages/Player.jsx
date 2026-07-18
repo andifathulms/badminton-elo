@@ -4,6 +4,7 @@ import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import RatingChart from '../components/RatingChart.jsx'
 import MatchHistory from '../components/MatchHistory.jsx'
+import Avatar from '../components/Avatar.jsx'
 
 export default function Player() {
   const { id } = useParams()
@@ -19,26 +20,62 @@ export default function Player() {
   if (loading) return <p className="muted">Loading…</p>
   if (error) return <p className="error">Could not load player: {error.message}</p>
 
+  const wins = player.records?.reduce((a, r) => a + r.wins, 0) || 0
+  const losses = player.records?.reduce((a, r) => a + r.losses, 0) || 0
+  const totalMatches = wins + losses
+  const winPct = totalMatches ? Math.round((100 * wins) / totalMatches) : 0
+  const top = player.ratings?.[0]
+
   return (
     <div>
-      <Link to="/" className="back">← Leaderboard</Link>
-      <h1 className="player-name">
-        {player.name_display}{' '}
-        <span className="country-badge">{player.country_code}</span>
-      </h1>
-      <div className="meta">
-        {player.plays && <span>Plays: {player.plays}</span>}
-        {player.height_cm && <span>{player.height_cm} cm</span>}
-        {player.dob && <span>DOB: {player.dob}</span>}
-        {player.records?.length > 0 && (
-          <span>
-            {player.records.reduce((a, r) => a + r.wins, 0)}–
-            {player.records.reduce((a, r) => a + r.losses, 0)} overall
-          </span>
-        )}
+      <Link to="/" className="back">← Rankings</Link>
+
+      <div className="profile">
+        <Avatar player={player} size="lg" />
+        <div className="pinfo">
+          <h1>
+            {player.name_display}
+            <span className="country-badge">{player.country_code}</span>
+          </h1>
+          <div className="meta">
+            {player.plays && <span>🏸 Plays {player.plays}</span>}
+            {player.height_cm && <span>📏 {player.height_cm} cm</span>}
+            {player.dob && <span>🎂 {player.dob}</span>}
+            {totalMatches > 0 && (
+              <span>📊 {wins}–{losses} career ({winPct}%)</span>
+            )}
+          </div>
+        </div>
       </div>
 
-      {player.records?.length > 0 && (
+      <div className="statgrid">
+        {top && (
+          <div className="statcard">
+            <div className="k">{top.event} Rating</div>
+            <div className="v">{top.rating.toFixed(0)}</div>
+            <div className="sub">mu {top.mu.toFixed(0)} · rd {top.rd.toFixed(0)}</div>
+          </div>
+        )}
+        {top?.peak_mu != null && (
+          <div className="statcard">
+            <div className="k">Peak {top.event}</div>
+            <div className="v">{top.peak_mu.toFixed(0)}</div>
+            <div className="sub">{top.peak_utc ? top.peak_utc.slice(0, 7) : '—'}</div>
+          </div>
+        )}
+        <div className="statcard">
+          <div className="k">Career W–L</div>
+          <div className="v">{wins}–{losses}</div>
+          <div className="sub">{winPct}% win rate</div>
+        </div>
+        <div className="statcard">
+          <div className="k">Matches</div>
+          <div className="v">{totalMatches}</div>
+          <div className="sub">{player.ratings?.length || 0} disciplines</div>
+        </div>
+      </div>
+
+      {player.records?.length > 1 && (
         <div className="records">
           {player.records.map((r) => (
             <span key={r.event} className="record-pill">

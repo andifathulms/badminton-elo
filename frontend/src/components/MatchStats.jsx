@@ -30,7 +30,7 @@ function ScoreWorm({ progression }) {
           return (
             <g key={gi}>
               <line x1="20" x2={W - 20} y1={y0} y2={y0} className="grid" />
-              <text x="20" y={y0 - GH / 2} className="axis">
+              <text x="20" y={y0 - GH / 2 + 11} className="axis">
                 Game {gi + 1} · {last[0]}–{last[1]}
               </text>
               <polyline points={pts} className="worm" fill="none" />
