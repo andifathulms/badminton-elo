@@ -304,6 +304,44 @@ def test_player_match_history_has_before_after(api):
     assert {"before", "after", "delta"} <= set(m["elo"])
 
 
+def test_cup_power(db):
+    """Sudirman needs one active player/pair in each of MS/WS/MD/WD/XD."""
+    from django.utils import timezone
+
+    from apps.ingest.models import Partnership, Player, PlayerRating
+
+    now = timezone.now()
+    # Country CHN: singles for MS + WS; pairs for MD/WD/XD.
+    ids = iter(range(1, 30))
+
+    def player(cc):
+        pid = next(ids)
+        Player.objects.create(player_id=pid, name_display=f"P{pid}", country_code=cc)
+        return pid
+
+    for ev in ("MS", "WS"):
+        PlayerRating.objects.create(
+            player_id=player("CHN"), event=ev, mu=2400, rd=50, sigma=0.06,
+            matches_played=30, last_match_utc=now,
+        )
+    for ev in ("MD", "WD", "XD"):
+        a, b = player("CHN"), player("CHN")
+        Partnership.objects.create(
+            event=ev, player1_id=min(a, b), player2_id=max(a, b),
+            matches_together=30, wins_together=25, combined_mu=2350,
+            combined_rd=60, last_match_utc=now,
+        )
+    c = APIClient()
+    body = c.get("/api/cups/sudirman").json()
+    assert body["results"], "CHN can field a full Sudirman team"
+    top = body["results"][0]
+    assert top["country"] == "CHN"
+    assert len(top["contributors"]) == 5  # one per discipline
+    assert top["power"] > 0
+    # bad cup name -> 400
+    assert c.get("/api/cups/nope").status_code == 400
+
+
 def test_retirement_rule(db):
     """A player idle > 1 year is hidden from CURRENT but kept in all-time peak."""
     from datetime import timedelta

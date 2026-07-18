@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     AnalyticsView,
+    CupView,
     EventsView,
     LeaderboardView,
     MatchViewSet,
@@ -25,6 +26,7 @@ urlpatterns = [
     path("pairs/detail", PairDetailView.as_view(), name="pair-detail"),
     path("pairs", PairsView.as_view(), name="pairs"),
     path("analytics/<str:kind>", AnalyticsView.as_view(), name="analytics"),
+    path("cups/<str:cup>", CupView.as_view(), name="cups"),
     path("events", EventsView.as_view(), name="events"),
     path(
         "players/<int:player_id>/matches",
