@@ -146,6 +146,18 @@ def test_pairs_requires_doubles_event(api):
     assert api.get("/api/pairs?event=MS").status_code == 400
 
 
+def test_pair_detail(api):
+    top = api.get("/api/pairs?event=XD&min_matches=1").json()["results"][0]
+    p1, p2 = top["player1"]["player_id"], top["player2"]["player_id"]
+    r = api.get(f"/api/pairs/detail?event=XD&p1={p1}&p2={p2}")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["matches_together"] >= 1
+    assert body["wins"] + body["losses"] == body["matches_together"]
+    assert body["matches"] and body["matches"][0]["match_id"]
+    assert body["pair"] is not None
+
+
 def test_pairs_peak_ranking(api):
     r = api.get("/api/pairs?event=XD&min_matches=1&ranking=peak")
     assert r.status_code == 200

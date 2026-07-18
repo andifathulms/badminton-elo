@@ -4,6 +4,25 @@ import { api, EVENTS } from '../api.js'
 import { useAsync } from '../useAsync.js'
 
 const isDoubles = (e) => e === 'MD' || e === 'WD' || e === 'XD'
+const PAGE = 20
+const CAP = 200
+
+function Pager({ page, setPage, count }) {
+  const shown = Math.min((page + 1) * PAGE, CAP)
+  const maxPage = Math.min(Math.ceil(count / PAGE), CAP / PAGE) - 1
+  if (maxPage <= 0) return null
+  return (
+    <div className="pager">
+      <button className="pgbtn" disabled={page <= 0} onClick={() => setPage(page - 1)}>
+        ← Prev
+      </button>
+      <span className="muted small">Top {shown} · page {page + 1} / {maxPage + 1}</span>
+      <button className="pgbtn" disabled={page >= maxPage} onClick={() => setPage(page + 1)}>
+        Next →
+      </button>
+    </div>
+  )
+}
 
 export default function Leaderboard() {
   const [event, setEvent] = useState('MS')
@@ -64,9 +83,10 @@ export default function Leaderboard() {
       </div>
 
       {showPairs ? (
-        <PairsBoard event={event} ranking={ranking} />
+        <PairsBoard key={`${event}-${ranking}`} event={event} ranking={ranking} />
       ) : (
         <IndividualBoard
+          key={`${event}-${ranking}-${order}-${gender}`}
           event={event}
           ranking={ranking}
           order={order}
@@ -80,9 +100,13 @@ export default function Leaderboard() {
 
 function IndividualBoard({ event, ranking, order, setOrder, gender }) {
   const isPeak = ranking === 'peak'
+  const [page, setPage] = useState(0)
   const { data, error, loading } = useAsync(
-    () => api.leaderboard(event, { order, ranking, gender, minMatches: 5, limit: 50 }),
-    [event, ranking, order, gender],
+    () =>
+      api.leaderboard(event, {
+        order, ranking, gender, minMatches: 5, limit: PAGE, offset: page * PAGE,
+      }),
+    [event, ranking, order, gender, page],
   )
 
   return (
@@ -115,7 +139,7 @@ function IndividualBoard({ event, ranking, order, setOrder, gender }) {
           <tbody>
             {data.results.map((row, i) => (
               <tr key={row.player.player_id}>
-                <td className="rank">{i + 1}</td>
+                <td className="rank">{page * PAGE + i + 1}</td>
                 <td>
                   <Link to={`/players/${row.player.player_id}`}>
                     {row.player.name_display}
@@ -135,6 +159,7 @@ function IndividualBoard({ event, ranking, order, setOrder, gender }) {
           </tbody>
         </table>
       )}
+      {data && <Pager page={page} setPage={setPage} count={data.count} />}
       {data && data.results.length === 0 && <p className="muted">No players.</p>}
     </>
   )
@@ -142,52 +167,57 @@ function IndividualBoard({ event, ranking, order, setOrder, gender }) {
 
 function PairsBoard({ event, ranking }) {
   const isPeak = ranking === 'peak'
+  const [page, setPage] = useState(0)
   const { data, error, loading } = useAsync(
-    () => api.pairs(event, { minMatches: 5, ranking, limit: 50 }),
-    [event, ranking],
+    () => api.pairs(event, { minMatches: 5, ranking, limit: PAGE, offset: page * PAGE }),
+    [event, ranking, page],
   )
   if (loading) return <p className="muted">Loading pairs…</p>
   if (error) return <p className="error">Could not load pairs: {error.message}</p>
   return (
-    <table className="board">
-      <thead>
-        <tr>
-          <th>#</th><th>Pair</th>
-          <th className="num">{isPeak ? 'Peak' : 'Rating'}</th>
-          <th className="num">Together</th>
-          <th className="num">Win%</th>
-        </tr>
-      </thead>
-      <tbody>
-        {data.results.map((row, i) => (
-          <tr key={`${row.player1.player_id}-${row.player2.player_id}`}>
-            <td className="rank">{i + 1}</td>
-            <td>
-              <Link to={`/players/${row.player1.player_id}`}>{row.player1.name_display}</Link>
-              {' / '}
-              <Link to={`/players/${row.player2.player_id}`}>{row.player2.name_display}</Link>
-              <div className="muted small">
-                {row.player1.country_code}
-                {row.player2.country_code !== row.player1.country_code
-                  ? ` / ${row.player2.country_code}`
-                  : ''}
-              </div>
-            </td>
-            <td className="num strong">
-              {isPeak
-                ? row.peak_rating != null
-                  ? row.peak_rating.toFixed(0)
-                  : '—'
-                : row.rating.toFixed(1)}
-            </td>
-            <td className="num muted">{row.matches_together}</td>
-            <td className="num">{row.win_pct != null ? `${row.win_pct}%` : '—'}</td>
+    <>
+      <table className="board">
+        <thead>
+          <tr>
+            <th>#</th><th>Pair</th>
+            <th className="num">{isPeak ? 'Peak' : 'Rating'}</th>
+            <th className="num">Together</th>
+            <th className="num">Win%</th>
+            <th></th>
           </tr>
-        ))}
-      </tbody>
-      {data.results.length === 0 && (
-        <tbody><tr><td colSpan="5" className="muted">No pairs.</td></tr></tbody>
-      )}
-    </table>
+        </thead>
+        <tbody>
+          {data.results.map((row, i) => {
+            const to = `/pairs/${event}/${row.player1.player_id}/${row.player2.player_id}`
+            return (
+              <tr key={`${row.player1.player_id}-${row.player2.player_id}`}>
+                <td className="rank">{page * PAGE + i + 1}</td>
+                <td>
+                  <Link to={`/players/${row.player1.player_id}`}>{row.player1.name_display}</Link>
+                  {' / '}
+                  <Link to={`/players/${row.player2.player_id}`}>{row.player2.name_display}</Link>
+                  <div className="muted small">
+                    {row.player1.country_code}
+                    {row.player2.country_code !== row.player1.country_code
+                      ? ` / ${row.player2.country_code}`
+                      : ''}
+                  </div>
+                </td>
+                <td className="num strong">
+                  {isPeak
+                    ? row.peak_rating != null ? row.peak_rating.toFixed(0) : '—'
+                    : row.rating.toFixed(1)}
+                </td>
+                <td className="num muted">{row.matches_together}</td>
+                <td className="num">{row.win_pct != null ? `${row.win_pct}%` : '—'}</td>
+                <td className="num"><Link to={to} className="muted small">view →</Link></td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      <Pager page={page} setPage={setPage} count={data.count} />
+      {data.results.length === 0 && <p className="muted">No pairs.</p>}
+    </>
   )
 }

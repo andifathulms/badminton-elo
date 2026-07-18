@@ -143,6 +143,60 @@ class PairsView(generics.ListAPIView):
         ).order_by("-_rating")
 
 
+class PairDetailView(APIView):
+    """GET /api/pairs/detail?event=&p1=&p2= — a partnership with its record and
+    the matches the two players contested together."""
+
+    def get(self, request):
+        event = request.query_params.get("event")
+        try:
+            p1 = int(request.query_params["p1"])
+            p2 = int(request.query_params["p2"])
+        except (KeyError, ValueError):
+            raise ValidationError({"detail": "event, p1, p2 required"})
+        lo, hi = sorted((p1, p2))
+
+        pair = (
+            Partnership.objects.filter(event=event, player1_id=lo, player2_id=hi)
+            .select_related("player1", "player2")
+            .first()
+        )
+
+        # Matches where both players were on the SAME side.
+        s1 = dict(
+            MatchPlayer.objects.filter(player_id=lo, match__event=event).values_list(
+                "match_id", "side"
+            )
+        )
+        s2 = dict(
+            MatchPlayer.objects.filter(player_id=hi, match__event=event).values_list(
+                "match_id", "side"
+            )
+        )
+        shared = [mid for mid, side in s1.items() if s2.get(mid) == side]
+        matches = (
+            Match.objects.filter(match_id__in=shared)
+            .select_related("tournament")
+            .prefetch_related("lineup__player", "games")
+            .order_by("-match_time_utc", "-match_id")
+        )
+        # win/loss of the pair (they share a side).
+        wins = sum(1 for m in matches if m.winner_side == s1.get(m.match_id))
+
+        return Response(
+            {
+                "pair": PairSerializer(pair).data if pair else None,
+                "player1": PlayerBriefSerializer(Player.objects.get(pk=lo)).data,
+                "player2": PlayerBriefSerializer(Player.objects.get(pk=hi)).data,
+                "event": event,
+                "matches_together": len(shared),
+                "wins": wins,
+                "losses": len(shared) - wins,
+                "matches": MatchListSerializer(matches, many=True).data,
+            }
+        )
+
+
 class PlayerMatchesView(generics.ListAPIView):
     """GET /api/players/{id}/matches[?event=] — the player's match history with
     the ELO gained/lost in each (most recent first, paginated)."""

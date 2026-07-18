@@ -20,6 +20,7 @@ export const api = {
     get(`/leaderboard?${qs({ event, min_matches: minMatches, order, ranking, gender, limit, offset })}`),
   pairs: (event, { minMatches = 5, ranking = 'current', limit = 50, offset = 0 } = {}) =>
     get(`/pairs?${qs({ event, min_matches: minMatches, ranking, limit, offset })}`),
+  pairDetail: (event, p1, p2) => get(`/pairs/detail?${qs({ event, p1, p2 })}`),
   tournamentMatches: (id, { event, limit = 100, offset = 0 } = {}) =>
     get(`/tournaments/${id}/matches?${qs({ event, limit, offset })}`),
   analytics: (kind, { event, minMatches = 2, limit = 40, includeNew } = {}) =>
