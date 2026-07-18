@@ -168,6 +168,95 @@ function GainsTable({ kind, event, includeNew }) {
   )
 }
 
+const RECORD_TABS = [
+  { kind: 'longest', label: '⏱️ Longest matches', unit: 'min', field: 'duration_min' },
+  { kind: 'rallies', label: '🏸 Most rallies', unit: 'rallies', field: 'rallies' },
+  { kind: 'comebacks', label: '🔥 Biggest comebacks', unit: 'pts down', field: 'max_comeback' },
+]
+
+function Side({ players, win }) {
+  return (
+    <span className={win ? 'strong' : ''}>
+      {players.map((p, i) => (
+        <span key={p.player_id}>
+          {i > 0 ? ' / ' : ''}
+          <span className="fl">{flag(p.country_code)}</span>{' '}
+          <Link to={`/players/${p.player_id}`}>{p.name_display}</Link>
+        </span>
+      ))}
+    </span>
+  )
+}
+
+function RecordsSection({ event }) {
+  const [kind, setKind] = useState('longest')
+  const tab = RECORD_TABS.find((t) => t.kind === kind)
+  const { data, error, loading } = useAsync(
+    () => api.records(kind, { event, limit: 25 }), [kind, event])
+
+  return (
+    <div>
+      <div className="tabs mini-tabs">
+        {RECORD_TABS.map((t) => (
+          <button key={t.kind}
+            className={`tab ${t.kind === kind ? 'active' : ''}`}
+            onClick={() => setKind(t.kind)}>{t.label}</button>
+        ))}
+      </div>
+      {kind === 'comebacks' && (
+        <p className="muted small">Biggest points deficit a side clawed back to{' '}
+          <strong>win a game</strong> (e.g. 10 = down 10-20, won 22-20).</p>
+      )}
+      {loading && <p className="muted">Loading…</p>}
+      {error && <p className="error">Could not load: {error.message}</p>}
+      {data && (
+        <table className="board">
+          <thead>
+            <tr>
+              <th className="rank">#</th>
+              <th className="num">{tab.unit === 'min' ? 'Min' : tab.unit === 'rallies' ? 'Rallies' : 'Comeback'}</th>
+              <th>Matchup</th>
+              <th className="score-cell">Score</th>
+              <th>Tournament</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.results.map((m, i) => {
+              const s1win = m.winner_side === 1
+              return (
+                <tr key={m.match_id}>
+                  <td className="rank">{i + 1}</td>
+                  <td className="num strong">
+                    <span className="metric">{m.value}</span>
+                    {kind === 'comebacks' && <span className="muted small"> down</span>}
+                  </td>
+                  <td>
+                    <Side players={m.side1} win={s1win} />
+                    <span className="muted"> vs </span>
+                    <Side players={m.side2} win={!s1win} />
+                    <span className="muted small"> {m.event} · {m.round_name}</span>
+                  </td>
+                  <td className="score-cell">
+                    {m.score.map((g, j) => <span key={j}>{g[0]}-{g[1]} </span>)}
+                  </td>
+                  <td className="muted small">
+                    <Link to={`/tournaments/${m.tournament.id}`}>{m.tournament.name}</Link>
+                  </td>
+                  <td><Link to={`/matches/${m.match_id}`} className="muted small">view →</Link></td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+      {data && !data.results.length && (
+        <p className="muted">No matches with stats for this filter yet.</p>
+      )}
+    </div>
+  )
+}
+
 export default function Insights() {
   const [event, setEvent] = useState('')
   const [includeNew, setIncludeNew] = useState(false)
@@ -211,8 +300,15 @@ export default function Insights() {
       <h2>🎯 Best tournament performances</h2>
       <p className="muted small">Chess-style performance rating — the level a
         player/pair played AT across a tournament, based on the strength of the
-        opponents they beat. Winning against a brutal field beats an easy title.</p>
+        opponents they beat. Winning against a brutal field beats an easy title.
+        Walkovers and retirements <strong>don't count</strong> — only contested
+        wins vs a rated opponent move the number (open a row to see the run).</p>
       <GainsTable kind="performances" event={event} includeNew={includeNew} />
+
+      <h2 style={{ marginTop: 32 }}>🏟️ Match records</h2>
+      <p className="muted small">Extremes pulled from the rally-by-rally match
+        statistics — only matches we've collected point-by-point data for.</p>
+      <RecordsSection event={event} />
     </div>
   )
 }
