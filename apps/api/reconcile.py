@@ -134,6 +134,40 @@ def decide(request):
     return Response({"ok": True})
 
 
+@api_view(["POST"])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def merge_all_single(request):
+    """Auto-merge every remaining single-candidate case (unique name, one BWF
+    match — the blank-country 'Axelsen' type). Multi-candidate ambiguous cases
+    are left untouched for manual review."""
+    decided = set(ReconcileDecision.objects.values_list("wiki_title", flat=True))
+    bwf_by_name = defaultdict(list)
+    for p in Player.objects.filter(player_id__lt=BASE):
+        bwf_by_name[norm(p.name_display)].append(p)
+    merged = 0
+    for w in list(Player.objects.filter(player_id__gte=BASE).exclude(wiki_title="")):
+        if w.wiki_title in decided:
+            continue
+        cands = bwf_by_name.get(norm(w.name_display), [])
+        if len(cands) != 1:
+            continue
+        target = cands[0]
+        with transaction.atomic():
+            _repoint(w, target)
+            if not target.wiki_title:
+                target.wiki_title = w.wiki_title
+            if not target.country_code and w.country_code:
+                target.country_code = w.country_code
+            target.save()
+            ReconcileDecision.objects.update_or_create(
+                wiki_title=w.wiki_title,
+                defaults={"decision": "merged", "target_player_id": target.player_id})
+            w.delete()
+        merged += 1
+    return Response({"merged": merged})
+
+
 def _repoint(src: Player, dst: Player):
     for mp in MatchPlayer.objects.filter(player=src):
         if MatchPlayer.objects.filter(match=mp.match, side=mp.side, player=dst).exists():

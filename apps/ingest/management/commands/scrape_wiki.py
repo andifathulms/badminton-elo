@@ -11,6 +11,7 @@ keyed by their stable [[wiki title]]; reconcile to real BWF ids later by name.
 from __future__ import annotations
 
 import re
+from datetime import datetime, time as dt_time, timedelta, timezone as dt_tz
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
@@ -386,7 +387,12 @@ class Command(BaseCommand):
             match.event = m["event"]
             match.round_name = rname
             match.round_order = rorder
-            match.match_time_utc = None
+            # No per-match times on Wikipedia: derive a chronological timestamp
+            # from the tournament date + round, so history sorts by date then
+            # round (and the engine processes periods in the right order).
+            match.match_time_utc = (
+                datetime.combine(t.start_date, dt_time(), tzinfo=dt_tz.utc)
+                + timedelta(minutes=rorder) if t.start_date else None)
             match.score_status = "Retired" if m["retired"] else "Normal"
             match.winner_side = m["winner_side"]
             match.scoring_format = scoring_format(m["games"]) if m["games"] else ""
