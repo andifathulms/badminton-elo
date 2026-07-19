@@ -40,6 +40,9 @@ def normalize_round(label: str, round_index: int, bracket_size: int = 0) -> tupl
     'Semifinals', 'Final', etc. Order is monotonic with progression so the
     rating engine processes earlier rounds first within a tournament."""
     l = re.sub(r"[-\s]+", " ", label.lower()).strip()
+    if l.startswith("group"):  # team-cup group stage — sort before knockout
+        gm = re.search(r"group ([a-z0-9]{1,2})\b", l)
+        return (f"Group {gm.group(1).upper()}" if gm else "Group", 5)
     if "final" in l and "semi" not in l and "quarter" not in l:
         return ("F", 90)
     if "semi" in l:

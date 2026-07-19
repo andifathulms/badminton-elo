@@ -45,12 +45,22 @@ def canon_country(c: str) -> str:
     return COUNTRY_CANON.get(c, c)
 
 
+def _ascii(name: str) -> str:
+    name = re.sub(r"'{2,}|<[^>]+>", " ", name)  # strip bold + <br/> artifacts
+    return unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
+
+
 def norm(name: str) -> str:
     """Case/accent/markup-insensitive, word-order-insensitive key.
     'LEE Chong Wei' and \"'''Lee Chong Wei'''\" -> 'chong lee wei'."""
-    name = re.sub(r"'{2,}|<[^>]+>", " ", name)  # strip bold + <br/> artifacts
-    s = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
-    return " ".join(sorted(re.sub(r"[^a-z ]", " ", s.lower()).split()))
+    return " ".join(sorted(re.sub(r"[^a-z ]", " ", _ascii(name).lower()).split()))
+
+
+def letter_key(name: str) -> str:
+    """Letter multiset — matches spelling-segmentation / order variants like
+    'SHI Yu Qi' vs 'Shi Yuqi' vs 'Yuqi Shi' (all 's,h,i,y,u,q,i'). Looser than
+    norm, so only used as a fallback when norm has no match and it's unique."""
+    return "".join(sorted(re.sub(r"[^a-z]", "", _ascii(name).lower())))
 
 
 class Command(BaseCommand):
@@ -63,15 +73,21 @@ class Command(BaseCommand):
         p.add_argument("--show", type=int, default=15, help="examples to print")
 
     def handle(self, *a, **o):
-        # index BWF players by normalised name
+        # index BWF players by normalised name + by letter multiset (fallback)
         bwf_by_name = defaultdict(list)
+        bwf_by_letters = defaultdict(list)
         for p in Player.objects.filter(player_id__lt=BASE):
             bwf_by_name[norm(p.name_display)].append(p)
+            bwf_by_letters[letter_key(p.name_display)].append(p)
 
         auto, ambiguous, unmatched = [], [], []
         for w in Player.objects.filter(player_id__gte=BASE).exclude(wiki_title=""):
             cands = bwf_by_name.get(norm(w.name_display), [])
             if not cands:
+                # spelling-segmentation fallback: unique letter-multiset match
+                lc = bwf_by_letters.get(letter_key(w.name_display), [])
+                if len(lc) == 1:
+                    auto.append((w, lc[0])); continue
                 unmatched.append(w); continue
             if w.country_code:
                 wc = canon_country(w.country_code)

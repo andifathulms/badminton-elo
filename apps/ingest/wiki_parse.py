@@ -350,7 +350,12 @@ def parse_team_ties(text: str, cup: str) -> list[dict]:
     """All individual rubbers from a team-cup article's {{Badmintonbox}} ties.
     `cup` in {thomas, uber, sudirman} sets how rubber -> discipline."""
     ev_fn = CUP_EVENT.get(cup, CUP_EVENT["thomas"])
-    heads = list(HEADER_RE.finditer(text))
+    # The STAGE is the level-2 header (== Group A ==, == Quarter-finals ==);
+    # level-3 headers are individual ties (=== China vs Denmark ===). Track only
+    # level-2 so a rubber's round is its stage, not the opponent-nation heading.
+    heads = [(m.start(), _clean(m.group(2)))
+             for m in re.finditer(r"^(=+)\s*(.+?)\s*=+\s*$", text, re.M)
+             if len(m.group(1)) == 2]
     out = []
     for bm in re.finditer(r"\{\{\s*Badmintonbox\b", text, re.I):
         body = _template_body(text, bm.start())
@@ -369,11 +374,11 @@ def parse_team_ties(text: str, cup: str) -> list[dict]:
             elif re.match(r"r\d+$", k):
                 rubbers.append((int(k[1:]), v))
         c1, c2 = _country(team1) or None, _country(team2) or None
-        # round = nearest preceding section header
-        rnd = "Group"
-        for h in heads:
-            if h.start() <= bm.start():
-                rnd = h.group(1)
+        # round = nearest preceding level-2 header (the stage)
+        rnd = "Group stage"
+        for start, name in heads:
+            if start <= bm.start():
+                rnd = name
             else:
                 break
         for ridx, rv in rubbers:
