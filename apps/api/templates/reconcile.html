@@ -18,9 +18,9 @@
   .case-head { padding: 12px 16px; border-bottom: 1px solid var(--line);
     display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
   .case-head b { font-size: 16px; }
-  .cols { display: grid; grid-template-columns: 1fr; gap: 0; }
-  @media (min-width: 760px) { .cols { grid-template-columns: repeat(var(--n,2), 1fr); } }
-  .col { padding: 12px 14px; border-right: 1px solid var(--line); }
+  .cols { display: grid; grid-auto-flow: column;
+    grid-auto-columns: minmax(340px, 1fr); overflow-x: auto; }
+  .col { padding: 12px 14px; border-right: 1px solid var(--line); min-width: 0; }
   .col:last-child { border-right: 0; }
   .col.wiki { background: #f0f7f3; }
   .who { font-weight: 700; margin-bottom: 2px; }

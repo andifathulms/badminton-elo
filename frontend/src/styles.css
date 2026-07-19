@@ -703,6 +703,18 @@ tr.clickable .link { color: var(--brand); font-weight: 600; }
 .gc-facts .comeback { color: var(--accent-amber); }
 .gc-facts .comeback b { color: var(--accent-amber); }
 
+/* Tournament master (by-year, prestige-grouped) */
+.master-section { margin-bottom: 22px; }
+.master-head { font-size: 15px; margin: 0 0 8px; color: var(--ink); }
+.tier-cell { width: 1%; white-space: nowrap; }
+.tier-tag { display: inline-block; font-size: 11px; font-weight: 700; color: var(--ink-2);
+  background: var(--surface-2); border: 1px solid var(--line-2); border-radius: 6px;
+  padding: 2px 8px; }
+.board tr.nodata { opacity: .55; }
+.nodata-dot { display: inline-block; min-width: 20px; text-align: center; font-weight: 700;
+  color: var(--muted); background: var(--surface-2); border-radius: 6px; padding: 1px 6px; }
+.nowrap { white-space: nowrap; }
+
 /* Playing-style card (avg rallies / match length per discipline) */
 .style-card { margin: 24px 0; }
 .style-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }

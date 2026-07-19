@@ -40,6 +40,7 @@ export const api = {
   tournaments: ({ year, tier, q, limit = 40, offset = 0 } = {}) =>
     get(`/tournaments?${qs({ year, tier, q, limit, offset })}`),
   tournamentTiers: () => get('/tournaments/tiers'),
+  tournamentMaster: (year) => get(`/tournaments/master?${qs({ year })}`),
   tournament: (id) => get(`/tournaments/${id}`),
   cup: (cup) => get(`/cups/${cup}`),
   cupHistory: (cup) => get(`/cups/${cup}/history`),

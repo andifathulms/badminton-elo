@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.db.models import Avg, Count, DateTimeField, F, FloatField, Max
 from django.db.models.functions import Cast, Coalesce, Round
@@ -49,6 +49,40 @@ from .serializers import (
 
 EVENTS = ("MS", "WS", "MD", "WD", "XD")
 DOUBLES = ("MD", "WD", "XD")
+
+# Full tournament prestige order (top = most prestigious). Multi-sport events and
+# team cups sit above the BWF World Tour, then development tiers. Anything
+# unlisted sorts last. Used by the tournament "master" (by-year) overview.
+PRESTIGE_ORDER = [
+    "Olympics", "World Championships",
+    "Asian Games", "Commonwealth Games", "European Games",
+    "Pan American Games", "African Games", "SEA Games",
+    "Continental Individual Games", "Continental Team Games",
+    "Continental Individual Championships", "Continental Team Championships",
+    "Thomas Cup", "Uber Cup", "Sudirman Cup",
+    "HSBC BWF World Tour Finals", "World Tour Finals",
+    "HSBC BWF World Tour Super 1000", "All England",
+    "HSBC BWF World Tour Super 750", "HSBC BWF World Tour Super 500",
+    "HSBC BWF World Tour Super 300", "BWF Tour Super 100",
+    "World Superseries Premier", "World Superseries",
+    "Grand Prix Gold", "Grand Prix",
+    "Grade 1 – Individual Tournaments", "Grade 1 – Team Tournaments",
+    "Grade 1 – Individual Senior Tournaments",
+    "International Challenge", "International Series", "Future Series",
+    "BWF Events", "Other",
+]
+_PRESTIGE_RANK = {name: i for i, name in enumerate(PRESTIGE_ORDER)}
+
+# Broad section a tier belongs to (for the master view's group headers).
+def prestige_group(category: str) -> str:
+    if category in ("Olympics", "World Championships") or category.endswith("Games"):
+        return "🏅 Multi-sport & Championships"
+    if category.endswith("Cup") or "Team" in category:
+        return "🏆 Team events"
+    if any(k in category for k in ("World Tour", "Superseries", "Grand Prix",
+                                   "All England", "Super 100")):
+        return "🌐 BWF World Tour / Superseries"
+    return "🏸 Development & other"
 ACTIVE_DAYS = 365  # a player/pair idle longer than this counts as retired
 
 _active_cutoff_cache = {}
@@ -558,6 +592,23 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
         "International Series",
         "Future Series",
     ]
+
+    @action(detail=False)
+    def master(self, request):
+        """GET /api/tournaments/master?year=Y — every tournament that year,
+        sorted by prestige (multi-sport & championships on top), each tagged
+        with its section group. Powers the by-year 'tournament master' view."""
+        year = request.query_params.get("year")
+        qs = Tournament.objects.annotate(match_count=Count("matches"))
+        if year and year.isdigit():
+            qs = qs.filter(start_date__year=int(year))
+        tours = sorted(
+            qs, key=lambda t: (_PRESTIGE_RANK.get(t.category_name, 999),
+                               t.start_date or date(1900, 1, 1), t.name))
+        data = TournamentListSerializer(tours, many=True).data
+        for row, t in zip(data, tours):
+            row["group"] = prestige_group(t.category_name or "")
+        return Response({"year": year, "count": len(data), "results": data})
 
     @action(detail=False)
     def tiers(self, request):
