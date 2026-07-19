@@ -4,6 +4,7 @@
 export default function PageHeader({ kicker, title, subtitle, children }) {
   return (
     <header className="page-hero">
+      <span className="page-hero-bg" aria-hidden="true" />
       <div className="page-hero-text">
         {kicker && <div className="kicker">{kicker}</div>}
         <h1>{title}</h1>

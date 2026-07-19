@@ -165,14 +165,16 @@ code { font-family: var(--mono); background: var(--brand-soft); color: var(--bra
 .page-hero {
   background: var(--header); background-image: var(--grad-header);
   color: var(--on-green); border-radius: var(--r-lg); padding: 22px 26px;
-  box-shadow: var(--sh); margin-bottom: 22px; position: relative; overflow: hidden;
+  box-shadow: var(--sh); margin-bottom: 22px; position: relative; overflow: visible;
   display: flex; align-items: center; justify-content: space-between;
   gap: 20px; flex-wrap: wrap;
 }
-.page-hero::after { content: ''; position: absolute; right: -70px; top: -90px;
+/* decoration lives in its own clipped layer so the hero can overflow (dropdowns) */
+.page-hero-bg { position: absolute; inset: 0; border-radius: var(--r-lg);
+  overflow: hidden; pointer-events: none; z-index: 0; }
+.page-hero-bg::after { content: ''; position: absolute; right: -70px; top: -90px;
   width: 300px; height: 300px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,255,255,.14) 0%, rgba(255,255,255,0) 68%);
-  pointer-events: none; }
+  background: radial-gradient(circle, rgba(255,255,255,.14) 0%, rgba(255,255,255,0) 68%); }
 .page-hero-text { position: relative; z-index: 1; min-width: 0; }
 .page-hero .kicker { color: var(--on-green-dim); }
 .page-hero h1 { color: var(--on-green); }
