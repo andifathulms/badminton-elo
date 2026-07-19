@@ -99,6 +99,23 @@ DISCIPLINES = [
 # Team-cup category -> rubber discipline mapping key (see wiki_parse.CUP_EVENT).
 CUPS = {"Thomas Cup": "thomas", "Uber Cup": "uber", "Sudirman Cup": "sudirman"}
 
+# Multi-sport events: category -> tier. Articles are "Badminton at the {year}
+# {Games}" with individual events (inline brackets or "– Men's singles"
+# sub-articles) and sometimes team events ("– Men's team"). Not in BWF's data
+# at any year, so pull every edition.
+GAMES = {
+    "Badminton at the Summer Olympics": "Olympics",
+    "Badminton at the Asian Games": "Asian Games",
+    "Badminton at the Commonwealth Games": "Commonwealth Games",
+    "Badminton at the European Games": "European Games",
+    "Badminton at the Pan American Games": "Pan American Games",
+    "Badminton at the African Games": "African Games",
+}
+# SEA Games badminton has no clean category; construct titles for its editions.
+SEA_YEARS = list(range(1977, 2007, 2)) + [1959, 1961, 1965, 1967, 1969, 1971, 1973]
+TEAM_SUBS = [("Men's team", "thomas"), ("Women's team", "uber"),
+             ("Mixed team", "sudirman")]
+
 
 class Allocator:
     """Hands out stable synthetic ids per table, continuing past existing rows."""
@@ -150,6 +167,8 @@ class Command(BaseCommand):
                        help="enumerate every preset major-event category")
         p.add_argument("--cups", action="store_true",
                        help="ingest Thomas/Uber/Sudirman team cups (rubber-level)")
+        p.add_argument("--games", action="store_true",
+                       help="ingest multi-sport events (Olympics, Asian/SEA/etc.)")
         p.add_argument("--tier", default="", help="category_name for --pages")
         p.add_argument("--refresh", action="store_true", help="ignore cache")
 
@@ -196,6 +215,33 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f"Done: {tot_t} cups, {tot_m} rubbers."))
             return
 
+        if o["games"]:
+            # multi-sport events aren't in BWF data at any year -> pull all
+            gyf, gyt = (yf, yt) if (yf, yt) != (1983, 2006) else (1948, 2024)
+            def game_year_ok(t):
+                m = YEAR_RE.match(re.sub(r"^Badminton at the ", "", t))
+                return bool(m) and gyf <= int(m.group(0)) <= gyt
+            jobs = []
+            for cat, tier in GAMES.items():
+                for t in client.category_members(cat):
+                    if re.match(r"^Badminton at the \d{4}\b", t) and game_year_ok(t):
+                        jobs.append((t, tier))
+            jobs += [(f"Badminton at the {y} Southeast Asian Games", "SEA Games")
+                     for y in SEA_YEARS if gyf <= y <= gyt]
+            self.stdout.write(f"[games] {len(jobs)} editions in {gyf}-{gyt}")
+            for title, tier in jobs:
+                try:
+                    n = self._one(client, title, tier, o["refresh"],
+                                  players, tourns, matches, team=True)
+                except Exception as e:
+                    self.stdout.write(self.style.WARNING(f"  ! {title}: {e}")); continue
+                if n:
+                    tot_t += 1; tot_m += n
+                    self.stdout.write(self.style.SUCCESS(f"  ✓ {title}: {n} matches"))
+            client.close()
+            self.stdout.write(self.style.SUCCESS(f"Done: {tot_t} events, {tot_m} matches."))
+            return
+
         if o["pages"]:
             jobs = [(t.strip(), o["tier"]) for t in o["pages"].split(";") if t.strip()]
         elif o["category"] or o["all_majors"]:
@@ -224,8 +270,9 @@ class Command(BaseCommand):
             client.close()
         self.stdout.write(self.style.SUCCESS(f"Done: {tot_t} tournaments, {tot_m} matches."))
 
-    def _one(self, client, title, tier, refresh, players, tourns, matches):
-        """Fetch + parse + ingest one tournament. Returns match count or None."""
+    def _one(self, client, title, tier, refresh, players, tourns, matches, team=False):
+        """Fetch + parse + ingest one tournament. Returns match count or None.
+        team=True also pulls team-event rubbers ("– Men's team" etc.)."""
         if refresh:
             cp = client._cache_path(title)
             if cp.exists():
@@ -238,10 +285,24 @@ class Command(BaseCommand):
         # sub-articles ("{title} – Men's singles"); pull them when the main
         # article carries no bracket rounds of its own.
         if not any(m["round_index"] < 90 for m in parsed):
-            parsed = wiki_parse.dedupe(parsed + self._subarticles(client, title))
+            parsed = parsed + self._subarticles(client, title)
+        if team:
+            parsed = parsed + self._team_subarticles(client, title)
+        parsed = [m for m in wiki_parse.dedupe(parsed) if m["winner_side"]]
         if not parsed:
             return None
         return self._ingest(title, tier, wt, parsed, players, tourns, matches)
+
+    def _team_subarticles(self, client, title):
+        """Team events within a multi-sport games ("– Men's/Women's/Mixed team")."""
+        out = []
+        for disc, cup in TEAM_SUBS:
+            for sep in ("–", "-"):
+                wt = client.wikitext(f"{title} {sep} {disc}")
+                if wt:
+                    out += wiki_parse.parse_team_ties(wt, cup)
+                    break
+        return out
 
     def _one_team(self, client, title, cup, refresh, players, tourns, matches):
         """Ingest one team cup. Rubbers come from the cup-specific stage
