@@ -140,25 +140,21 @@ MONTHS = {m.lower(): i for i, m in enumerate(
 
 
 def _text_date(s: str, year: int | None):
-    """Parse a free-text `|dates=` value: '9 September 2022', '24–30 June',
-    'April 2022', etc. Uses the title year when the string omits it."""
+    """Extract the start month/day from a free-text `|dates=` value ('24–30
+    June', 'April 2022', '9 September 2022'). The YEAR always comes from the
+    article title ('{year} Event') — never from the text, so trailing reference
+    access-dates (e.g. 'accessed July 2026') can't poison it."""
+    if not year:
+        return None
     s = re.sub(r"\{\{[^}]*\}\}|\[\[|\]\]", " ", s.split("|")[0])
     mo_alt = "|".join(list(MONTHS)[1:])
-    # DD Month YYYY
-    m = re.search(rf"(\d{{1,2}})\s+({mo_alt})\s+(\d{{4}})", s, re.I)
+    # first "DD Month" (start of a range like "24–30 June")
+    m = re.search(rf"(\d{{1,2}})\s*(?:[–-]\s*\d{{1,2}})?\s+({mo_alt})", s, re.I)
     if m:
-        return parse_date(f"{m.group(3)}-{MONTHS[m.group(2).lower()]:02d}-{int(m.group(1)):02d}")
-    # DD[–DD] Month  (year from title)
-    m = re.search(rf"(\d{{1,2}})\s*[–-]?\s*(?:\d{{1,2}})?\s*({mo_alt})", s, re.I)
-    if m and year:
         return parse_date(f"{year}-{MONTHS[m.group(2).lower()]:02d}-{int(m.group(1)):02d}")
-    # Month YYYY
-    m = re.search(rf"({mo_alt})\s+(\d{{4}})", s, re.I)
-    if m:
-        return parse_date(f"{m.group(2)}-{MONTHS[m.group(1).lower()]:02d}-01")
-    # bare Month (year from title)
+    # bare "Month"
     m = re.search(rf"\b({mo_alt})\b", s, re.I)
-    if m and year:
+    if m:
         return parse_date(f"{year}-{MONTHS[m.group(1).lower()]:02d}-01")
     return None
 
