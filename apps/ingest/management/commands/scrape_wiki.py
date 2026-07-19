@@ -174,29 +174,38 @@ class Command(BaseCommand):
         tot_t = tot_m = 0
         try:
             for title, tier in jobs:
-                if o["refresh"]:
-                    cp = client._cache_path(title)
-                    if cp.exists():
-                        cp.unlink()
-                wt = client.wikitext(title)
-                if not wt:
-                    self.stdout.write(f"  · {title}: no article, skip")
+                try:
+                    n = self._one(client, title, tier, o["refresh"],
+                                  players, tourns, matches)
+                except Exception as e:  # never let one bad article kill the sweep
+                    self.stdout.write(self.style.WARNING(f"  ! {title}: {e}"))
                     continue
-                parsed = wiki_parse.parse_article(wt)
-                # Big events (World Champs, modern Opens) keep full draws in
-                # per-discipline sub-articles ("{title} – Men's singles"). Pull
-                # them when the main article has no bracket rounds of its own.
-                if not any(m["round_index"] < 90 for m in parsed):
-                    parsed = wiki_parse.dedupe(parsed + self._subarticles(client, title))
-                if not parsed:
-                    self.stdout.write(f"  · {title}: no matches parsed, skip")
+                if n is None:
                     continue
-                n = self._ingest(title, tier, wt, parsed, players, tourns, matches)
                 tot_t += 1; tot_m += n
                 self.stdout.write(self.style.SUCCESS(f"  ✓ {title}: {n} matches"))
         finally:
             client.close()
         self.stdout.write(self.style.SUCCESS(f"Done: {tot_t} tournaments, {tot_m} matches."))
+
+    def _one(self, client, title, tier, refresh, players, tourns, matches):
+        """Fetch + parse + ingest one tournament. Returns match count or None."""
+        if refresh:
+            cp = client._cache_path(title)
+            if cp.exists():
+                cp.unlink()
+        wt = client.wikitext(title)
+        if not wt:
+            return None
+        parsed = wiki_parse.parse_article(wt)
+        # Big events (World Champs, modern Opens) keep full draws in per-discipline
+        # sub-articles ("{title} – Men's singles"); pull them when the main
+        # article carries no bracket rounds of its own.
+        if not any(m["round_index"] < 90 for m in parsed):
+            parsed = wiki_parse.dedupe(parsed + self._subarticles(client, title))
+        if not parsed:
+            return None
+        return self._ingest(title, tier, wt, parsed, players, tourns, matches)
 
     def _subarticles(self, client, title):
         """Fetch + parse the 5 per-discipline sub-articles, if they exist."""

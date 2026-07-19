@@ -38,6 +38,23 @@ class WikiClient:
         safe = title.replace("/", "_").replace(" ", "_")
         return self.cache_dir / f"{safe}.json"
 
+    def _get(self, params: dict, tries: int = 4) -> dict:
+        """GET the API with rate-limit + retry/backoff on transient errors."""
+        last = None
+        for attempt in range(tries):
+            dt = self.rate_s - (time.monotonic() - self._last)
+            if dt > 0:
+                time.sleep(dt)
+            self._last = time.monotonic()
+            try:
+                r = self._client.get(API, params=params)
+                r.raise_for_status()
+                return r.json()
+            except (httpx.TransportError, httpx.HTTPStatusError) as e:
+                last = e
+                time.sleep(2 ** attempt)  # 1, 2, 4, 8s backoff
+        raise last
+
     def wikitext(self, title: str) -> str | None:
         """Full article wikitext, cache-first. None if the page doesn't exist."""
         cp = self._cache_path(title)
@@ -45,17 +62,10 @@ class WikiClient:
             data = json.loads(cp.read_text())
             return data.get("wikitext")
 
-        dt = self.rate_s - (time.monotonic() - self._last)
-        if dt > 0:
-            time.sleep(dt)
-        self._last = time.monotonic()
-
-        r = self._client.get(API, params={
+        j = self._get({
             "action": "parse", "page": title, "prop": "wikitext",
             "format": "json", "redirects": 1,
         })
-        r.raise_for_status()
-        j = r.json()
         wt = None
         if "parse" in j:
             wt = j["parse"].get("wikitext", {}).get("*")
@@ -71,19 +81,13 @@ class WikiClient:
         members: list[str] = []
         cont = None
         while True:
-            dt = self.rate_s - (time.monotonic() - self._last)
-            if dt > 0:
-                time.sleep(dt)
-            self._last = time.monotonic()
             params = {
                 "action": "query", "list": "categorymembers",
                 "cmtitle": f"Category:{category}", "cmlimit": 500, "format": "json",
             }
             if cont:
                 params["cmcontinue"] = cont
-            r = self._client.get(API, params=params)
-            r.raise_for_status()
-            j = r.json()
+            j = self._get(params)
             members += [m["title"] for m in j.get("query", {}).get("categorymembers", [])]
             cont = j.get("continue", {}).get("cmcontinue")
             if not cont:
