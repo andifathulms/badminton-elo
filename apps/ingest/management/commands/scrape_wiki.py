@@ -134,7 +134,36 @@ def clean_name(title: str) -> str:
     return re.sub(r"\s*\([^)]*\)\s*$", "", title).strip()
 
 
-def infobox_meta(text: str) -> dict:
+MONTHS = {m.lower(): i for i, m in enumerate(
+    ["", "January", "February", "March", "April", "May", "June", "July",
+     "August", "September", "October", "November", "December"])}
+
+
+def _text_date(s: str, year: int | None):
+    """Parse a free-text `|dates=` value: '9 September 2022', '24–30 June',
+    'April 2022', etc. Uses the title year when the string omits it."""
+    s = re.sub(r"\{\{[^}]*\}\}|\[\[|\]\]", " ", s.split("|")[0])
+    mo_alt = "|".join(list(MONTHS)[1:])
+    # DD Month YYYY
+    m = re.search(rf"(\d{{1,2}})\s+({mo_alt})\s+(\d{{4}})", s, re.I)
+    if m:
+        return parse_date(f"{m.group(3)}-{MONTHS[m.group(2).lower()]:02d}-{int(m.group(1)):02d}")
+    # DD[–DD] Month  (year from title)
+    m = re.search(rf"(\d{{1,2}})\s*[–-]?\s*(?:\d{{1,2}})?\s*({mo_alt})", s, re.I)
+    if m and year:
+        return parse_date(f"{year}-{MONTHS[m.group(2).lower()]:02d}-{int(m.group(1)):02d}")
+    # Month YYYY
+    m = re.search(rf"({mo_alt})\s+(\d{{4}})", s, re.I)
+    if m:
+        return parse_date(f"{m.group(2)}-{MONTHS[m.group(1).lower()]:02d}-01")
+    # bare Month (year from title)
+    m = re.search(rf"\b({mo_alt})\b", s, re.I)
+    if m and year:
+        return parse_date(f"{year}-{MONTHS[m.group(1).lower()]:02d}-01")
+    return None
+
+
+def infobox_meta(text: str, year: int | None = None) -> dict:
     """Pull tournament name + dates from the {{infobox badminton event}}."""
     meta = {"name": None, "start": None, "end": None}
     m = re.search(r"\|\s*name\s*=\s*(.+)", text)
@@ -147,6 +176,11 @@ def infobox_meta(text: str) -> dict:
         meta["start"] = parse_date(f"{y}-{int(mo):02d}-{int(d):02d}")
         y2, mo2, d2 = dates[-1]
         meta["end"] = parse_date(f"{y2}-{int(mo2):02d}-{int(d2):02d}")
+    else:
+        # fall back to the free-text |dates= field
+        dm = re.search(r"\|\s*dates?\s*=\s*(.+)", text)
+        if dm:
+            meta["start"] = _text_date(dm.group(1), year)
     return meta
 
 
@@ -346,7 +380,9 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def _ingest(self, title, tier, wt, parsed, players, tourns, matches):
-        meta = infobox_meta(wt)
+        ym = YEAR_RE.search(title)
+        year = int(ym.group(0)) if ym else None
+        meta = infobox_meta(wt, year)
         code = f"wiki:{title}"
         t = Tournament.objects.filter(code=code).first()
         if not t:
@@ -354,8 +390,7 @@ class Command(BaseCommand):
         t.name = meta["name"] or clean_name(title)
         # fall back to the year in the title (mid-year) when the infobox has no
         # date — critical so historical tournaments sort chronologically.
-        ym = YEAR_RE.match(title)
-        year_default = parse_date(f"{ym.group(0)}-06-01") if ym else None
+        year_default = parse_date(f"{year}-06-01") if year else None
         t.start_date = meta["start"] or year_default
         t.end_date = meta["end"] or t.start_date
         t.category_name = tier

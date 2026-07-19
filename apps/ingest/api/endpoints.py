@@ -145,6 +145,12 @@ def h2h_match(tmt_id: int | str, match_code: str) -> str:
     return _url(BASE, "h2h/match", tmt_id=tmt_id, match_code=match_code)
 
 
+def vue_player_bio(player_id: int | str) -> str:
+    """Player bio card: height, hand, languages, current_residence, qa (place of
+    birth), prize_money. CONFIRMED (2026-07-19): ?activeTab=1&playerId={id}."""
+    return _url(BASE, "vue-player-bio", activeTab=1, playerId=player_id)
+
+
 def h2h_statistics(t1p1, t1p2, t2p1, t2p2) -> str:
     """Head-to-head between two sides — carries currentRank (BWF World Rankings),
     careerStats, and player bio (dob/height/plays). Keyed by the four player ids

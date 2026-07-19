@@ -50,6 +50,11 @@ class Player(models.Model):
     dob = models.DateField(null=True, blank=True)
     height_cm = models.IntegerField(null=True, blank=True)
     plays = models.CharField(max_length=8, blank=True)
+    # From BWF vue-player-bio (filled by collect_player_bio).
+    current_residence = models.CharField(max_length=128, blank=True)
+    languages = models.CharField(max_length=128, blank=True)
+    birth_place = models.CharField(max_length=128, blank=True)
+    prize_money = models.CharField(max_length=32, blank=True)
     # Inferred from discipline participation (MS/MD -> M, WS/WD -> F), NOT from
     # the payload. Blank when only XD/unknown events are seen. See infer_gender.
     gender = models.CharField(max_length=1, blank=True)  # "M" | "F" | ""

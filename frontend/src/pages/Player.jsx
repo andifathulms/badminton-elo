@@ -39,9 +39,13 @@ export default function Player() {
             <span className="country-badge">{player.country_code}</span>
           </h1>
           <div className="meta">
-            {player.plays && <span>🏸 Plays {player.plays}</span>}
+            {player.plays && <span>🏸 {player.plays === 'L' ? 'Left' : player.plays === 'R' ? 'Right' : player.plays}-handed</span>}
             {player.height_cm && <span>📏 {player.height_cm} cm</span>}
             {player.dob && <span>🎂 {player.dob}</span>}
+            {player.current_residence && <span>📍 {player.current_residence}</span>}
+            {player.birth_place && !player.current_residence && <span>📍 Born {player.birth_place}</span>}
+            {player.languages && <span>🗣️ {player.languages}</span>}
+            {player.prize_money && <span>💰 ${player.prize_money}</span>}
             {totalMatches > 0 && (
               <span>📊 {wins}–{losses} career ({winPct}%)</span>
             )}
