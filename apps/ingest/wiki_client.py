@@ -62,3 +62,31 @@ class WikiClient:
         # cache both hits and misses (miss -> wikitext None) so we don't refetch
         cp.write_text(json.dumps({"title": title, "wikitext": wt}))
         return wt
+
+    def category_members(self, category: str) -> list[str]:
+        """All page titles in Category:<category> (cache-first, paginated)."""
+        cp = self._cache_path("CAT_" + category)
+        if cp.exists():
+            return json.loads(cp.read_text()).get("members", [])
+        members: list[str] = []
+        cont = None
+        while True:
+            dt = self.rate_s - (time.monotonic() - self._last)
+            if dt > 0:
+                time.sleep(dt)
+            self._last = time.monotonic()
+            params = {
+                "action": "query", "list": "categorymembers",
+                "cmtitle": f"Category:{category}", "cmlimit": 500, "format": "json",
+            }
+            if cont:
+                params["cmcontinue"] = cont
+            r = self._client.get(API, params=params)
+            r.raise_for_status()
+            j = r.json()
+            members += [m["title"] for m in j.get("query", {}).get("categorymembers", [])]
+            cont = j.get("continue", {}).get("cmcontinue")
+            if not cont:
+                break
+        cp.write_text(json.dumps({"category": category, "members": members}))
+        return members

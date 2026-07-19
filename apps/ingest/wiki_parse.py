@@ -17,7 +17,31 @@ from __future__ import annotations
 
 import re
 
-FLAG_RE = re.compile(r"\{\{\s*(?:flagicon|flagathlete|fb|fbw)\s*\|\s*([A-Za-z]{2,3})", re.I)
+FLAG_RE = re.compile(r"\{\{\s*(?:flagicon|flagathlete|fb|fbw|flag)\s*\|\s*([^}|]+)", re.I)
+
+# Full country names (as used in {{flagicon|China}}) -> IOC-ish code. 2-3 letter
+# flag args are used as-is; anything longer is looked up here.
+COUNTRY_CODE = {
+    "china": "CHN", "indonesia": "INA", "denmark": "DEN", "south korea": "KOR",
+    "korea": "KOR", "malaysia": "MAS", "japan": "JPN", "england": "ENG",
+    "india": "IND", "thailand": "THA", "chinese taipei": "TPE", "taiwan": "TPE",
+    "hong kong": "HKG", "singapore": "SGP", "netherlands": "NED", "germany": "GER",
+    "france": "FRA", "sweden": "SWE", "united states": "USA", "canada": "CAN",
+    "spain": "ESP", "russia": "RUS", "poland": "POL", "scotland": "SCO",
+    "wales": "WAL", "ireland": "IRL", "finland": "FIN", "norway": "NOR",
+    "bulgaria": "BUL", "ukraine": "UKR", "vietnam": "VIE", "australia": "AUS",
+    "new zealand": "NZL", "czech republic": "CZE", "switzerland": "SUI",
+    "austria": "AUT", "italy": "ITA", "belgium": "BEL", "portugal": "POR",
+    "brazil": "BRA", "mexico": "MEX", "hungary": "HUN", "estonia": "EST",
+    "sri lanka": "SRI", "myanmar": "MYA", "peru": "PER",
+}
+
+
+def _country(raw: str) -> str | None:
+    raw = raw.strip()
+    if 2 <= len(raw) <= 3 and raw.isalpha():
+        return raw.upper()
+    return COUNTRY_CODE.get(raw.lower())
 LINK_RE = re.compile(r"\[\[\s*([^\]|]+?)\s*(?:\|\s*([^\]]+?)\s*)?\]\]")
 PARAM_RE = re.compile(r"^\s*\|\s*(RD\d+(?:-team\d+|-score\d+-\d+)?)\s*=\s*(.*?)\s*$", re.M)
 BRACKET_RE = re.compile(r"\{\{\s*(\d+)TeamBracket[^\n}|]*", re.I)
@@ -37,7 +61,7 @@ def parse_team(raw: str) -> dict | None:
     country = None
     m = FLAG_RE.search(raw)
     if m:
-        country = m.group(1).upper()
+        country = _country(m.group(1))
     players = []
     for lm in LINK_RE.finditer(raw):
         title = _clean(lm.group(1))
@@ -61,8 +85,9 @@ def parse_team(raw: str) -> dict | None:
 
 
 def _score_int(v: str):
-    v = v.strip()
-    m = re.match(r"-?\d+", v)
+    # strip wiki bold/italic ('''15'''), tags (<sup>), and templates first
+    v = re.sub(r"'{2,}|<[^>]+>|\{\{[^}]*\}\}", "", v).strip()
+    m = re.search(r"\d+", v)
     return int(m.group()) if m else None
 
 
@@ -119,13 +144,29 @@ def parse_final_table(text: str) -> list[dict]:
     return out
 
 
+def _template_body(text: str, start: int) -> str:
+    """Slice the `{{...}}` template beginning at `start`, matching nested braces
+    so we don't bleed a following bracket's params into this one."""
+    depth, i, n = 0, start, len(text)
+    while i < n:
+        two = text[i:i + 2]
+        if two == "{{":
+            depth += 1; i += 2
+        elif two == "}}":
+            depth -= 1; i += 2
+            if depth == 0:
+                return text[start:i]
+        else:
+            i += 1
+    return text[start:]
+
+
 def parse_bracket(text: str, event: str) -> list[dict]:
     """All matches from every bracket template in `text`, deduped within it."""
     matches: list[dict] = []
     for bm in BRACKET_RE.finditer(text):
         size = int(bm.group(1))
-        # slice out this template body up to the matching close (best-effort)
-        body = text[bm.start():]
+        body = _template_body(text, bm.start())
         matches.extend(_parse_one(body, size, event))
     return _dedupe(matches)
 
@@ -171,6 +212,7 @@ def _parse_one(body: str, size: int, event: str) -> list[dict]:
                 if pa is None and pb is None:
                     continue
                 games.append((pa or 0, pb or 0))
+            games = _trim_clinched(games)
             winner = _winner(ta, tb, games, teams, rounds, rd, a, b)
             if winner is None:
                 continue
@@ -197,6 +239,22 @@ def _advances(team: dict, teams: dict, rd: int) -> bool:
         if r == rd + 1 and title in raw.lower():
             return True
     return False
+
+
+def _trim_clinched(games):
+    """Drop games after a side has clinched a best-of-3 (2 games won). Strips
+    the spurious trailing '(3,0)'-style cells some brackets leave behind."""
+    w1 = w2 = 0
+    out = []
+    for pa, pb in games:
+        out.append((pa, pb))
+        if pa > pb:
+            w1 += 1
+        elif pb > pa:
+            w2 += 1
+        if w1 == 2 or w2 == 2:
+            break
+    return out
 
 
 def _winner(ta, tb, games, teams, rounds, rd, a, b):
@@ -256,3 +314,6 @@ def _dedupe(matches):
         seen.add(k)
         out.append(m)
     return out
+
+
+dedupe = _dedupe  # public alias for combining matches across articles

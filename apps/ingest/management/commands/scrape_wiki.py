@@ -22,26 +22,79 @@ from apps.ingest import wiki_parse
 
 BASE = 2_000_000_000  # synthetic id namespace (real BWF ids are < 100000)
 
-ROUND_CODE = {
-    "Round of 128": ("R128", 1), "Round of 64": ("R64", 2),
-    "Round of 32": ("R32", 3), "Round of 16": ("R16", 4),
-    "Quarter-finals": ("QF", 5), "Semi-finals": ("SF", 6), "Final": ("F", 7),
+import math
+
+ORDINAL_ROUND = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5}
+# rounds-from-final -> (code, chronological order)
+STD_BY_DISTANCE = {
+    0: ("F", 90), 1: ("SF", 80), 2: ("QF", 70), 3: ("R16", 40),
+    4: ("R32", 30), 5: ("R64", 20), 6: ("R128", 10),
 }
 
-# Well-known series -> (article suffix, tier label). Article title is
-# "{year} {suffix}"; misses (no such page) are skipped.
-SERIES = {
-    "all-england": ("All England Open Badminton Championships", "All England"),
-    "world-championships": ("BWF World Championships", "World Championships"),
-    "indonesia-open": ("Indonesia Open (badminton)", "Grand Prix"),
-    "malaysia-open": ("Malaysia Open (badminton)", "Grand Prix"),
-    "china-open": ("China Open (badminton)", "Grand Prix"),
-    "japan-open": ("Japan Open (badminton)", "Grand Prix"),
-    "denmark-open": ("Denmark Open", "Grand Prix"),
-    "thomas-cup": ("Thomas Cup", "Thomas Cup"),
-    "uber-cup": ("Uber Cup", "Uber Cup"),
-    "sudirman-cup": ("Sudirman Cup", "Sudirman Cup"),
+
+def normalize_round(label: str, round_index: int, bracket_size: int = 0) -> tuple[str, int]:
+    """Map any Wikipedia round label -> (display code, chronological order).
+
+    Handles 'Round of 32', 'Quarterfinals'/'Quarter-finals', 'First round',
+    'Semifinals', 'Final', etc. Order is monotonic with progression so the
+    rating engine processes earlier rounds first within a tournament."""
+    l = re.sub(r"[-\s]+", " ", label.lower()).strip()
+    if "final" in l and "semi" not in l and "quarter" not in l:
+        return ("F", 90)
+    if "semi" in l:
+        return ("SF", 80)
+    if "quarter" in l:
+        return ("QF", 70)
+    m = re.search(r"round of (\d+)", l)
+    if m:
+        n = int(m.group(1))
+        code = {128: "R128", 64: "R64", 32: "R32", 16: "R16"}.get(n, f"R{n}")
+        order = {128: 10, 64: 20, 32: 30, 16: 40}.get(n, 25)
+        return (code, order)
+    for word, i in ORDINAL_ROUND.items():
+        if l.startswith(word + " round") or l == word:
+            return (f"R{i}", 10 + i * 8)
+    m = re.search(r"round (\d+)", l)  # "Round 1", "Round 2"…
+    if m:
+        i = int(m.group(1))
+        return (f"R{i}", 10 + i * 8)
+    # generic/unlabeled (e.g. "RD3"): infer from bracket geometry
+    if bracket_size >= 2:
+        dist = int(round(math.log2(bracket_size))) - round_index
+        if dist in STD_BY_DISTANCE:
+            return STD_BY_DISTANCE[dist]
+    return (label[:14], 10 + round_index)
+
+# Wikipedia category -> tier label. We enumerate year-prefixed members of each
+# category (robust to sponsor renames and missing years, unlike title guessing).
+CATEGORIES = {
+    "All England Open Badminton Championships": "All England",
+    "BWF World Championships": "World Championships",
+    "Denmark Open": "Grand Prix",
+    "Indonesia Open (badminton)": "Grand Prix",
+    "Malaysia Open (badminton)": "Grand Prix",
+    "China Open (badminton)": "Grand Prix",
+    "Japan Open (badminton)": "Grand Prix",
+    "Korea Open (badminton)": "Grand Prix",
+    "Singapore Open (badminton)": "Grand Prix",
+    "Thailand Open (badminton)": "Grand Prix",
+    "Hong Kong Open (badminton)": "Grand Prix",
+    "Swiss Open (badminton)": "Grand Prix",
+    "German Open (badminton)": "Grand Prix",
+    "French Open (badminton)": "Grand Prix",
+    "Chinese Taipei Open": "Grand Prix",
+    "India Open (badminton)": "Grand Prix",
+    "US Open (badminton)": "Grand Prix",
+    "Scandinavian Open Badminton Championships": "Grand Prix",
+    "Dutch Open (badminton)": "Grand Prix",
+    "Canada Open (badminton)": "Grand Prix",
 }
+YEAR_RE = re.compile(r"^(19|20)(\d{2})\b")
+
+DISCIPLINES = [
+    ("Men's singles", "MS"), ("Women's singles", "WS"), ("Men's doubles", "MD"),
+    ("Women's doubles", "WD"), ("Mixed doubles", "XD"),
+]
 
 
 class Allocator:
@@ -86,23 +139,35 @@ class Command(BaseCommand):
     help = "Ingest 1983-2006 tournaments from Wikipedia into the synthetic namespace."
 
     def add_arguments(self, p):
-        p.add_argument("--series", choices=sorted(SERIES))
         p.add_argument("--from", type=int, dest="yr_from", default=1983)
         p.add_argument("--to", type=int, dest="yr_to", default=2006)
         p.add_argument("--pages", help="explicit article titles, ;-separated")
+        p.add_argument("--category", help="one Wikipedia category to enumerate")
+        p.add_argument("--all-majors", action="store_true",
+                       help="enumerate every preset major-event category")
         p.add_argument("--tier", default="", help="category_name for --pages")
         p.add_argument("--refresh", action="store_true", help="ignore cache")
 
     def handle(self, *a, **o):
+        client = WikiClient()
+        yf, yt = o["yr_from"], o["yr_to"]
+
+        def in_range(title):
+            m = YEAR_RE.match(title)
+            return bool(m) and yf <= int(m.group(0)) <= yt
+
         if o["pages"]:
             jobs = [(t.strip(), o["tier"]) for t in o["pages"].split(";") if t.strip()]
-        elif o["series"]:
-            suffix, tier = SERIES[o["series"]]
-            jobs = [(f"{y} {suffix}", tier) for y in range(o["yr_from"], o["yr_to"] + 1)]
+        elif o["category"] or o["all_majors"]:
+            cats = ({o["category"]: o["tier"]} if o["category"] else CATEGORIES)
+            jobs = []
+            for cat, tier in cats.items():
+                members = [t for t in client.category_members(cat) if in_range(t)]
+                self.stdout.write(f"[{cat}] {len(members)} editions in {yf}-{yt}")
+                jobs += [(t, tier) for t in members]
         else:
-            self.stderr.write("give --series or --pages"); return
+            self.stderr.write("give --pages, --category, or --all-majors"); return
 
-        client = WikiClient()
         players = Allocator(Player)
         tourns = Allocator(Tournament)
         matches = Allocator(Match)
@@ -118,6 +183,11 @@ class Command(BaseCommand):
                     self.stdout.write(f"  · {title}: no article, skip")
                     continue
                 parsed = wiki_parse.parse_article(wt)
+                # Big events (World Champs, modern Opens) keep full draws in
+                # per-discipline sub-articles ("{title} – Men's singles"). Pull
+                # them when the main article has no bracket rounds of its own.
+                if not any(m["round_index"] < 90 for m in parsed):
+                    parsed = wiki_parse.dedupe(parsed + self._subarticles(client, title))
                 if not parsed:
                     self.stdout.write(f"  · {title}: no matches parsed, skip")
                     continue
@@ -127,6 +197,17 @@ class Command(BaseCommand):
         finally:
             client.close()
         self.stdout.write(self.style.SUCCESS(f"Done: {tot_t} tournaments, {tot_m} matches."))
+
+    def _subarticles(self, client, title):
+        """Fetch + parse the 5 per-discipline sub-articles, if they exist."""
+        out = []
+        for disc, ev in DISCIPLINES:
+            for sep in ("–", "-"):  # en-dash first, then hyphen
+                swt = client.wikitext(f"{title} {sep} {disc}")
+                if swt:
+                    out += wiki_parse.parse_bracket(swt, ev)
+                    break
+        return out
 
     @transaction.atomic
     def _ingest(self, title, tier, wt, parsed, players, tourns, matches):
@@ -154,7 +235,8 @@ class Command(BaseCommand):
 
         n = 0
         for m in parsed:
-            rname, rorder = ROUND_CODE.get(m["round_label"], ("", 0))
+            rname, rorder = normalize_round(
+                m["round_label"], m["round_index"], m["bracket_size"])
             skey = "wiki:{}:{}:{}:{}|{}".format(
                 title, m["event"], m["round_index"],
                 "+".join(sorted(p[0] for p in m["side1"]["players"])),

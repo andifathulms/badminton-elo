@@ -88,6 +88,46 @@ def test_womens_not_matched_as_mens():
     assert matches and all(m["event"] == "WS" for m in matches)
 
 
+BOLD = """
+{{8TeamBracket-Tennis3
+| RD1-team1='''{{flagicon|China}} [[Lin Dan]]'''
+| RD1-score1-1=5
+| RD1-score1-2='''15'''
+| RD1-score1-3='''15'''
+| RD1-team2={{flagicon|South Korea}} [[Lee Hyun-il]]
+| RD1-score2-1='''15'''
+| RD1-score2-2=7
+| RD1-score2-3=8
+}}
+"""
+
+
+def test_bold_scores_and_fullname_flags():
+    # bold '''15''' must parse as 15 (not 0), so Lin Dan wins; full-name flag ->code
+    ms = wiki_parse.parse_bracket(BOLD, "MS")
+    assert len(ms) == 1
+    m = ms[0]
+    assert m["side1"]["country"] == "CHN"
+    assert m["side2"]["country"] == "KOR"
+    assert m["games"] == [(5, 15), (15, 7), (15, 8)]
+    assert m["winner_side"] == 1  # Lin Dan wins 2-1
+
+
+def test_multiple_brackets_not_merged():
+    # two templates in one text must not bleed params into each other
+    two = BRACKET + "\n" + BRACKET.replace("Zhao Jianhua", "Morten Frost")
+    ms = wiki_parse.parse_bracket(two, "MS")
+    names = {p[0] for m in ms for p in m["side1"]["players"] + m["side2"]["players"]}
+    assert "Morten Frost" in names and "Zhao Jianhua" in names
+
+
+def test_trim_clinched_drops_spurious_third_game():
+    assert wiki_parse._trim_clinched([(15, 3), (15, 7), (3, 0)]) == [(15, 3), (15, 7)]
+    # a genuine 3-gamer is kept
+    assert wiki_parse._trim_clinched([(15, 10), (10, 15), (15, 12)]) == \
+        [(15, 10), (10, 15), (15, 12)]
+
+
 def test_scoreless_final_still_parsed():
     txt = FINALS.replace("15–4, 15–1", "walkover")
     finals = wiki_parse.parse_final_table(txt)
