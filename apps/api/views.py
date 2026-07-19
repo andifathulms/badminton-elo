@@ -75,10 +75,12 @@ _PRESTIGE_RANK = {name: i for i, name in enumerate(PRESTIGE_ORDER)}
 
 # Broad section a tier belongs to (for the master view's group headers).
 def prestige_group(category: str) -> str:
-    if category in ("Olympics", "World Championships") or category.endswith("Games"):
-        return "🏅 Multi-sport & Championships"
-    if category.endswith("Cup") or "Team" in category:
+    if category in ("Thomas Cup", "Uber Cup", "Sudirman Cup"):
         return "🏆 Team events"
+    if (category in ("Olympics", "World Championships")
+            or category.endswith("Games")
+            or "Championships" in category or "Continental" in category):
+        return "🏅 Multi-sport & Championships"
     if any(k in category for k in ("World Tour", "Superseries", "Grand Prix",
                                    "All England", "Super 100")):
         return "🌐 BWF World Tour / Superseries"
