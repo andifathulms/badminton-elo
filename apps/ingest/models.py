@@ -53,6 +53,10 @@ class Player(models.Model):
     # Inferred from discipline participation (MS/MD -> M, WS/WD -> F), NOT from
     # the payload. Blank when only XD/unknown events are seen. See infer_gender.
     gender = models.CharField(max_length=1, blank=True)  # "M" | "F" | ""
+    # For players sourced from Wikipedia (1983-2006 gap). Their stable [[wiki
+    # title]] is the identity; player_id is a synthetic namespaced id. Reconcile
+    # to a real BWF id later by name. Blank for BWF-API players.
+    wiki_title = models.CharField(max_length=255, blank=True, db_index=True)
 
     class Meta:
         ordering = ["name_display"]
@@ -104,6 +108,9 @@ class Match(models.Model):
     # True unless walkover/no-play/unknown status (PRD §6.6). Rating engine skips
     # rating_excluded matches; they are still ingested for completeness.
     rating_excluded = models.BooleanField(default=False)
+    # Stable dedup key for non-BWF-API sources (e.g. Wikipedia). Lets re-scrapes
+    # find the existing row so its synthetic match_id stays put. Null for BWF.
+    source_key = models.CharField(max_length=255, null=True, blank=True, unique=True)
 
     class Meta:
         ordering = ["match_time_utc", "round_order", "match_id"]
