@@ -2,6 +2,8 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
+from . import reconcile
+
 from .views import (
     AnalyticsView,
     CupHistoryView,
@@ -33,6 +35,8 @@ urlpatterns = [
     path("cups/<str:cup>", CupView.as_view(), name="cups"),
     path("performance/path", PerformancePathView.as_view(), name="performance-path"),
     path("records/<str:kind>", RecordsView.as_view(), name="records"),
+    path("reconcile/cases", reconcile.cases, name="reconcile-cases"),
+    path("reconcile/decide", reconcile.decide, name="reconcile-decide"),
     path("events", EventsView.as_view(), name="events"),
     path(
         "players/<int:player_id>/matches",

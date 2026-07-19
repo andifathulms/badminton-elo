@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Player Reconciliation</title>
+<style>
+  :root { --green:#0f9d58; --ink:#15241a; --line:#e3e8e4; --muted:#6b7d70; }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.5 -apple-system, Segoe UI, Roboto, sans-serif; color: var(--ink);
+    margin: 0; background: #f6f8f6; }
+  header { background: var(--green); color: #fff; padding: 14px 20px; position: sticky; top: 0; z-index: 5; }
+  header h1 { margin: 0; font-size: 17px; }
+  header span { opacity: .85; font-size: 13px; }
+  main { max-width: 1180px; margin: 18px auto; padding: 0 16px; }
+  .case { background: #fff; border: 1px solid var(--line); border-radius: 12px;
+    margin-bottom: 18px; overflow: hidden; }
+  .case-head { padding: 12px 16px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .case-head b { font-size: 16px; }
+  .cols { display: grid; grid-template-columns: 1fr; gap: 0; }
+  @media (min-width: 760px) { .cols { grid-template-columns: repeat(var(--n,2), 1fr); } }
+  .col { padding: 12px 14px; border-right: 1px solid var(--line); }
+  .col:last-child { border-right: 0; }
+  .col.wiki { background: #f0f7f3; }
+  .who { font-weight: 700; margin-bottom: 2px; }
+  .meta { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+  .flag { font-size: 11px; background: #eef2ef; border-radius: 5px; padding: 1px 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  td { padding: 3px 5px; border-bottom: 1px solid #f0f2f0; vertical-align: top; }
+  .yr { color: var(--muted); white-space: nowrap; }
+  .ev { font-weight: 700; }
+  .w { color: var(--green); font-weight: 700; }
+  .l { color: #b23b3b; }
+  .actions { padding: 10px 14px; background: #fafbfa; border-top: 1px solid var(--line);
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  button { font: inherit; border: 1px solid var(--line); background: #fff; color: var(--ink);
+    border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+  button.merge { background: var(--green); color: #fff; border-color: var(--green); }
+  button.diff { background: #fff; }
+  button:hover { filter: brightness(.96); }
+  .hint { color: var(--muted); font-size: 12px; }
+  .done { text-align: center; color: var(--muted); padding: 40px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Player Reconciliation <span id="count"></span></h1>
+  <span>Same person? Compare the match histories — overlapping era / partners / opponents means the same player.
+    Merge picks the canonical BWF id; the Wikipedia record folds into it.</span>
+</header>
+<main id="app"><p class="done">Loading…</p></main>
+
+<script>
+const app = document.getElementById('app');
+const countEl = document.getElementById('count');
+
+function esc(s){ return (s??'').toString().replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+function matchTable(rows){
+  if(!rows.length) return '<p class="hint">no matches</p>';
+  return '<table>' + rows.map(m => `
+    <tr>
+      <td class="yr">${m.year??'?'}</td>
+      <td class="ev">${m.event}</td>
+      <td class="yr">${esc(m.round)}</td>
+      <td>${m.partners.length? '+'+esc(m.partners.join(', '))+' ' : ''}
+          <span class="${m.won?'w':'l'}">${m.won?'def':'lost'}</span> ${esc(m.opponents.join(' / '))}
+          <span class="yr">${esc(m.score)}</span></td>
+      <td class="yr">${esc(m.tournament)}</td>
+    </tr>`).join('') + '</table>';
+}
+
+function playerCol(p, matches, cls, buttons){
+  return `<div class="col ${cls||''}">
+    <div class="who">${esc(p.name)} <span class="flag">${esc(p.country||'?')}</span></div>
+    <div class="meta">#${p.player_id} · ${p.matches} matches</div>
+    ${buttons||''}
+    ${matchTable(matches)}
+  </div>`;
+}
+
+async function decide(body){
+  await fetch('/api/reconcile/decide', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)});
+}
+
+function render(cases){
+  countEl.textContent = `— ${cases.length} to review`;
+  if(!cases.length){ app.innerHTML = '<p class="done">🎉 Nothing left to reconcile.</p>'; return; }
+  app.innerHTML = cases.map((c, i) => {
+    const n = 1 + c.candidates.length;
+    const wikiBtns = `<div class="actions" style="padding:8px 0;border:0;background:none">
+      <button class="diff" onclick="onDistinct(${i})">✗ This Wikipedia player is DISTINCT (keep separate)</button></div>`;
+    const cands = c.candidates.map((cd, j) => {
+      let extra = '';
+      if(c.candidates.length > 1){
+        // offer to also merge this BWF dup into the first candidate
+        const keep = c.candidates[0];
+        if(cd.player_id !== keep.player_id)
+          extra = `<button class="diff" onclick="onMergeBwf(${i},${cd.player_id},${keep.player_id})"
+                    title="mark these two BWF ids as the same person">⇔ same as #${keep.player_id}</button>`;
+      }
+      const btn = `<div class="actions" style="padding:8px 0;border:0;background:none">
+        <button class="merge" onclick="onMerge(${i},${cd.player_id})">✓ Same — merge Wiki into #${cd.player_id}</button>
+        ${extra}</div>`;
+      return playerCol(cd, cd.match_list, '', btn);
+    }).join('');
+    return `<div class="case" id="case${i}" style="--n:${n}">
+      <div class="case-head"><b>${esc(c.wiki.name)}</b> <span class="flag">${esc(c.wiki.country||'no country')}</span>
+        <span class="hint">Wikipedia #${c.wiki.player_id} · ${c.wiki.matches} matches — vs ${c.candidates.length} BWF candidate(s)</span></div>
+      <div class="cols">
+        ${playerCol(c.wiki, c.wiki_matches, 'wiki', wikiBtns)}
+        ${cands}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+let CASES = [];
+function drop(i){ const el = document.getElementById('case'+i); if(el) el.remove();
+  const left = document.querySelectorAll('.case').length; countEl.textContent = `— ${left} to review`;
+  if(!left) app.innerHTML = '<p class="done">🎉 Nothing left to reconcile. Re-rate to apply: <code>manage.py rate --rebuild</code></p>'; }
+async function onMerge(i, target){ await decide({wiki_id: CASES[i].wiki.player_id, action:'merge', target_id: target}); drop(i); }
+async function onDistinct(i){ await decide({wiki_id: CASES[i].wiki.player_id, action:'distinct'}); drop(i); }
+async function onMergeBwf(i, a, b){ await decide({wiki_id: CASES[i].wiki.player_id, action:'distinct', merge_bwf:[a,b]}); drop(i); }
+
+const showAll = new URLSearchParams(location.search).get('all') === '1';
+document.querySelector('header span').insertAdjacentHTML('beforeend',
+  showAll ? ' · <a href="?" style="color:#fff">show only ambiguous</a>'
+          : ' · <a href="?all=1" style="color:#fff">show all 700 (incl. blank-country)</a>');
+fetch('/api/reconcile/cases' + (showAll ? '?all=1' : '')).then(r=>r.json())
+  .then(d=>{ CASES = d.cases; render(CASES); });
+</script>
+</body>
+</html>

@@ -258,6 +258,18 @@ class MatchStatistics(models.Model):
         return f"stats M{self.match_id}"
 
 
+class ReconcileDecision(models.Model):
+    """A human ruling on an ambiguous Wikipedia<->BWF identity, keyed by the
+    Wiki player's stable title so it isn't surfaced again once decided."""
+    wiki_title = models.CharField(max_length=255, unique=True)
+    decision = models.CharField(max_length=16)  # "merged" | "distinct"
+    target_player_id = models.IntegerField(null=True, blank=True)  # for merged
+    created_utc = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f"{self.wiki_title}: {self.decision}"
+
+
 class PlayerSeedRank(models.Model):
     """Earliest-observed BWF World Ranking per (player, event), captured from
     h2h/statistics. Used to seed the rating engine (PRD §7.6)."""
