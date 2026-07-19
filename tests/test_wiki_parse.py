@@ -128,6 +128,43 @@ def test_trim_clinched_drops_spurious_third_game():
         [(15, 10), (10, 15), (15, 12)]
 
 
+TIE = """
+===China vs Denmark===
+{{Badmintonbox
+|team1=China
+|team2=Denmark
+|score1=3
+|score2=1
+|R1={{ BadmintonMatch |T1P1=[[Lin Dan]] |15 |15 | |T2P1=[[Peter Gade]] |8 |13 | }}
+|R2={{ BadmintonMatch |T1P1=[[Cai Yun]] |T1P2=[[Fu Haifeng]] |16 |6 | |T2P1=[[Lars Paaske]] |T2P2=[[Jonas Rasmussen]] |17 |15 | }}
+|R5={{ BadmintonMatch |T1P1=[[Bao Chunlai]] | | | |T2P1=[[Kenneth Jonassen]] | | | |np=}}
+}}
+"""
+
+
+def test_team_tie_rubbers():
+    ms = wiki_parse.parse_team_ties(TIE, "thomas")
+    # R5 is np (not played) -> dropped; R1 singles, R2 doubles
+    assert len(ms) == 2
+    singles = next(m for m in ms if len(m["side1"]["players"]) == 1)
+    doubles = next(m for m in ms if len(m["side1"]["players"]) == 2)
+    assert singles["event"] == "MS" and doubles["event"] == "MD"
+    # Lin Dan beat Peter Gade 15-8 15-13
+    assert _names(singles["side1"]) == ["Lin Dan"]
+    assert singles["games"] == [(15, 8), (15, 13)]
+    assert singles["winner_side"] == 1
+    assert singles["side1"]["country"] == "CHN"
+    # doubles: Danes won 17-16 15-6 -> side2
+    assert doubles["winner_side"] == 2
+
+
+def test_team_tie_sudirman_event_by_slot():
+    tie = TIE.replace("|R1=", "|R3=")  # R3 -> MD in Sudirman order
+    ms = wiki_parse.parse_team_ties(tie, "sudirman")
+    md = next(m for m in ms if len(m["side1"]["players"]) == 1)  # was R3 singles
+    assert md["event"] == "MD"  # Sudirman R3 slot = MD regardless of singles/doubles
+
+
 def test_scoreless_final_still_parsed():
     txt = FINALS.replace("15–4, 15–1", "walkover")
     finals = wiki_parse.parse_final_table(txt)

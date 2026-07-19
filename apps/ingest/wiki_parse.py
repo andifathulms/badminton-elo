@@ -272,6 +272,138 @@ def _winner(ta, tb, games, teams, rounds, rd, a, b):
     return None  # can't tell (e.g. the tournament final, or unplayed)
 
 
+def _split_params(template: str) -> list[str]:
+    """Split a `{{...}}` template body into top-level |-separated parts,
+    respecting nested {{ }}, [[ ]] so inner templates/links stay intact.
+    parts[0] is the template name; the rest are its params/positional args."""
+    s = template.strip()
+    if s.startswith("{{"):
+        s = s[2:]
+    if s.endswith("}}"):
+        s = s[:-2]
+    parts, buf, depth, i, n = [], [], 0, 0, len(s)
+    while i < n:
+        two = s[i:i + 2]
+        if two in ("{{", "[["):
+            depth += 1; buf.append(two); i += 2
+        elif two in ("}}", "]]"):
+            depth -= 1; buf.append(two); i += 2
+        elif s[i] == "|" and depth == 0:
+            parts.append("".join(buf)); buf = []; i += 1
+        else:
+            buf.append(s[i]); i += 1
+    parts.append("".join(buf))
+    return parts
+
+
+def _players_from(raw: str) -> list[tuple[str, str]]:
+    out = []
+    for lm in LINK_RE.finditer(raw):
+        title = _clean(lm.group(1))
+        if title.lower().startswith(("file:", "image:", "category:")):
+            continue
+        out.append((title, _clean(lm.group(2) or lm.group(1))))
+    return out
+
+
+def parse_badminton_match(rv: str):
+    """One {{BadmintonMatch}} rubber -> (team1 players, team2 players, games) or
+    None if not played (np=). Params: T1P1/T1P2 then team1 game scores, then
+    T2P1/T2P2 then team2 game scores (scores are positional)."""
+    parts = _split_params(rv)[1:]
+    t1, t2, s1, s2, side, played = [], [], [], [], 1, True
+    for p in parts:
+        km = re.match(r"\s*([A-Za-z0-9]+)\s*=(.*)$", p, re.S)
+        if km:
+            k, v = km.group(1).lower(), km.group(2).strip()
+            if k == "np":
+                played = False
+            elif k.startswith("t1p"):
+                t1 += _players_from(v); side = 1
+            elif k.startswith("t2p"):
+                t2 += _players_from(v); side = 2
+            # ignore other named params
+        else:
+            (s1 if side == 1 else s2).append(p.strip())
+    if not played or not t1 or not t2:
+        return None
+    games = []
+    for a, b in zip(s1, s2):
+        ia, ib = _score_int(a), _score_int(b)
+        if ia is None and ib is None:
+            continue
+        games.append((ia or 0, ib or 0))
+    return t1, t2, _trim_clinched(games)
+
+
+CUP_EVENT = {
+    "thomas": lambda d, r: "MD" if d else "MS",
+    "uber": lambda d, r: "WD" if d else "WS",
+    "sudirman": lambda d, r: {1: "MS", 2: "WS", 3: "MD", 4: "WD", 5: "XD"}.get(
+        r, "XD" if d else "MS"),
+}
+
+
+def parse_team_ties(text: str, cup: str) -> list[dict]:
+    """All individual rubbers from a team-cup article's {{Badmintonbox}} ties.
+    `cup` in {thomas, uber, sudirman} sets how rubber -> discipline."""
+    ev_fn = CUP_EVENT.get(cup, CUP_EVENT["thomas"])
+    heads = list(HEADER_RE.finditer(text))
+    out = []
+    for bm in re.finditer(r"\{\{\s*Badmintonbox\b", text, re.I):
+        body = _template_body(text, bm.start())
+        parts = _split_params(body)
+        team1 = team2 = ""
+        rubbers = []
+        for p in parts[1:]:
+            km = re.match(r"\s*([A-Za-z0-9]+)\s*=(.*)$", p, re.S)
+            if not km:
+                continue
+            k, v = km.group(1).lower(), km.group(2)
+            if k == "team1":
+                team1 = _clean(v)
+            elif k == "team2":
+                team2 = _clean(v)
+            elif re.match(r"r\d+$", k):
+                rubbers.append((int(k[1:]), v))
+        c1, c2 = _country(team1) or None, _country(team2) or None
+        # round = nearest preceding section header
+        rnd = "Group"
+        for h in heads:
+            if h.start() <= bm.start():
+                rnd = h.group(1)
+            else:
+                break
+        for ridx, rv in rubbers:
+            if "BadmintonMatch" not in rv:
+                continue
+            parsed = parse_badminton_match(rv)
+            if parsed is None:
+                continue
+            p1, p2, games = parsed
+            doubles = len(p1) == 2 or len(p2) == 2
+            out.append({
+                "event": ev_fn(doubles, ridx),
+                "round_label": rnd,
+                "round_index": 50,  # ties are ordered by tournament date + section
+                "bracket_size": 2,
+                "side1": {"country": c1, "players": p1, "seed": None},
+                "side2": {"country": c2, "players": p2, "seed": None},
+                "games": games,
+                "winner_side": _team_winner(games),
+                "retired": False,
+            })
+    return _dedupe(out)
+
+
+def _team_winner(games):
+    wa = sum(1 for a, b in games if a > b)
+    wb = sum(1 for a, b in games if b > a)
+    if not games or wa == wb:
+        return None
+    return 1 if wa > wb else 2
+
+
 DISCIPLINE_HEADERS = [
     ("mixed doubles", "XD"), ("men's doubles", "MD"), ("women's doubles", "WD"),
     ("men's singles", "MS"), ("women's singles", "WS"),

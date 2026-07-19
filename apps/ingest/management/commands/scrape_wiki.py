@@ -96,6 +96,9 @@ DISCIPLINES = [
     ("Women's doubles", "WD"), ("Mixed doubles", "XD"),
 ]
 
+# Team-cup category -> rubber discipline mapping key (see wiki_parse.CUP_EVENT).
+CUPS = {"Thomas Cup": "thomas", "Uber Cup": "uber", "Sudirman Cup": "sudirman"}
+
 
 class Allocator:
     """Hands out stable synthetic ids per table, continuing past existing rows."""
@@ -145,6 +148,8 @@ class Command(BaseCommand):
         p.add_argument("--category", help="one Wikipedia category to enumerate")
         p.add_argument("--all-majors", action="store_true",
                        help="enumerate every preset major-event category")
+        p.add_argument("--cups", action="store_true",
+                       help="ingest Thomas/Uber/Sudirman team cups (rubber-level)")
         p.add_argument("--tier", default="", help="category_name for --pages")
         p.add_argument("--refresh", action="store_true", help="ignore cache")
 
@@ -156,6 +161,41 @@ class Command(BaseCommand):
             m = YEAR_RE.match(title)
             return bool(m) and yf <= int(m.group(0)) <= yt
 
+        players = Allocator(Player)
+        tourns = Allocator(Tournament)
+        matches = Allocator(Match)
+        tot_t = tot_m = 0
+
+        if o["cups"]:
+            # Thomas/Uber years live in "Thomas & Uber Cup" (often combined
+            # articles); Sudirman in its own category. Ingest Thomas and Uber as
+            # separate tournaments so men's/women's rubbers aren't mixed.
+            tu, sud = set(), set()
+            for t in client.category_members("Thomas & Uber Cup"):
+                mm = YEAR_RE.match(t)
+                if mm and in_range(t):
+                    tu.add(int(mm.group(0)))
+            for t in client.category_members("Sudirman Cup"):
+                mm = YEAR_RE.match(t)
+                if mm and in_range(t):
+                    sud.add(int(mm.group(0)))
+            plan = ([(f"{y} Thomas Cup", "thomas") for y in sorted(tu)]
+                    + [(f"{y} Uber Cup", "uber") for y in sorted(tu)]
+                    + [(f"{y} Sudirman Cup", "sudirman") for y in sorted(sud)])
+            self.stdout.write(f"[cups] {len(tu)} Thomas/Uber years, {len(sud)} Sudirman")
+            for title, cup in plan:
+                try:
+                    n = self._one_team(client, title, cup, o["refresh"],
+                                       players, tourns, matches)
+                except Exception as e:
+                    self.stdout.write(self.style.WARNING(f"  ! {title}: {e}")); continue
+                if n:
+                    tot_t += 1; tot_m += n
+                    self.stdout.write(self.style.SUCCESS(f"  ✓ {title}: {n} rubbers"))
+            client.close()
+            self.stdout.write(self.style.SUCCESS(f"Done: {tot_t} cups, {tot_m} rubbers."))
+            return
+
         if o["pages"]:
             jobs = [(t.strip(), o["tier"]) for t in o["pages"].split(";") if t.strip()]
         elif o["category"] or o["all_majors"]:
@@ -166,12 +206,8 @@ class Command(BaseCommand):
                 self.stdout.write(f"[{cat}] {len(members)} editions in {yf}-{yt}")
                 jobs += [(t, tier) for t in members]
         else:
-            self.stderr.write("give --pages, --category, or --all-majors"); return
+            self.stderr.write("give --pages, --category, --all-majors, or --cups"); return
 
-        players = Allocator(Player)
-        tourns = Allocator(Tournament)
-        matches = Allocator(Match)
-        tot_t = tot_m = 0
         try:
             for title, tier in jobs:
                 try:
@@ -207,6 +243,34 @@ class Command(BaseCommand):
             return None
         return self._ingest(title, tier, wt, parsed, players, tourns, matches)
 
+    def _one_team(self, client, title, cup, refresh, players, tourns, matches):
+        """Ingest one team cup. Rubbers come from the cup-specific stage
+        sub-articles ('{title} group/knockout stage'); the main article (which
+        may be a combined Thomas & Uber page) is used only for name/dates, and
+        parsed for rubbers only when it isn't a combined article."""
+        if refresh:
+            for s in (title, f"{title} group stage", f"{title} knockout stage"):
+                cp = client._cache_path(s)
+                if cp.exists():
+                    cp.unlink()
+        main_wt = client.wikitext(title)
+        parsed = []
+        for stage in ("group stage", "knockout stage"):
+            wt = client.wikitext(f"{title} {stage}")
+            if wt:
+                parsed += wiki_parse.parse_team_ties(wt, cup)
+        # fallback to the main article only if it's not a combined T&U page
+        combined = main_wt and "Thomas Cup" in main_wt and "Uber Cup" in main_wt
+        if not parsed and main_wt and not combined:
+            parsed += wiki_parse.parse_team_ties(main_wt, cup)
+        parsed = [m for m in wiki_parse.dedupe(parsed) if m["winner_side"]]
+        if not parsed:
+            return None
+        tier = {"thomas": "Thomas Cup", "uber": "Uber Cup",
+                "sudirman": "Sudirman Cup"}[cup]
+        meta_wt = main_wt or ""
+        return self._ingest(title, tier, meta_wt, parsed, players, tourns, matches)
+
     def _subarticles(self, client, title):
         """Fetch + parse the 5 per-discipline sub-articles, if they exist."""
         out = []
@@ -226,8 +290,12 @@ class Command(BaseCommand):
         if not t:
             t = Tournament(tournament_id=tourns.next(), code=code)
         t.name = meta["name"] or clean_name(title)
-        t.start_date = meta["start"]
-        t.end_date = meta["end"]
+        # fall back to the year in the title (mid-year) when the infobox has no
+        # date — critical so historical tournaments sort chronologically.
+        ym = YEAR_RE.match(title)
+        year_default = parse_date(f"{ym.group(0)}-06-01") if ym else None
+        t.start_date = meta["start"] or year_default
+        t.end_date = meta["end"] or t.start_date
         t.category_name = tier
         t.save()
 
