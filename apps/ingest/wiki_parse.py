@@ -50,6 +50,8 @@ RETIRE_RE = re.compile(r"\b(ret\.?|retired|w/?o|walkover|def\.?|conceded)\b", re
 
 
 def _clean(raw: str) -> str:
+    # strip wiki bold/italic ('''name''') and tags (<br/>) that pollute names
+    raw = re.sub(r"'{2,}|<[^>]+>", " ", raw)
     return re.sub(r"\s+", " ", raw).strip()
 
 
