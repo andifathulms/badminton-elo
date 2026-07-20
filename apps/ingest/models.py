@@ -25,6 +25,7 @@ class Tournament(models.Model):
     end_date = models.DateField(null=True, blank=True)
     category_id = models.IntegerField(null=True, blank=True)
     category_name = models.CharField(max_length=255, blank=True)  # tier
+    logo_url = models.URLField(max_length=512, blank=True)  # BWF tournament logo
     series_id = models.IntegerField(null=True, blank=True)
     prize_money = models.DecimalField(
         max_digits=12, decimal_places=2, null=True, blank=True

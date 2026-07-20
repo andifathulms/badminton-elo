@@ -228,6 +228,7 @@ class TournamentListSerializer(serializers.ModelSerializer):
             "end_date",
             "venue_name",
             "prize_money",
+            "logo_url",
             "match_count",
         )
 

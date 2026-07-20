@@ -23,21 +23,51 @@ function dates(t) {
   return t.start_date + (t.end_date && t.end_date !== t.start_date ? ` → ${t.end_date.slice(5)}` : '')
 }
 
-// Grouped, prestige-ordered overview for one year — multi-sport & championships
-// on top, then team cups, World Tour, development. Lets you eyeball what's
-// missing (a row with 0 matches = no draw data ingested yet).
+function TournamentCard({ t }) {
+  const initials = shortTier(t.category_name).split(' ').map((w) => w[0]).join('').slice(0, 3)
+  return (
+    <Link to={`/tournaments/${t.tournament_id}`}
+          className={`tcard ${t.match_count ? '' : 'nodata'}`}>
+      <div className="tcard-logo">
+        {t.logo_url
+          ? <img src={t.logo_url} alt="" loading="lazy" />
+          : <span className="tcard-logo-ph">{initials || '🏸'}</span>}
+      </div>
+      <div className="tcard-body">
+        <div className="tcard-name">{t.name}{isOngoing(t) && <span className="badge-live">● Live</span>}</div>
+        <div className="tcard-meta">
+          {dates(t)}{t.venue_name ? ` · ${t.venue_name}` : ''}
+        </div>
+      </div>
+      <div className="tcard-count">
+        {t.match_count ? <span className="metric">{t.match_count}</span>
+          : <span className="nodata-dot">0</span>}
+      </div>
+    </Link>
+  )
+}
+
+// Grouped, prestige-ordered overview for one year: collapsible sections
+// (Multi-sport, Team events, World Tour, Development), each split into tier
+// sub-groups holding a grid of tournament cards. A card with 0 matches has no
+// draw data yet — the gap-spotter.
 function MasterView({ year }) {
   const { data, error, loading } = useAsync(() => api.tournamentMaster(year), [year])
+  const [collapsed, setCollapsed] = useState({})
   if (loading) return <p className="muted">Loading {year}…</p>
   if (error) return <p className="error">Could not load: {error.message}</p>
   if (!data?.results?.length) return <p className="muted">No tournaments for {year}.</p>
 
-  // group consecutive rows by their section label (already prestige-sorted)
+  // section (group) -> tier (category_name) -> rows, preserving prestige order
   const sections = []
   for (const t of data.results) {
-    if (!sections.length || sections[sections.length - 1].group !== t.group)
-      sections.push({ group: t.group, rows: [] })
-    sections[sections.length - 1].rows.push(t)
+    let sec = sections[sections.length - 1]
+    if (!sec || sec.group !== t.group) { sec = { group: t.group, tiers: [] }; sections.push(sec) }
+    let tier = sec.tiers[sec.tiers.length - 1]
+    if (!tier || tier.tier !== t.category_name) {
+      tier = { tier: t.category_name, rows: [] }; sec.tiers.push(tier)
+    }
+    tier.rows.push(t)
   }
   const withData = data.results.filter((t) => t.match_count > 0).length
 
@@ -45,33 +75,30 @@ function MasterView({ year }) {
     <div>
       <p className="muted small" style={{ margin: '0 0 14px' }}>
         <strong>{year}</strong> — {data.count} tournaments, {withData} with match data.
-        Rows with <span className="nodata-dot">0</span> matches have no draw ingested yet.
+        Cards with <span className="nodata-dot">0</span> have no draw ingested yet.
       </p>
-      {sections.map((s) => (
-        <div key={s.group} className="master-section">
-          <h3 className="master-head">{s.group} <span className="muted small">· {s.rows.length}</span></h3>
-          <table className="board compact">
-            <tbody>
-              {s.rows.map((t) => (
-                <tr key={t.tournament_id} className={t.match_count ? '' : 'nodata'}>
-                  <td className="tier-cell"><span className="tier-tag">{shortTier(t.category_name) || '—'}</span></td>
-                  <td>
-                    <Link to={`/tournaments/${t.tournament_id}`}>{t.name}</Link>
-                    {isOngoing(t) && <span className="badge-live">● Live</span>}
-                    {t.venue_name && <span className="muted small"> · {t.venue_name}</span>}
-                  </td>
-                  <td className="num muted small nowrap">{dates(t)}</td>
-                  <td className="num">
-                    {t.match_count
-                      ? <span className="metric">{t.match_count}</span>
-                      : <span className="nodata-dot">0</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ))}
+      {sections.map((s) => {
+        const n = s.tiers.reduce((a, t) => a + t.rows.length, 0)
+        const isCollapsed = collapsed[s.group]
+        return (
+          <section key={s.group} className="master-section">
+            <button className="master-head" aria-expanded={!isCollapsed}
+                    onClick={() => setCollapsed((c) => ({ ...c, [s.group]: !c[s.group] }))}>
+              <span className={`caret ${isCollapsed ? '' : 'open'}`}>▸</span>
+              {s.group} <span className="muted small">· {n}</span>
+            </button>
+            {!isCollapsed && s.tiers.map((tier) => (
+              <div key={tier.tier} className="tier-block">
+                <div className="tier-sub">{shortTier(tier.tier) || '—'}
+                  <span className="muted small"> · {tier.rows.length}</span></div>
+                <div className="tcard-grid">
+                  {tier.rows.map((t) => <TournamentCard key={t.tournament_id} t={t} />)}
+                </div>
+              </div>
+            ))}
+          </section>
+        )
+      })}
     </div>
   )
 }
