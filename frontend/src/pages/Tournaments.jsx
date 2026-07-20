@@ -82,10 +82,12 @@ function MasterView({ year }) {
         const isCollapsed = collapsed[s.group]
         return (
           <section key={s.group} className="master-section">
-            <button className="master-head" aria-expanded={!isCollapsed}
+            <button className={`master-head ${isCollapsed ? 'collapsed' : ''}`}
+                    aria-expanded={!isCollapsed}
                     onClick={() => setCollapsed((c) => ({ ...c, [s.group]: !c[s.group] }))}>
+              <span className="master-head-title">{s.group}</span>
+              <span className="master-head-count">{n}</span>
               <span className={`caret ${isCollapsed ? '' : 'open'}`}>▸</span>
-              {s.group} <span className="muted small">· {n}</span>
             </button>
             {!isCollapsed && s.tiers.map((tier) => (
               <div key={tier.tier} className="tier-block">
