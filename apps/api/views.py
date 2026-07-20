@@ -53,32 +53,42 @@ DOUBLES = ("MD", "WD", "XD")
 # Full tournament prestige order (top = most prestigious). Multi-sport events and
 # team cups sit above the BWF World Tour, then development tiers. Anything
 # unlisted sorts last. Used by the tournament "master" (by-year) overview.
-# Grade 1 = badminton's pinnacle events (BWF's own top grade): Olympics, World
-# Championships, and the Thomas/Uber/Sudirman team cups.
+# Tournament sections follow BWF's official grading (Wikipedia "BWF events"):
+#   Grade 1 (S-Tier) — WC, Thomas/Uber/Sudirman, Olympics, + Junior/Senior/Para
+#   Continental Games — Asian/SEA/Commonwealth/etc. multi-sport & continental
+#   Grade 2 (A-Tier)  — BWF World Tour (Finals, Super 1000..100) + predecessors
+#   Grade 3 (B-Tier)  — Continental Circuit (Int'l Challenge/Series/Future)
 GRADE1 = {
     "Olympics", "World Championships",
     "Thomas Cup", "Uber Cup", "Sudirman Cup",
     "Grade 1 – Individual Tournaments", "Grade 1 – Team Tournaments",
     "Grade 1 – Individual Senior Tournaments",
 }
+CONTINENTAL = {
+    "Asian Games", "Commonwealth Games", "European Games", "Pan American Games",
+    "African Games", "SEA Games", "Continental Individual Games",
+    "Continental Team Games", "Continental Individual Championships",
+    "Continental Team Championships",
+}
 PRESTIGE_ORDER = [
+    # Grade 1 (S-Tier) — Main then Others
     "Olympics", "World Championships",
-    "Grade 1 – Individual Tournaments",
     "Thomas Cup", "Uber Cup", "Sudirman Cup",
-    "Grade 1 – Team Tournaments", "Grade 1 – Individual Senior Tournaments",
-    # multi-sport & continental (no Olympics)
+    "Grade 1 – Individual Tournaments", "Grade 1 – Team Tournaments",
+    "Grade 1 – Individual Senior Tournaments",
+    # Continental Games
     "Asian Games", "Commonwealth Games", "European Games",
     "Pan American Games", "African Games", "SEA Games",
     "Continental Individual Games", "Continental Team Games",
     "Continental Individual Championships", "Continental Team Championships",
-    # BWF World Tour
+    # Grade 2 (BWF World Tour) — by level
     "HSBC BWF World Tour Finals", "World Tour Finals",
     "HSBC BWF World Tour Super 1000", "All England",
     "HSBC BWF World Tour Super 750", "HSBC BWF World Tour Super 500",
     "HSBC BWF World Tour Super 300", "BWF Tour Super 100",
     "World Superseries Premier", "World Superseries",
     "Grand Prix Gold", "Grand Prix",
-    # development
+    # Grade 3 (Continental Circuit)
     "International Challenge", "International Series", "Future Series",
     "BWF Events", "Other",
 ]
@@ -87,14 +97,13 @@ _PRESTIGE_RANK = {name: i for i, name in enumerate(PRESTIGE_ORDER)}
 # Broad section a tier belongs to (for the master view's group headers).
 def prestige_group(category: str) -> str:
     if category in GRADE1:
-        return "🥇 Grade 1 — Majors"
-    if (category.endswith("Games") or "Championships" in category
-            or "Continental" in category):
-        return "🌏 Multi-sport & Continental"
+        return "🥇 Grade 1 (S-Tier)"
+    if category in CONTINENTAL:
+        return "🌏 Continental Games"
     if any(k in category for k in ("World Tour", "Superseries", "Grand Prix",
                                    "All England", "Super 100")):
-        return "🌐 BWF World Tour / Superseries"
-    return "🏸 Development & other"
+        return "🌐 Grade 2 · BWF World Tour"
+    return "🏸 Grade 3 · Continental Circuit"
 ACTIVE_DAYS = 365  # a player/pair idle longer than this counts as retired
 
 _active_cutoff_cache = {}
