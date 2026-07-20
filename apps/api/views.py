@@ -53,21 +53,32 @@ DOUBLES = ("MD", "WD", "XD")
 # Full tournament prestige order (top = most prestigious). Multi-sport events and
 # team cups sit above the BWF World Tour, then development tiers. Anything
 # unlisted sorts last. Used by the tournament "master" (by-year) overview.
+# Grade 1 = badminton's pinnacle events (BWF's own top grade): Olympics, World
+# Championships, and the Thomas/Uber/Sudirman team cups.
+GRADE1 = {
+    "Olympics", "World Championships",
+    "Thomas Cup", "Uber Cup", "Sudirman Cup",
+    "Grade 1 – Individual Tournaments", "Grade 1 – Team Tournaments",
+    "Grade 1 – Individual Senior Tournaments",
+}
 PRESTIGE_ORDER = [
     "Olympics", "World Championships",
+    "Grade 1 – Individual Tournaments",
+    "Thomas Cup", "Uber Cup", "Sudirman Cup",
+    "Grade 1 – Team Tournaments", "Grade 1 – Individual Senior Tournaments",
+    # multi-sport & continental (no Olympics)
     "Asian Games", "Commonwealth Games", "European Games",
     "Pan American Games", "African Games", "SEA Games",
     "Continental Individual Games", "Continental Team Games",
     "Continental Individual Championships", "Continental Team Championships",
-    "Thomas Cup", "Uber Cup", "Sudirman Cup",
+    # BWF World Tour
     "HSBC BWF World Tour Finals", "World Tour Finals",
     "HSBC BWF World Tour Super 1000", "All England",
     "HSBC BWF World Tour Super 750", "HSBC BWF World Tour Super 500",
     "HSBC BWF World Tour Super 300", "BWF Tour Super 100",
     "World Superseries Premier", "World Superseries",
     "Grand Prix Gold", "Grand Prix",
-    "Grade 1 – Individual Tournaments", "Grade 1 – Team Tournaments",
-    "Grade 1 – Individual Senior Tournaments",
+    # development
     "International Challenge", "International Series", "Future Series",
     "BWF Events", "Other",
 ]
@@ -75,12 +86,11 @@ _PRESTIGE_RANK = {name: i for i, name in enumerate(PRESTIGE_ORDER)}
 
 # Broad section a tier belongs to (for the master view's group headers).
 def prestige_group(category: str) -> str:
-    if category in ("Thomas Cup", "Uber Cup", "Sudirman Cup"):
-        return "🏆 Team events"
-    if (category in ("Olympics", "World Championships")
-            or category.endswith("Games")
-            or "Championships" in category or "Continental" in category):
-        return "🏅 Multi-sport & Championships"
+    if category in GRADE1:
+        return "🥇 Grade 1 — Majors"
+    if (category.endswith("Games") or "Championships" in category
+            or "Continental" in category):
+        return "🌏 Multi-sport & Continental"
     if any(k in category for k in ("World Tour", "Superseries", "Grand Prix",
                                    "All England", "Super 100")):
         return "🌐 BWF World Tour / Superseries"
