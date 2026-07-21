@@ -43,7 +43,13 @@ def _country(raw: str) -> str | None:
         return raw.upper()
     return COUNTRY_CODE.get(raw.lower())
 LINK_RE = re.compile(r"\[\[\s*([^\]|]+?)\s*(?:\|\s*([^\]]+?)\s*)?\]\]")
-PARAM_RE = re.compile(r"^\s*\|\s*(RD\d+(?:-team\d+|-score\d+-\d+)?)\s*=\s*(.*?)\s*$", re.M)
+# Only horizontal whitespace around the tokens — never \s (which includes
+# newlines). Otherwise an EMPTY value (e.g. `RD2-score01-3=`) lets `\s*` swallow
+# the newline and capture the NEXT line as its value, cascading garbage teams
+# and scores through the whole bracket.
+PARAM_RE = re.compile(
+    r"^[ \t]*\|[ \t]*(RD\d+(?:-team\d+|-score\d+-\d+)?)[ \t]*=[ \t]*(.*?)[ \t]*$", re.M
+)
 BRACKET_RE = re.compile(r"\{\{\s*(\d+)TeamBracket[^\n}|]*", re.I)
 SEED_RE = re.compile(r"\(\s*(\d+)\s*\)")
 RETIRE_RE = re.compile(r"\b(ret\.?|retired|w/?o|walkover|def\.?|conceded)\b", re.I)
@@ -68,8 +74,10 @@ def parse_team(raw: str) -> dict | None:
     for lm in LINK_RE.finditer(raw):
         title = _clean(lm.group(1))
         disp = _clean(lm.group(2) or lm.group(1))
-        # skip file/category links
+        # skip file/category links and bye placeholders ([[Bye (sports)|Bye]])
         if title.lower().startswith(("file:", "image:", "category:")):
+            continue
+        if title.lower().startswith("bye") or disp.lower() in {"bye", "tbd"}:
             continue
         players.append((title, disp))
     if not players:

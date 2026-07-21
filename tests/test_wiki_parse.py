@@ -171,3 +171,55 @@ def test_scoreless_final_still_parsed():
     ms = next(m for m in finals if m["event"] == "MS")
     assert ms["games"] == []
     assert ms["retired"] is True
+
+
+# Real brackets leave every unused game cell empty (game 3-5, byes, and the
+# whole first round for a seed). The param regex must NOT let an empty value
+# swallow the following line — a bug that mis-paired teams and produced garbage
+# scores like (1, 20), (0, 21) and flipped winners.
+EMPTY_CELLS = """
+{{16TeamBracket-Compact-Tennis3
+| RD1=First Round
+| RD2=Second Round
+| RD1-team01={{Flagicon|CHN}} '''[[Zhang Ning]]'''
+| RD1-seed01=1
+| RD1-score01-1=
+| RD1-score01-2=
+| RD1-score01-3=
+| RD1-team02=[[Bye (sports)|Bye]]
+| RD1-score02-1=
+| RD1-score02-2=
+| RD1-team03={{Flagicon|NZL}} [[Rachel Hindley]]
+| RD1-score03-1='''22'''
+| RD1-score03-2=16
+| RD1-score03-3=12
+| RD1-team04={{Flagicon|SIN}} '''[[Xing Aiying]]'''
+| RD1-score04-1=20
+| RD1-score04-2='''21'''
+| RD1-score04-3='''21'''
+| RD2-team01={{Flagicon|CHN}} '''[[Zhang Ning|Zhang]]'''
+| RD2-seed01=1
+| RD2-score01-1='''21'''
+| RD2-score01-2='''21'''
+| RD2-score01-3=
+| RD2-team02={{Flagicon|SIN}} [[Xing Aiying|Xing]]
+| RD2-score02-1=8
+| RD2-score02-2=8
+| RD2-score02-3=
+}}
+"""
+
+
+def test_empty_score_cells_do_not_swallow_next_line():
+    ms = wiki_parse.parse_bracket(EMPTY_CELLS, "WS")
+    # Zhang's first-round bye is not a real match (opponent is a bye placeholder)
+    assert all("Bye" not in _names(m["side1"]) + _names(m["side2"]) for m in ms)
+    # First round: Rachel Hindley lost to Xing Aiying 22-20, 16-21, 12-21
+    rx = next(m for m in ms if "Rachel Hindley" in _names(m["side1"]) + _names(m["side2"]))
+    assert rx["games"] == [(22, 20), (16, 21), (12, 21)]
+    assert rx["winner_side"] == 2
+    # Second round: Zhang beat Xing 21-8, 21-8 (winner NOT flipped)
+    zx = next(m for m in ms if m["round_label"] == "Second Round")
+    assert zx["games"] == [(21, 8), (21, 8)]
+    assert zx["winner_side"] == 1
+    assert _names(zx["side1"]) == ["Zhang Ning"]
