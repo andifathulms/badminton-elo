@@ -239,8 +239,11 @@ code { font-family: var(--mono); background: var(--brand-soft); color: var(--bra
 .champ-badge { position: absolute; top: 10px; left: 12px; font-size: 11px; font-weight: 800;
   letter-spacing: .04em; color: #fff; background: var(--grad-brand); border-radius: 7px;
   padding: 2px 7px; }
+.champ-av { display: inline-flex; margin-bottom: 6px; }
 .champ-card .avatar.lg { width: 64px; height: 64px; border-radius: 20px; font-size: 22px;
   margin-bottom: 6px; }
+.champ-av .avatar.lg { margin-bottom: 0; }
+.champ-av.pair-av .avatar.lg:last-child { margin-left: -20px; }
 .champ-name { font-weight: 700; font-size: 14px; line-height: 1.2; }
 .champ-sub { font-size: 11.5px; color: var(--muted); display: inline-flex; gap: 4px;
   align-items: center; }
@@ -263,9 +266,34 @@ code { font-family: var(--mono); background: var(--brand-soft); color: var(--bra
   border-bottom: 1px solid var(--line); }
 .mini-list li:last-child { border-bottom: none; }
 .mini-list .pcell { flex: 1; min-width: 0; }
+.mini-list .ent { flex: 1; }
 .mini-list .pname { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mini-rating { font-weight: 800; font-variant-numeric: tabular-nums; }
 .medal.sm { width: 24px; height: 24px; font-size: 11px; border-radius: 7px; }
+
+/* Player-or-pair entity cell (avatar[s] + name + country) */
+.ent { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.ent-meta { display: flex; flex-direction: column; min-width: 0; }
+.ent-name { font-weight: 600; font-size: 13px; line-height: 1.25;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ent-sub { font-size: 11px; color: var(--muted); display: inline-flex; gap: 4px;
+  align-items: center; }
+.ent:hover .ent-name { color: var(--brand); }
+
+/* Biggest-upsets table */
+.panel-wide { overflow: hidden; }
+.table-scroll { overflow-x: auto; margin: 0 -4px; }
+.upset-table { min-width: 720px; }
+.upset-table th, .upset-table td { padding: 10px 12px; }
+.upset-table .up-delta { font-size: 16px; }
+.upset-table .rnd { white-space: nowrap; }
+.upset-table th.cat, .upset-table td.cat { text-align: center; }
+.score-mono { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap;
+  font-size: 13px; }
+.tour-cell { max-width: 240px; }
+.tour-link { font-weight: 600; display: inline-block; max-width: 240px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+.tour-link:hover { color: var(--brand); }
 
 .recent-list, .upset-list { list-style: none; margin: 0; padding: 0; }
 .recent-list li { border-bottom: 1px solid var(--line); }
