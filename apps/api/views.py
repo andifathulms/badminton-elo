@@ -801,17 +801,26 @@ class AnalyticsView(APIView):
         else:
             qs = qs.order_by("-net_delta")
 
-        # Collapse the two members of a doubles pair into one row.
+        # Collapse the two members of a doubles pair into one row. partner_id can
+        # be missing on some performances, so also collapse by the shared match:
+        # two winners of the same match are the same pair.
         seen: set = set()
         picked: list = []
         for tp in qs[:2000]:
             if len(picked) >= limit:
                 break
-            if tp.partner_id:
-                key = (tp.tournament_id, tp.event, frozenset((tp.player_id, tp.partner_id)))
-                if key in seen:
+            if tp.event in DOUBLES:
+                keys = []
+                if tp.partner_id:
+                    keys.append(
+                        (tp.tournament_id, tp.event,
+                         frozenset((tp.player_id, tp.partner_id)))
+                    )
+                if tp.best_match_id:
+                    keys.append(("match", tp.best_match_id))
+                if any(k in seen for k in keys):
                     continue
-                seen.add(key)
+                seen.update(keys)
             picked.append(tp)
 
         rows = TournamentPerformanceSerializer(picked, many=True).data
@@ -858,13 +867,14 @@ class AnalyticsView(APIView):
         matches = {
             m.match_id: m
             for m in Match.objects.filter(match_id__in=ids).prefetch_related(
-                "lineup__player"
+                "lineup__player", "games"
             )
         }
         for tp, r in zip(picked, rows):
             m = matches.get(tp.best_match_id)
             if not m:
                 r["best_round"], r["beat"] = None, []
+                r["best_score"], r["best_score_status"] = [], None
                 continue
             side = next(
                 (l.side for l in m.lineup.all() if l.player_id == tp.player_id), None
@@ -873,6 +883,25 @@ class AnalyticsView(APIView):
             r["beat"] = PlayerBriefSerializer(
                 [l.player for l in m.lineup.all() if l.side != side], many=True
             ).data
+            # Doubles: if the stored partner is missing, recover it from the
+            # winning side of this match so the row always reads as a pair.
+            if tp.event in DOUBLES and not r.get("partner"):
+                mate = next(
+                    (l.player for l in m.lineup.all()
+                     if l.side == side and l.player_id != tp.player_id),
+                    None,
+                )
+                if mate is not None:
+                    r["partner"] = PlayerBriefSerializer(mate).data
+            # Score oriented so the upset winner's side reads first.
+            games = [
+                (g.side1_points, g.side2_points)
+                for g in sorted(m.games.all(), key=lambda g: g.game_no)
+            ]
+            if side == 2:
+                games = [(b, a) for a, b in games]
+            r["best_score"] = games
+            r["best_score_status"] = m.score_status
 
 
 class EventsView(APIView):
