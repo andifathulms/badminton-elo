@@ -5,6 +5,7 @@ import { useAsync } from '../useAsync.js'
 import { flag } from '../flags.js'
 import Pager from '../components/Pager.jsx'
 import PageHeader from '../components/PageHeader.jsx'
+import UpsetsTable from '../components/UpsetsTable.jsx'
 
 const PAGE = 10
 
@@ -168,6 +169,39 @@ function GainsTable({ kind, event, includeNew }) {
   )
 }
 
+// Biggest upsets — same table as the dashboard, with pagination and an
+// expandable per-row match path.
+function UpsetsSection({ event, includeNew }) {
+  const [page, setPage] = useState(0)
+  useEffect(() => { setPage(0) }, [event, includeNew])
+  const { data, error, loading } = useAsync(
+    () => api.analytics('upsets', { event, minMatches: 3, limit: 100, includeNew }),
+    [event, includeNew],
+  )
+  if (loading) return <p className="muted">Loading…</p>
+  if (error) return <p className="error">Could not load: {error.message}</p>
+  const shown = data.results.slice(page * PAGE, page * PAGE + PAGE)
+  return (
+    <>
+      <UpsetsTable
+        rows={shown}
+        expandable
+        renderExpand={(row) => (
+          <div className="path-wrap">
+            <div className="muted small path-head">
+              {row.player.name_display}
+              {row.partner ? ` / ${row.partner.name_display}` : ''}'s run at{' '}
+              {row.tournament.name}
+            </div>
+            <PathDetail row={row} />
+          </div>
+        )}
+      />
+      <Pager page={page} setPage={setPage} count={data.results.length} pageSize={PAGE} />
+    </>
+  )
+}
+
 const RECORD_TABS = [
   { kind: 'longest', label: '⏱️ Longest matches', unit: 'min', field: 'duration_min' },
   { kind: 'rallies', label: '🏸 Most rallies', unit: 'rallies', field: 'rallies' },
@@ -295,7 +329,7 @@ export default function Insights() {
       <h2>⚡ Biggest upsets</h2>
       <p className="muted small">The single wins that moved a rating the most —
         beating someone you weren't supposed to.</p>
-      <GainsTable kind="upsets" event={event} includeNew={includeNew} />
+      <UpsetsSection event={event} includeNew={includeNew} />
 
       <h2>🎯 Best tournament performances</h2>
       <p className="muted small">Chess-style performance rating — the level a

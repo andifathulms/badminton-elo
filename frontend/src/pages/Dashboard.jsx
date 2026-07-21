@@ -3,42 +3,12 @@ import { Link } from 'react-router-dom'
 import { api, EVENTS } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import Avatar from '../components/Avatar.jsx'
+import Entity from '../components/Entity.jsx'
+import UpsetsTable from '../components/UpsetsTable.jsx'
 import { flag } from '../flags.js'
 
 const DOUBLES = new Set(['MD', 'WD', 'XD'])
 const isDoubles = (e) => DOUBLES.has(e)
-
-// A player or a pair, rendered as avatar(s) + name(s), linking to the right
-// detail page. `players` is a 1- or 2-element array of brief player objects.
-function Entity({ players, event, size = 'sm', rating }) {
-  const list = (players || []).filter(Boolean)
-  if (list.length === 0) return <span className="muted">—</span>
-  const pair = list.length > 1
-  const to = pair
-    ? `/pairs/${event}/${list[0].player_id}/${list[1].player_id}`
-    : `/players/${list[0].player_id}`
-  const cc = list[0].country_code
-  return (
-    <Link to={to} className="ent">
-      <span className={pair ? 'pair-av' : ''}>
-        {list.map((p) => <Avatar key={p.player_id} player={p} size={size} />)}
-      </span>
-      <span className="ent-meta">
-        <span className="ent-name">{list.map((p) => p.name_display).join(' / ')}</span>
-        <span className="ent-sub">
-          <span className="fl">{flag(cc)}</span>{cc}
-          {rating != null && (
-            <span className="ent-rating" title="Rating before this match">· {rating}</span>
-          )}
-        </span>
-      </span>
-    </Link>
-  )
-}
-
-// Format an oriented games array ([[a,b],…]) as "21-15 21-18".
-const fmtScore = (games) =>
-  (games || []).map(([a, b]) => `${a}-${b}`).join('  ')
 
 // Panel wrapper with a title and an optional "view all" link.
 function Panel({ title, to, linkText, wide, children }) {
@@ -185,56 +155,7 @@ function BiggestUpsets() {
   return (
     <Panel title="⚡ Biggest upsets" to="/insights" linkText="More insights" wide>
       {loading && <p className="muted small">Loading…</p>}
-      {data && (
-        <div className="table-scroll">
-          <table className="board upset-table">
-            <thead>
-              <tr>
-                <th className="num" title="Elo gained from this win">Gained</th>
-                <th>Winner</th>
-                <th>Opponent</th>
-                <th>Score</th>
-                <th>Tournament</th>
-                <th className="rnd">Round</th>
-                <th className="cat">Cat</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.results.map((row) => {
-                const winners = [row.player, row.partner].filter(Boolean)
-                const abnormal =
-                  row.best_score_status && row.best_score_status !== 'Normal'
-                return (
-                  <tr key={`${row.player.player_id}-${row.tournament.tournament_id}`}>
-                    <td className="num">
-                      <span className="up-delta pos">+{row.best_delta.toFixed(0)}</span>
-                    </td>
-                    <td>
-                      <Entity players={winners} event={row.event}
-                        rating={row.winner_rating_before} />
-                    </td>
-                    <td>
-                      <Entity players={row.beat} event={row.event}
-                        rating={row.opponent_rating_before} />
-                    </td>
-                    <td className="score-cell">
-                      {abnormal
-                        ? <span className="pill warn tiny">{row.best_score_status}</span>
-                        : <span className="score-mono">{fmtScore(row.best_score)}</span>}
-                    </td>
-                    <td className="tour-cell">
-                      <Link to={`/tournaments/${row.tournament.tournament_id}`}
-                        className="tour-link">{row.tournament.name}</Link>
-                    </td>
-                    <td className="rnd muted">{row.best_round || '—'}</td>
-                    <td className="cat"><span className="pill ghost">{row.event}</span></td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {data && <UpsetsTable rows={data.results} />}
     </Panel>
   )
 }
