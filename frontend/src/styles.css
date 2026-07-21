@@ -273,6 +273,9 @@ code { font-family: var(--mono); background: var(--brand-soft); color: var(--bra
 
 /* Player-or-pair entity cell (avatar[s] + name + country) */
 .ent { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+/* Fixed-width avatar slot so pair and single names start at the same x; a lone
+   avatar is centred in the slot to fill the space a second one would take. */
+.ent-av { flex: none; width: 42px; display: inline-flex; justify-content: center; }
 .ent-meta { display: flex; flex-direction: column; min-width: 0; }
 .ent-name { font-weight: 600; font-size: 13px; line-height: 1.25;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -290,20 +293,20 @@ code { font-family: var(--mono); background: var(--brand-soft); color: var(--bra
 /* Biggest-upsets table */
 .panel-wide { overflow: hidden; }
 .table-scroll { overflow-x: auto; margin: 0 -4px; }
-.upset-table { min-width: 760px; }
-/* Fixed cell height keeps every row equal even when names/tournaments wrap. */
+.upset-table { min-width: 840px; }
+/* Fixed cell height keeps rows even when names/tournaments wrap. */
 .upset-table th, .upset-table td { padding: 10px 12px; }
 .upset-table td { height: 58px; vertical-align: middle; }
 .upset-table .up-delta { font-size: 16px; }
 .upset-table .rnd { white-space: nowrap; }
 .upset-table th.cat, .upset-table td.cat { text-align: center; }
+.upset-table td.cat .pill { font-size: 12.5px; font-weight: 600; }
 .score-mono { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap;
   font-size: 13px; }
-.tour-cell { max-width: 220px; }
-/* Match the player-name type; wrap to a second line when long. */
-.tour-link { font-weight: 600; font-size: 13px; line-height: 1.25; color: var(--ink);
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-  overflow: hidden; }
+/* Fixed width so the tournament column isn't squeezed; full name wraps freely. */
+.tour-cell { width: 190px; min-width: 190px; }
+.tour-link { font-weight: 600; font-size: 13px; line-height: 1.3; color: var(--ink);
+  white-space: normal; overflow-wrap: anywhere; }
 .tour-link:hover { color: var(--brand); }
 
 .recent-list, .upset-list { list-style: none; margin: 0; padding: 0; }
@@ -455,9 +458,10 @@ code { font-family: var(--mono); background: var(--brand-soft); color: var(--bra
   box-shadow: var(--sh); }
 .board th, .board td { padding: 12px 14px; text-align: left;
   border-bottom: 1px solid var(--line); }
-.board thead th { background: var(--header); background-image: var(--grad-header);
+/* Solid green header, white text — no gradient fade (applies to every table). */
+.board thead th { background: var(--header); background-image: none;
   font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em;
-  color: var(--on-green); font-weight: 700; border-bottom: none; }
+  color: #fff; font-weight: 700; border-bottom: none; }
 .board thead th:first-child { border-top-left-radius: var(--r); }
 .board thead th:last-child { border-top-right-radius: var(--r); }
 .board tbody tr { transition: background .12s; }
