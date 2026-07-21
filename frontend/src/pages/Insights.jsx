@@ -169,8 +169,8 @@ function GainsTable({ kind, event, includeNew }) {
   )
 }
 
-// Biggest upsets — same table as the dashboard, with pagination and an
-// expandable per-row match path.
+// Biggest upsets — same table as the dashboard, paginated. Each row links to
+// its match.
 function UpsetsSection({ event, includeNew }) {
   const [page, setPage] = useState(0)
   useEffect(() => { setPage(0) }, [event, includeNew])
@@ -183,20 +183,7 @@ function UpsetsSection({ event, includeNew }) {
   const shown = data.results.slice(page * PAGE, page * PAGE + PAGE)
   return (
     <>
-      <UpsetsTable
-        rows={shown}
-        expandable
-        renderExpand={(row) => (
-          <div className="path-wrap">
-            <div className="muted small path-head">
-              {row.player.name_display}
-              {row.partner ? ` / ${row.partner.name_display}` : ''}'s run at{' '}
-              {row.tournament.name}
-            </div>
-            <PathDetail row={row} />
-          </div>
-        )}
-      />
+      <UpsetsTable rows={shown} />
       <Pager page={page} setPage={setPage} count={data.results.length} pageSize={PAGE} />
     </>
   )
