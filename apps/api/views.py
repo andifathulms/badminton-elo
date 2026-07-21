@@ -43,6 +43,7 @@ from .serializers import (
     PlayerDetailSerializer,
     PlayerMatchSerializer,
     RatingHistoryPointSerializer,
+    TournamentBriefSerializer,
     TournamentListSerializer,
     TournamentPerformanceSerializer,
 )
@@ -798,6 +799,11 @@ class AnalyticsView(APIView):
         except ValueError:
             limit = 40
 
+        # Upsets are ranked per MATCH (every standout single win), not per
+        # tournament-performance — a pair can appear twice in one tournament.
+        if kind == "upsets":
+            return self._match_upsets(request, event, limit)
+
         qs = TournamentPerformance.objects.select_related(
             "player", "partner", "tournament"
         ).filter(matches__gte=min_matches)
@@ -807,8 +813,6 @@ class AnalyticsView(APIView):
             qs = qs.filter(rd_start__lte=130)
         if kind == "performances":
             qs = qs.exclude(perf_rating=None).order_by("-perf_rating")
-        elif kind == "upsets":
-            qs = qs.order_by("-best_delta")
         else:
             qs = qs.order_by("-net_delta")
 
@@ -836,9 +840,93 @@ class AnalyticsView(APIView):
 
         rows = TournamentPerformanceSerializer(picked, many=True).data
         self._enrich_achievement(picked, rows)
-        if kind == "upsets":
-            self._enrich_upsets(picked, rows)
         return Response({"results": rows})
+
+    def _match_upsets(self, request, event, limit):
+        """Biggest single-match upsets: rank individual wins by ELO gained.
+        A positive delta means the player won and gained, so the winning side
+        is exactly the players with a positive delta. Collapsed to one row per
+        match (both partners for doubles)."""
+        include_new = request.query_params.get("include_new") == "1"
+        # delta >= 30 keeps the sort cheap; any upset that makes a list is well
+        # above it. Highest first, so the first row seen per match is its top
+        # winner (and carries the pair).
+        rh = RatingHistory.objects.filter(delta__gte=30)
+        if event in EVENTS:
+            rh = rh.filter(event=event)
+        if not include_new:
+            rh = rh.filter(rd_before__lte=130)
+        rh = rh.order_by("-delta").values(
+            "match_id", "player_id", "delta"
+        )
+        seen: set = set()
+        picks: list = []
+        for r in rh[:5000]:
+            if r["match_id"] in seen:
+                continue
+            seen.add(r["match_id"])
+            picks.append(r)
+            if len(picks) >= limit:
+                break
+
+        ids = [p["match_id"] for p in picks]
+        matches = {
+            m.match_id: m
+            for m in Match.objects.filter(match_id__in=ids)
+            .select_related("tournament")
+            .prefetch_related("lineup__player", "games")
+        }
+        pre = {
+            (mid, pid): (mu, rd)
+            for mid, pid, mu, rd in RatingHistory.objects.filter(
+                match_id__in=ids
+            ).values_list("match_id", "player_id", "mu_before", "rd_before")
+        }
+
+        out = []
+        for p in picks:
+            m = matches.get(p["match_id"])
+            if not m:
+                continue
+            lineup = list(m.lineup.all())
+            side = next(
+                (l.side for l in lineup if l.player_id == p["player_id"]), None
+            )
+            winners = [l.player for l in lineup if l.side == side]
+            opp = [l.player for l in lineup if l.side != side]
+            player = next(
+                (pl for pl in winners if pl.player_id == p["player_id"]), winners[0]
+            )
+            partner = next(
+                (pl for pl in winners if pl.player_id != p["player_id"]), None
+            )
+            games = [
+                (g.side1_points, g.side2_points)
+                for g in sorted(m.games.all(), key=lambda g: g.game_no)
+            ]
+            if side == 2:
+                games = [(b, a) for a, b in games]
+            out.append({
+                "player": PlayerBriefSerializer(player).data,
+                "partner": PlayerBriefSerializer(partner).data if partner else None,
+                "event": m.event,
+                "tournament": TournamentBriefSerializer(m.tournament).data,
+                "best_delta": round(p["delta"], 1),
+                "best_match": m.match_id,
+                "best_round": m.round_name,
+                "beat": PlayerBriefSerializer(opp, many=True).data,
+                "best_score": games,
+                "best_score_status": m.score_status,
+                "winner_rating_before": _team_rating(
+                    [pre.get((m.match_id, l.player_id)) or (None, None)
+                     for l in lineup if l.side == side]
+                ),
+                "opponent_rating_before": _team_rating(
+                    [pre.get((m.match_id, l.player_id)) or (None, None)
+                     for l in lineup if l.side != side]
+                ),
+            })
+        return Response({"results": out})
 
     def _enrich_achievement(self, picked, rows):
         """Tag each row with how far the player went (Champion/Runner-up/SF/…)."""
@@ -872,65 +960,6 @@ class AnalyticsView(APIView):
                 r["achievement"] = "Champion" if won else "Runner-up"
             else:
                 r["achievement"] = friendly.get(round_name, round_name or None)
-
-    def _enrich_upsets(self, picked, rows):
-        ids = [tp.best_match_id for tp in picked if tp.best_match_id]
-        matches = {
-            m.match_id: m
-            for m in Match.objects.filter(match_id__in=ids).prefetch_related(
-                "lineup__player", "games"
-            )
-        }
-        # Each player's rating right before their best match (to show the gap
-        # the upset closed). Keyed by (match, player).
-        pre = {
-            (mid, pid): (mu, rd)
-            for mid, pid, mu, rd in RatingHistory.objects.filter(
-                match_id__in=ids
-            ).values_list("match_id", "player_id", "mu_before", "rd_before")
-        }
-        for tp, r in zip(picked, rows):
-            m = matches.get(tp.best_match_id)
-            if not m:
-                r["best_round"], r["beat"] = None, []
-                r["best_score"], r["best_score_status"] = [], None
-                r["winner_rating_before"] = r["opponent_rating_before"] = None
-                continue
-            side = next(
-                (l.side for l in m.lineup.all() if l.player_id == tp.player_id), None
-            )
-            # Pre-match side ratings (winner's side vs the side they beat).
-            r["winner_rating_before"] = _team_rating(
-                [pre.get((m.match_id, l.player_id)) or (None, None)
-                 for l in m.lineup.all() if l.side == side]
-            )
-            r["opponent_rating_before"] = _team_rating(
-                [pre.get((m.match_id, l.player_id)) or (None, None)
-                 for l in m.lineup.all() if l.side != side]
-            )
-            r["best_round"] = m.round_name
-            r["beat"] = PlayerBriefSerializer(
-                [l.player for l in m.lineup.all() if l.side != side], many=True
-            ).data
-            # Doubles: if the stored partner is missing, recover it from the
-            # winning side of this match so the row always reads as a pair.
-            if tp.event in DOUBLES and not r.get("partner"):
-                mate = next(
-                    (l.player for l in m.lineup.all()
-                     if l.side == side and l.player_id != tp.player_id),
-                    None,
-                )
-                if mate is not None:
-                    r["partner"] = PlayerBriefSerializer(mate).data
-            # Score oriented so the upset winner's side reads first.
-            games = [
-                (g.side1_points, g.side2_points)
-                for g in sorted(m.games.all(), key=lambda g: g.game_no)
-            ]
-            if side == 2:
-                games = [(b, a) for a, b in games]
-            r["best_score"] = games
-            r["best_score_status"] = m.score_status
 
 
 class EventsView(APIView):
