@@ -278,21 +278,32 @@ code { font-family: var(--mono); background: var(--brand-soft); color: var(--bra
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ent-sub { font-size: 11px; color: var(--muted); display: inline-flex; gap: 4px;
   align-items: center; }
+.ent-rating { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ink-2); }
 .ent:hover .ent-name { color: var(--brand); }
+
+/* Mini-board: let long pair names wrap to a second line instead of clipping. */
+.mini-list .ent { align-items: flex-start; }
+.mini-list .ent .pair-av, .mini-list .ent .avatar { margin-top: 1px; }
+.mini-list .ent-name { white-space: normal; overflow: visible;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
 /* Biggest-upsets table */
 .panel-wide { overflow: hidden; }
 .table-scroll { overflow-x: auto; margin: 0 -4px; }
-.upset-table { min-width: 720px; }
+.upset-table { min-width: 760px; }
+/* Fixed cell height keeps every row equal even when names/tournaments wrap. */
 .upset-table th, .upset-table td { padding: 10px 12px; }
+.upset-table td { height: 58px; vertical-align: middle; }
 .upset-table .up-delta { font-size: 16px; }
 .upset-table .rnd { white-space: nowrap; }
 .upset-table th.cat, .upset-table td.cat { text-align: center; }
 .score-mono { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap;
   font-size: 13px; }
-.tour-cell { max-width: 240px; }
-.tour-link { font-weight: 600; display: inline-block; max-width: 240px; overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+.tour-cell { max-width: 220px; }
+/* Match the player-name type; wrap to a second line when long. */
+.tour-link { font-weight: 600; font-size: 13px; line-height: 1.25; color: var(--ink);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; }
 .tour-link:hover { color: var(--brand); }
 
 .recent-list, .upset-list { list-style: none; margin: 0; padding: 0; }

@@ -10,7 +10,7 @@ const isDoubles = (e) => DOUBLES.has(e)
 
 // A player or a pair, rendered as avatar(s) + name(s), linking to the right
 // detail page. `players` is a 1- or 2-element array of brief player objects.
-function Entity({ players, event, size = 'sm' }) {
+function Entity({ players, event, size = 'sm', rating }) {
   const list = (players || []).filter(Boolean)
   if (list.length === 0) return <span className="muted">—</span>
   const pair = list.length > 1
@@ -27,6 +27,9 @@ function Entity({ players, event, size = 'sm' }) {
         <span className="ent-name">{list.map((p) => p.name_display).join(' / ')}</span>
         <span className="ent-sub">
           <span className="fl">{flag(cc)}</span>{cc}
+          {rating != null && (
+            <span className="ent-rating" title="Rating before this match">· {rating}</span>
+          )}
         </span>
       </span>
     </Link>
@@ -189,7 +192,7 @@ function BiggestUpsets() {
               <tr>
                 <th className="num" title="Elo gained from this win">Gained</th>
                 <th>Winner</th>
-                <th>Beat</th>
+                <th>Opponent</th>
                 <th>Score</th>
                 <th>Tournament</th>
                 <th className="rnd">Round</th>
@@ -206,8 +209,14 @@ function BiggestUpsets() {
                     <td className="num">
                       <span className="up-delta pos">+{row.best_delta.toFixed(0)}</span>
                     </td>
-                    <td><Entity players={winners} event={row.event} /></td>
-                    <td><Entity players={row.beat} event={row.event} /></td>
+                    <td>
+                      <Entity players={winners} event={row.event}
+                        rating={row.winner_rating_before} />
+                    </td>
+                    <td>
+                      <Entity players={row.beat} event={row.event}
+                        rating={row.opponent_rating_before} />
+                    </td>
                     <td className="score-cell">
                       {abnormal
                         ? <span className="pill warn tiny">{row.best_score_status}</span>
