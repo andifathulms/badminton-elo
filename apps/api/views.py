@@ -391,6 +391,17 @@ class PerformancePathView(APIView):
         return Response({"matches": out})
 
 
+def _team_rating(members):
+    """Conservative side rating from members' (mu, rd): mean(mu) − 2·RMS(rd).
+    Mirrors how pair strength is combined elsewhere. None if no data."""
+    members = [(mu, rd) for mu, rd in members if mu is not None and rd is not None]
+    if not members:
+        return None
+    mean_mu = sum(mu for mu, _ in members) / len(members)
+    rms_rd = (sum(rd * rd for _, rd in members) / len(members)) ** 0.5
+    return round(mean_mu - 2.0 * rms_rd)
+
+
 def _match_card(m):
     """Compact match descriptor: both sides (as pairs), score, tournament, round."""
     lineup = sorted(m.lineup.all(), key=lambda l: l.side)
@@ -870,14 +881,32 @@ class AnalyticsView(APIView):
                 "lineup__player", "games"
             )
         }
+        # Each player's rating right before their best match (to show the gap
+        # the upset closed). Keyed by (match, player).
+        pre = {
+            (mid, pid): (mu, rd)
+            for mid, pid, mu, rd in RatingHistory.objects.filter(
+                match_id__in=ids
+            ).values_list("match_id", "player_id", "mu_before", "rd_before")
+        }
         for tp, r in zip(picked, rows):
             m = matches.get(tp.best_match_id)
             if not m:
                 r["best_round"], r["beat"] = None, []
                 r["best_score"], r["best_score_status"] = [], None
+                r["winner_rating_before"] = r["opponent_rating_before"] = None
                 continue
             side = next(
                 (l.side for l in m.lineup.all() if l.player_id == tp.player_id), None
+            )
+            # Pre-match side ratings (winner's side vs the side they beat).
+            r["winner_rating_before"] = _team_rating(
+                [pre.get((m.match_id, l.player_id)) or (None, None)
+                 for l in m.lineup.all() if l.side == side]
+            )
+            r["opponent_rating_before"] = _team_rating(
+                [pre.get((m.match_id, l.player_id)) or (None, None)
+                 for l in m.lineup.all() if l.side != side]
             )
             r["best_round"] = m.round_name
             r["beat"] = PlayerBriefSerializer(
