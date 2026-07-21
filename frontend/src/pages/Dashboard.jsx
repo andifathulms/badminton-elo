@@ -130,7 +130,10 @@ function MiniBoard() {
       {data && (
         <ol className="mini-list">
           {data.results.map((row, i) => {
-            const players = doubles ? [row.player1, row.player2] : [row.player]
+            // Derive the shape from the row, not the selected event: while a
+            // tab switch is loading, `data` still holds the previous event's
+            // rows for one render, so trusting `doubles` here would crash.
+            const players = row.player1 ? [row.player1, row.player2] : [row.player]
             const key = players.map((p) => p.player_id).join('-')
             return (
               <li key={key}>
