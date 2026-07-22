@@ -740,6 +740,8 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
         rubber's true discipline is inferred from its lineup (the stored `event`
         is unreliable on team cups). Sides are oriented so country1 reads first.
         """
+        from .elo import tournament_match_elo
+
         t = self.get_object()
         kind = team_cup_kind(t)
         matches = list(
@@ -747,11 +749,17 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
             .prefetch_related("lineup__player", "games")
             .order_by("round_order", "match_id")
         )
+        elo_map = tournament_match_elo(int(tournament_id))
 
         # Bucket by round, preserving round order.
         rounds: dict = {}
         for m in matches:
             rounds.setdefault((m.round_order or 0, m.round_name), []).append(m)
+
+        def side_elo(mid, players):
+            ds = [elo_map.get(mid, {}).get(p.player_id) for p in players]
+            ds = [d[2] for d in ds if d]
+            return round(sum(ds) / len(ds), 1) if ds else None
 
         def rubber(m, country1):
             s1 = [l.player for l in m.lineup.all() if l.side == 1]
@@ -774,6 +782,8 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
                 "winner_side": win,
                 "score": games,
                 "score_status": m.score_status,
+                "elo1": side_elo(m.match_id, s1),
+                "elo2": side_elo(m.match_id, s2),
             }
 
         out_rounds = []

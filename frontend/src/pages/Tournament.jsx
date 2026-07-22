@@ -147,12 +147,12 @@ function MatchList({ id, events, movers }) {
   )
 }
 
-// Stacked player links: one name per line, each links to its player page.
-function SidePlayers({ players }) {
+// Stacked player links (one per line), aligned toward the centre by side.
+function SideNames({ players, side, winner }) {
   return (
-    <span className="rubber-players">
+    <span className={`mrow-name s${side} ${winner ? 'win' : ''}`}>
       {players.map((p) => (
-        <Link key={p.player_id} to={`/players/${p.player_id}`} className="rubber-pname">
+        <Link key={p.player_id} to={`/players/${p.player_id}`} className="mname">
           {p.name_display}
         </Link>
       ))}
@@ -176,36 +176,41 @@ function GameScore({ matchId, score, status }) {
   )
 }
 
-// One rubber inside a tie: order · discipline · side1 · score · side2.
-// Winner is shown by bold + a subtle highlight (no check mark).
+// One rubber inside a tie, laid out on the shared tie grid so the score column
+// lines up with the tie header's country score. Winner shown by bold + tint.
+// order · discipline · name1 · elo1 · score · elo2 · name2 (no per-row flags).
 function Rubber({ r }) {
   return (
-    <div className="rubber">
+    <div className="rubber tie-grid">
       <span className="rubber-ord">{r.order}</span>
       <span className="rubber-disc">{r.discipline}</span>
-      <span className={`rubber-side r ${r.winner_side === 1 ? 'win' : ''}`}>
-        <SidePlayers players={r.side1} />
+      <SideNames players={r.side1} side={1} winner={r.winner_side === 1} />
+      <span className="mrow-elo s1"><EloTag e={r.elo1 != null ? { delta: r.elo1 } : null} /></span>
+      <span className="mrow-score">
+        <GameScore matchId={r.match_id} score={r.score} status={r.score_status} />
       </span>
-      <GameScore matchId={r.match_id} score={r.score} status={r.score_status} />
-      <span className={`rubber-side l ${r.winner_side === 2 ? 'win' : ''}`}>
-        <SidePlayers players={r.side2} />
-      </span>
+      <span className="mrow-elo s2"><EloTag e={r.elo2 != null ? { delta: r.elo2 } : null} /></span>
+      <SideNames players={r.side2} side={2} winner={r.winner_side === 2} />
     </div>
   )
 }
 
-// One nation-vs-nation tie: header (country score) + its rubbers.
+// One nation-vs-nation tie: header (country score, aligned to the rubber grid)
+// + its rubbers.
 function Tie({ tie }) {
   const c1win = tie.winner_country === tie.country1
   const c2win = tie.winner_country === tie.country2
   return (
     <div className="tie-card">
-      <div className="tie-head">
-        <span className={`tie-team r ${c1win ? 'win' : ''}`}>
+      <div className="tie-head tie-grid">
+        <span /><span />
+        <span className={`tie-team s1 ${c1win ? 'win' : ''}`}>
           <span className="fl">{flag(tie.country1)}</span>{tie.country1}
         </span>
+        <span />
         <span className="tie-score">{tie.score1}<span className="dash">–</span>{tie.score2}</span>
-        <span className={`tie-team l ${c2win ? 'win' : ''}`}>
+        <span />
+        <span className={`tie-team s2 ${c2win ? 'win' : ''}`}>
           {tie.country2}<span className="fl">{flag(tie.country2)}</span>
         </span>
       </div>
@@ -259,9 +264,7 @@ function TeamCup({ id }) {
           {groups.map((rd) => (
             <Collapsible key={rd.round_name} title={rd.round_name}
               sub={tieCount(rd.ties.length)} defaultOpen={false}>
-              <div className="group-ties">
-                {rd.ties.map((tie, i) => <Tie key={i} tie={tie} />)}
-              </div>
+              {rd.ties.map((tie, i) => <Tie key={i} tie={tie} />)}
             </Collapsible>
           ))}
         </>
