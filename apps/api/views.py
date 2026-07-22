@@ -51,6 +51,49 @@ from .serializers import (
 EVENTS = ("MS", "WS", "MD", "WD", "XD")
 DOUBLES = ("MD", "WD", "XD")
 
+
+def team_cup_kind(t):
+    """'thomas' | 'uber' | 'sudirman' | 'team' | None — is this tournament a
+    team competition (nation vs nation, rubbers grouped into ties)?"""
+    hay = f"{t.name or ''} {t.category_name or ''}".lower()
+    if "sudirman cup" in hay:
+        return "sudirman"
+    if "thomas cup" in hay:
+        return "thomas"
+    if "uber cup" in hay:
+        return "uber"
+    if "team championship" in hay or "team event" in hay or (
+        "team" in hay and "cup" in hay
+    ):
+        return "team"
+    return None
+
+
+def _side_country(players):
+    """The country a rubber side represents: the most common player country."""
+    from collections import Counter
+
+    c = Counter(p.country_code for p in players if p.country_code)
+    return c.most_common(1)[0][0] if c else None
+
+
+def _rubber_discipline(s1, s2):
+    """True discipline of a rubber inferred from the lineup (player count) and
+    gender — the stored `event` on team-cup rubbers is unreliable (assigned by
+    position, not who actually played). Falls back to S/D when gender is unknown."""
+    if max(len(s1), len(s2)) == 1:
+        g = (s1[0].gender if s1 else "") or (s2[0].gender if s2 else "")
+        return {"M": "MS", "F": "WS"}.get(g, "S")
+    side = s1 if len(s1) == 2 else s2
+    gs = [p.gender for p in side if p.gender]
+    if "M" in gs and "F" in gs:
+        return "XD"
+    if gs and all(x == "M" for x in gs):
+        return "MD"
+    if gs and all(x == "F" for x in gs):
+        return "WD"
+    return "D"
+
 # Full tournament prestige order (top = most prestigious). Multi-sport events and
 # team cups sit above the BWF World Tour, then development tiers. Anything
 # unlisted sorts last. Used by the tournament "master" (by-year) overview.
@@ -698,6 +741,95 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
             row["team_elo"] = team
         return self.get_paginated_response(data)
 
+    @action(detail=True, methods=["get"])
+    def ties(self, request, tournament_id=None):
+        """GET /api/tournaments/{id}/ties — a team cup as nation-vs-nation ties.
+
+        Rubbers (individual matches) are grouped into ties: within a round, a run
+        of consecutive matches sharing the same pair of countries is one tie. Each
+        rubber's true discipline is inferred from its lineup (the stored `event`
+        is unreliable on team cups). Sides are oriented so country1 reads first.
+        """
+        t = self.get_object()
+        kind = team_cup_kind(t)
+        matches = list(
+            Match.objects.filter(tournament=t)
+            .prefetch_related("lineup__player", "games")
+            .order_by("round_order", "match_id")
+        )
+
+        # Bucket by round, preserving round order.
+        rounds: dict = {}
+        for m in matches:
+            rounds.setdefault((m.round_order or 0, m.round_name), []).append(m)
+
+        def rubber(m, country1):
+            s1 = [l.player for l in m.lineup.all() if l.side == 1]
+            s2 = [l.player for l in m.lineup.all() if l.side == 2]
+            games = [
+                [g.side1_points, g.side2_points]
+                for g in sorted(m.games.all(), key=lambda g: g.game_no)
+            ]
+            win = m.winner_side
+            # Orient so country1's players are side1.
+            if _side_country(s1) != country1 and _side_country(s2) == country1:
+                s1, s2 = s2, s1
+                games = [[b, a] for a, b in games]
+                win = {1: 2, 2: 1}.get(win)
+            return {
+                "match_id": m.match_id,
+                "discipline": _rubber_discipline(s1, s2),
+                "side1": PlayerBriefSerializer(s1, many=True).data,
+                "side2": PlayerBriefSerializer(s2, many=True).data,
+                "winner_side": win,
+                "score": games,
+                "score_status": m.score_status,
+            }
+
+        out_rounds = []
+        champion = None
+        for (rorder, rname), ms in sorted(rounds.items()):
+            ties = []
+            cur = None
+            cur_key = None
+            for m in ms:
+                s1 = [l.player for l in m.lineup.all() if l.side == 1]
+                s2 = [l.player for l in m.lineup.all() if l.side == 2]
+                c1, c2 = _side_country(s1), _side_country(s2)
+                key = frozenset((c1, c2))
+                if cur is None or key != cur_key:
+                    # country1 = the side-1 country of the tie's first rubber.
+                    cur = {"country1": c1, "country2": c2,
+                           "score1": 0, "score2": 0, "rubbers": []}
+                    ties.append(cur)
+                    cur_key = key
+                r = rubber(m, cur["country1"])
+                r["order"] = len(cur["rubbers"]) + 1
+                cur["rubbers"].append(r)
+                if r["winner_side"] == 1:
+                    cur["score1"] += 1
+                elif r["winner_side"] == 2:
+                    cur["score2"] += 1
+            for i, tie in enumerate(ties, 1):
+                tie["order"] = i
+                tie["winner_country"] = (
+                    tie["country1"] if tie["score1"] > tie["score2"]
+                    else tie["country2"] if tie["score2"] > tie["score1"]
+                    else None
+                )
+            out_rounds.append({
+                "round_name": rname, "round_order": rorder, "ties": ties,
+            })
+            if rname in ("Final", "F") and len(ties) == 1:
+                champion = ties[0]["winner_country"]
+
+        return Response({
+            "is_team_cup": kind is not None,
+            "cup": kind,
+            "champion": champion,
+            "rounds": out_rounds,
+        })
+
     def _movers(self, t):
         """Top-3 ELO gainers and losers per discipline at this tournament.
 
@@ -761,6 +893,8 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
                     )
                 ).data,
                 "slug": t.slug,
+                "is_team_cup": team_cup_kind(t) is not None,
+                "cup": team_cup_kind(t),
                 "draws": DrawBriefSerializer(draws, many=True).data,
                 "events": events,
                 "movers": self._movers(t),
