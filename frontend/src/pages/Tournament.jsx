@@ -196,6 +196,23 @@ function Tie({ tie }) {
   )
 }
 
+// A collapsible section with a header that toggles its body.
+function Collapsible({ title, sub, defaultOpen = true, children }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <section className={`cup-section ${open ? 'open' : ''}`}>
+      <button className="cup-section-head" onClick={() => setOpen(!open)}>
+        <span className="caret">{open ? '▾' : '▸'}</span>
+        <span className="cup-section-title">{title}</span>
+        {sub && <span className="cup-section-sub">{sub}</span>}
+      </button>
+      {open && <div className="cup-section-body">{children}</div>}
+    </section>
+  )
+}
+
+const tieCount = (n) => `${n} ${n === 1 ? 'tie' : 'ties'}`
+
 function TeamCup({ id }) {
   const { data, error, loading } = useAsync(() => api.tournamentTies(id), [id])
   if (loading) return <p className="muted">Loading ties…</p>
@@ -218,22 +235,24 @@ function TeamCup({ id }) {
       {groups.length > 0 && (
         <>
           <h2>Group Stage</h2>
-          <div className="group-grid">
-            {groups.map((rd) => (
-              <section key={rd.round_name} className="group-block">
-                <h3>{rd.round_name}</h3>
+          {/* Groups are the longest part — collapsed by default. */}
+          {groups.map((rd) => (
+            <Collapsible key={rd.round_name} title={rd.round_name}
+              sub={tieCount(rd.ties.length)} defaultOpen={false}>
+              <div className="group-ties">
                 {rd.ties.map((tie, i) => <Tie key={i} tie={tie} />)}
-              </section>
-            ))}
-          </div>
+              </div>
+            </Collapsible>
+          ))}
         </>
       )}
 
+      {knockout.length > 0 && <h2>Knockout</h2>}
       {knockout.map((rd) => (
-        <section key={rd.round_name} className="ko-block">
-          <h2>{roundLabel(rd.round_name)}</h2>
+        <Collapsible key={rd.round_name} title={roundLabel(rd.round_name)}
+          sub={tieCount(rd.ties.length)} defaultOpen>
           {rd.ties.map((tie, i) => <Tie key={i} tie={tie} />)}
-        </section>
+        </Collapsible>
       ))}
     </div>
   )
