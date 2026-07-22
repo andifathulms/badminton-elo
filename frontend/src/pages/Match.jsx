@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
+import { flag } from '../flags.js'
 import MatchStats from '../components/MatchStats.jsx'
 
 export default function Match() {
@@ -15,11 +16,12 @@ export default function Match() {
   const teamElo = m.team_elo || {}
   const hasElo = Object.keys(teamElo).length > 0
   const isDoubles = m.lineup.filter((l) => l.side === 1).length > 1
-  const teamEloTag = (side) => {
+  // `mirror` reverses the flow so the elo sits on the inner (centre) side.
+  const teamEloTag = (side, mirror) => {
     const e = teamElo[side]
     if (e == null) return null
     return (
-      <div className="team-elo">
+      <div className={`sc-elo ${mirror ? 'rev' : ''}`}>
         <span className="muted small">{isDoubles ? 'pair ' : ''}{e.before}→{e.after}</span>
         <span className={`elo ${e.delta >= 0 ? 'pos' : 'neg'}`}>
           {e.delta >= 0 ? '+' : ''}
@@ -28,6 +30,18 @@ export default function Match() {
       </div>
     )
   }
+  // A team's players, flag on the inner (centre-facing) side.
+  const players = (n, mirror) => (
+    <div className="sc-players">
+      {side(n).map((p) => (
+        <Link key={p.player_id} to={`/players/${p.player_id}`}
+              className={`sc-pname ${mirror ? 'rev' : ''}`}>
+          <span className="nm">{p.name_display}</span>
+          <span className="fl">{flag(p.country_code)}</span>
+        </Link>
+      ))}
+    </div>
+  )
 
   return (
     <div>
@@ -52,15 +66,8 @@ export default function Match() {
 
       <div className="scorecard">
         <div className={`sc-team r ${won(1)}`}>
-          {won(1) && <span className="sc-badge">✓ Won</span>}
-          <div className="sc-players">
-            {side(1).map((p) => (
-              <Link key={p.player_id} to={`/players/${p.player_id}`} className="sc-pname">
-                {p.name_display}<span className="country">{p.country_code}</span>
-              </Link>
-            ))}
-          </div>
-          {teamEloTag(1)}
+          {players(1, false)}
+          {teamEloTag(1, false)}
         </div>
 
         <div className="sc-games">
@@ -77,15 +84,8 @@ export default function Match() {
         </div>
 
         <div className={`sc-team l ${won(2)}`}>
-          {won(2) && <span className="sc-badge">✓ Won</span>}
-          <div className="sc-players">
-            {side(2).map((p) => (
-              <Link key={p.player_id} to={`/players/${p.player_id}`} className="sc-pname">
-                {p.name_display}<span className="country">{p.country_code}</span>
-              </Link>
-            ))}
-          </div>
-          {teamEloTag(2)}
+          {players(2, true)}
+          {teamEloTag(2, true)}
         </div>
       </div>
 

@@ -544,8 +544,23 @@ tr.clickable .link { color: var(--brand); font-weight: 600; }
 .small { font-size: 12px; }
 .error { color: var(--neg); }
 .back { color: var(--muted); font-size: 13px; font-weight: 600; display: inline-flex;
-  align-items: center; gap: 5px; margin-bottom: 14px; transition: color .13s; }
+  align-items: center; gap: 5px; margin-bottom: 14px; transition: color .13s;
+  background: none; border: none; cursor: pointer; padding: 0; font-family: inherit; }
 .back:hover { color: var(--brand); }
+
+/* Insights landing — pick a lens */
+.insight-cards { display: grid; gap: 16px; margin-top: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.insight-card { display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  text-align: left; padding: 22px; border: 1px solid var(--line); border-radius: var(--r-lg);
+  background: var(--surface); box-shadow: var(--sh); cursor: pointer; font: inherit;
+  transition: transform .15s, box-shadow .15s, border-color .15s; }
+.insight-card:hover { transform: translateY(-3px); box-shadow: var(--sh-md);
+  border-color: var(--brand); }
+.insight-icon { font-size: 28px; line-height: 1; }
+.insight-title { font-weight: 800; font-size: 16px; color: var(--ink); }
+.insight-desc { font-size: 13px; color: var(--muted); line-height: 1.5; flex: 1; }
+.insight-go { font-size: 13px; font-weight: 700; color: var(--brand); margin-top: 2px; }
 
 .pos { color: var(--pos); font-weight: 700; font-variant-numeric: tabular-nums; }
 .neg { color: var(--neg); font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -641,14 +656,13 @@ tr.clickable .link { color: var(--brand); font-weight: 600; }
 .sc-team { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .sc-team.r { align-items: flex-end; text-align: right; }
 .sc-team.l { align-items: flex-start; text-align: left; }
-.sc-badge { font-size: 11px; font-weight: 800; letter-spacing: .03em; color: var(--pos);
-  background: var(--pos-soft); border-radius: 999px; padding: 2px 9px; }
 .sc-players { display: flex; flex-direction: column; gap: 3px; }
-.sc-pname { display: inline-flex; align-items: baseline; gap: 7px; font-weight: 600;
+/* Flag sits on the inner (centre-facing) side via row-reverse on team 2. */
+.sc-pname { display: inline-flex; align-items: center; gap: 8px; font-weight: 600;
   font-size: 16px; color: var(--ink-2); }
-.sc-pname:hover { color: var(--brand); }
-.sc-pname .country { font-family: var(--mono); font-size: 11px; color: var(--faint);
-  font-weight: 700; }
+.sc-pname.rev { flex-direction: row-reverse; }
+.sc-pname .fl { font-size: 15px; }
+.sc-pname:hover .nm { color: var(--brand); }
 .sc-team.winner .sc-pname { font-weight: 800; color: var(--ink); }
 
 .sc-games { display: flex; gap: 8px; }
@@ -658,7 +672,9 @@ tr.clickable .link { color: var(--brand); font-weight: 600; }
   font-variant-numeric: tabular-nums; }
 .sc-pts.win { background: var(--pos-soft); color: var(--pos); font-weight: 800; }
 
-.team-elo { display: flex; gap: 8px; align-items: baseline; }
+/* elo row; `.rev` puts the ± delta on the inner side for team 2. */
+.sc-elo { display: flex; gap: 8px; align-items: baseline; }
+.sc-elo.rev { flex-direction: row-reverse; }
 .elo { font-size: 11px; margin-left: 6px; }
 .elorow { margin-left: 6px; display: inline-flex; gap: 6px; align-items: baseline; }
 .elo-note { max-width: 640px; margin-top: 12px; line-height: 1.55; }

@@ -278,58 +278,90 @@ function RecordsSection({ event }) {
   )
 }
 
+const INSIGHTS = [
+  { key: 'breakouts', icon: '🚀', title: 'Biggest tournament breakouts',
+    blurb: 'Most ELO gained by an established player across a single tournament — the standout runs.',
+    sub: 'Most ELO gained by an established player across a single tournament. Start→End is the rating before and after; debut players are hidden by default since a first-timer\'s rating swings hugely.',
+    toolbar: true },
+  { key: 'upsets', icon: '⚡', title: 'Biggest upsets',
+    blurb: "The single wins that moved a rating the most — beating someone you weren't supposed to.",
+    sub: "The single wins that moved a rating the most — beating someone you weren't supposed to. Click a row to open the match.",
+    toolbar: true },
+  { key: 'performances', icon: '🎯', title: 'Best tournament performances',
+    blurb: 'The level a player/pair actually played at, based on the strength of the field they beat.',
+    sub: 'Chess-style performance rating — the level a player/pair played AT across a tournament, based on the strength of the opponents they beat. Walkovers and retirements don\'t count — only contested wins vs a rated opponent (open a row to see the run).',
+    toolbar: true },
+  { key: 'records', icon: '🏟️', title: 'Match records',
+    blurb: 'Longest matches, most rallies, and biggest comebacks — from rally-by-rally stats.',
+    sub: 'Extremes pulled from the rally-by-rally match statistics — only matches we\'ve collected point-by-point data for.',
+    toolbar: false },
+]
+
+function Toolbar({ event, setEvent, includeNew, setIncludeNew }) {
+  return (
+    <div className="toolbar wrap">
+      <div className="segmented">
+        <button className={event === '' ? 'seg active' : 'seg'}
+                onClick={() => setEvent('')}>All</button>
+        {EVENTS.map((e) => (
+          <button key={e.code}
+            className={event === e.code ? 'seg active' : 'seg'}
+            onClick={() => setEvent(e.code)}>{e.code}</button>
+        ))}
+      </div>
+      <label className="checkbox">
+        <input type="checkbox" checked={includeNew}
+               onChange={(e) => setIncludeNew(e.target.checked)} />
+        {' '}include debut players
+      </label>
+    </div>
+  )
+}
+
 export default function Insights() {
+  const [view, setView] = useState(null)
   const [event, setEvent] = useState('')
   const [includeNew, setIncludeNew] = useState(false)
+  const active = INSIGHTS.find((i) => i.key === view)
+
+  if (!active) {
+    return (
+      <div>
+        <PageHeader
+          kicker="Analytics"
+          title="Insights"
+          subtitle="Standout runs and giant-killings across two decades of BWF results. Pick a lens to dig in."
+        />
+        <div className="insight-cards">
+          {INSIGHTS.map((i) => (
+            <button key={i.key} className="insight-card" onClick={() => setView(i.key)}>
+              <span className="insight-icon">{i.icon}</span>
+              <span className="insight-title">{i.title}</span>
+              <span className="insight-desc">{i.blurb}</span>
+              <span className="insight-go">Explore →</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>
-      <PageHeader
-        kicker="Analytics"
-        title="Insights"
-        subtitle="Standout runs and giant-killings across two decades of BWF results — ranked by how much they moved the needle."
-      />
-      <div className="toolbar wrap">
-        <div className="segmented">
-          <button className={event === '' ? 'seg active' : 'seg'}
-                  onClick={() => setEvent('')}>All</button>
-          {EVENTS.map((e) => (
-            <button key={e.code}
-              className={event === e.code ? 'seg active' : 'seg'}
-              onClick={() => setEvent(e.code)}>{e.code}</button>
-          ))}
-        </div>
-        <label className="checkbox">
-          <input type="checkbox" checked={includeNew}
-                 onChange={(e) => setIncludeNew(e.target.checked)} />
-          {' '}include debut players
-        </label>
-      </div>
-
-      <h2>🚀 Biggest tournament breakouts</h2>
-      <p className="muted small">Most ELO gained by an <strong>established</strong>{' '}
-        player across a single tournament — the standout runs. (Start→End is the
-        rating before and after; debut players are hidden by default since a
-        first-timer's rating swings hugely.)</p>
-      <GainsTable kind="tournament-gains" event={event} includeNew={includeNew} />
-
-      <h2>⚡ Biggest upsets</h2>
-      <p className="muted small">The single wins that moved a rating the most —
-        beating someone you weren't supposed to.</p>
-      <UpsetsSection event={event} includeNew={includeNew} />
-
-      <h2>🎯 Best tournament performances</h2>
-      <p className="muted small">Chess-style performance rating — the level a
-        player/pair played AT across a tournament, based on the strength of the
-        opponents they beat. Winning against a brutal field beats an easy title.
-        Walkovers and retirements <strong>don't count</strong> — only contested
-        wins vs a rated opponent move the number (open a row to see the run).</p>
-      <GainsTable kind="performances" event={event} includeNew={includeNew} />
-
-      <h2 style={{ marginTop: 32 }}>🏟️ Match records</h2>
-      <p className="muted small">Extremes pulled from the rally-by-rally match
-        statistics — only matches we've collected point-by-point data for.</p>
-      <RecordsSection event={event} />
+      <button className="back" onClick={() => setView(null)}>← All insights</button>
+      <PageHeader kicker="Analytics" title={`${active.icon} ${active.title}`} subtitle={active.sub} />
+      {active.toolbar && (
+        <Toolbar event={event} setEvent={setEvent}
+                 includeNew={includeNew} setIncludeNew={setIncludeNew} />
+      )}
+      {view === 'breakouts' && (
+        <GainsTable kind="tournament-gains" event={event} includeNew={includeNew} />
+      )}
+      {view === 'upsets' && <UpsetsSection event={event} includeNew={includeNew} />}
+      {view === 'performances' && (
+        <GainsTable kind="performances" event={event} includeNew={includeNew} />
+      )}
+      {view === 'records' && <RecordsSection event={event} />}
     </div>
   )
 }
