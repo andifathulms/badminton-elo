@@ -30,6 +30,8 @@ PY
   # Correct team-cup rubber disciplines (scraper labels them by position) so
   # ratings land in the right bucket — self-heals future cup scrapes too.
   .venv/bin/python manage.py fix_cup_events >/dev/null 2>&1
+  # Recover missing player country_code from team-cup tie context (flags).
+  .venv/bin/python manage.py backfill_cup_country >/dev/null 2>&1
   # Full rebuild (~70s) so out-of-order historical periods (Wikipedia 1983-2006
   # backfill) integrate correctly, not just newest-appended matches.
   .venv/bin/python manage.py rate --rebuild >/dev/null 2>&1 || { unset SQLITE_PATH; return 1; }
