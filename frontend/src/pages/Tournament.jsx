@@ -149,26 +149,54 @@ function MatchList({ id, events, movers }) {
   )
 }
 
-// One rubber inside a tie: order · discipline · side1 vs side2 · score.
+// Stacked player links: one name per line, each links to its player page.
+function SidePlayers({ players }) {
+  return (
+    <span className="rubber-players">
+      {players.map((p) => (
+        <Link key={p.player_id} to={`/players/${p.player_id}`} className="rubber-pname">
+          {p.name_display}
+        </Link>
+      ))}
+    </span>
+  )
+}
+
+// The score, linking to the match; the winning point of each game is bold.
+function GameScore({ r }) {
+  if (r.score_status && r.score_status !== 'Normal') {
+    return (
+      <Link to={`/matches/${r.match_id}`} className="rubber-score">
+        <span className="pill warn tiny">{r.score_status}</span>
+      </Link>
+    )
+  }
+  return (
+    <Link to={`/matches/${r.match_id}`} className="rubber-score">
+      {r.score.map(([a, b], i) => (
+        <span key={i} className="game">
+          <span className={a > b ? 'gp win' : 'gp'}>{a}</span>
+          <span className="gp-sep">-</span>
+          <span className={b > a ? 'gp win' : 'gp'}>{b}</span>
+        </span>
+      ))}
+    </Link>
+  )
+}
+
+// One rubber inside a tie: order · discipline · side1 · score · side2.
+// Winner is shown by bold + a subtle highlight (no check mark).
 function Rubber({ r }) {
-  const s1win = r.winner_side === 1
-  const s2win = r.winner_side === 2
   return (
     <div className="rubber">
       <span className="rubber-ord">{r.order}</span>
       <span className="rubber-disc">{r.discipline}</span>
-      <span className={`rubber-side r ${s1win ? 'win' : ''}`}>
-        {s1win && <span className="trophy">✓</span>}
-        <Link to={`/matches/${r.match_id}`} className="rubber-names">{names(r.side1)}</Link>
+      <span className={`rubber-side r ${r.winner_side === 1 ? 'win' : ''}`}>
+        <SidePlayers players={r.side1} />
       </span>
-      <span className="rubber-score">
-        {r.score_status !== 'Normal'
-          ? <span className="pill warn tiny">{r.score_status}</span>
-          : r.score.map((g, i) => <span key={i}>{g[0]}-{g[1]}{' '}</span>)}
-      </span>
-      <span className={`rubber-side l ${s2win ? 'win' : ''}`}>
-        {s2win && <span className="trophy">✓</span>}
-        <Link to={`/matches/${r.match_id}`} className="rubber-names">{names(r.side2)}</Link>
+      <GameScore r={r} />
+      <span className={`rubber-side l ${r.winner_side === 2 ? 'win' : ''}`}>
+        <SidePlayers players={r.side2} />
       </span>
     </div>
   )
