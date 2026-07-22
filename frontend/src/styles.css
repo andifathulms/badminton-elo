@@ -680,12 +680,16 @@ tr.clickable .link { color: var(--brand); font-weight: 600; }
 .matchtable .side-cell { width: 40%; }
 .pill.warn.tiny { font-size: 10px; padding: 1px 6px; margin-left: 6px; }
 .mside { display: flex; align-items: center; gap: 7px; }
-.mside.r { justify-content: flex-end; text-align: right; }
+.mside.r { justify-content: flex-end; }
 .mside.l { justify-content: flex-start; }
-.mside .mnames { font-weight: 600; }
-.mside.win .mnames { font-weight: 800; }
-.mside .trophy { color: var(--pos); font-weight: 900; font-size: 12px; order: -1; }
-.mside.l .trophy { order: 0; }
+.mside-players { display: flex; flex-direction: column; gap: 1px; min-width: 0;
+  padding: 2px 8px; border-radius: 7px; }
+.mside.r .mside-players { align-items: flex-end; text-align: right; }
+.mname { font-weight: 600; color: var(--ink-2); white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; max-width: 100%; }
+.mname:hover { color: var(--brand); }
+.mside.win .mside-players { background: rgba(16, 138, 78, .12); }
+.mside.win .mname { font-weight: 800; color: var(--ink); }
 .elo-chip { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .elo-chip.pos { color: var(--pos); }
 .elo-chip.neg { color: var(--neg); }
@@ -766,13 +770,15 @@ tr.clickable .link { color: var(--brand); font-weight: 600; }
 /* Winner: bold names + a subtle tint (no check mark). */
 .rubber-side.win .rubber-players { background: rgba(16, 138, 78, .12); }
 .rubber-side.win .rubber-pname { font-weight: 800; color: var(--ink); }
-.rubber-score { display: inline-flex; gap: 8px; align-items: center; justify-content: center;
+/* Clickable score (shared by team-cup rubbers and the match table). The
+   winning point of each game is bold; the whole score links to the match. */
+.score-link { display: inline-flex; gap: 8px; align-items: center; justify-content: center;
   font-variant-numeric: tabular-nums; white-space: nowrap; }
-.rubber-score:hover { opacity: .75; }
-.rubber-score .game { font-size: 12.5px; }
-.rubber-score .gp { color: var(--muted); font-weight: 600; }
-.rubber-score .gp.win { color: var(--ink); font-weight: 800; }
-.rubber-score .gp-sep { color: var(--faint); margin: 0 1px; }
+.score-link:hover { opacity: .7; }
+.score-link .game { font-size: 12.5px; }
+.score-link .gp { color: var(--muted); font-weight: 600; }
+.score-link .gp.win { color: var(--ink); font-weight: 800; }
+.score-link .gp-sep { color: var(--faint); margin: 0 1px; }
 
 .matchlist td { vertical-align: middle; }
 .score-cell { font-variant-numeric: tabular-nums; white-space: nowrap;

@@ -5,7 +5,6 @@ import { useAsync } from '../useAsync.js'
 import { flag } from '../flags.js'
 
 const eventLabel = (code) => EVENTS.find((e) => e.code === code)?.label || code
-const names = (players) => players.map((p) => p.name_display).join(' / ') || '—'
 const shortTier = (s) => (s || '').replace('HSBC BWF World Tour ', '').replace('BWF ', '')
 
 const ROUND_LABEL = { QF: 'Quarter-finals', SF: 'Semi-finals', F: 'Final' }
@@ -26,13 +25,19 @@ function EloTag({ e }) {
   )
 }
 
-// One side of a match: flag + names, winner marked, with its ELO change.
+// One side of a match: flag + player links (stacked for pairs), winner shown by
+// bold + a subtle tint, with the side's ELO change.
 function Side({ players, winner, elo, align }) {
   return (
     <div className={`mside ${align} ${winner ? 'win' : ''}`}>
-      {winner && <span className="trophy">✓</span>}
       <span className="fl">{flag(players[0]?.country_code)}</span>
-      <span className="mnames">{names(players)}</span>
+      <span className="mside-players">
+        {players.map((p) => (
+          <Link key={p.player_id} to={`/players/${p.player_id}`} className="mname">
+            {p.name_display}
+          </Link>
+        ))}
+      </span>
       <EloTag e={elo} />
     </div>
   )
@@ -128,16 +133,12 @@ function MatchList({ id, events, movers }) {
                           elo={te['1']} align="r" />
                   </td>
                   <td className="score-cell mid">
-                    {m.score.map((g, i) => (
-                      <span key={i}>{g[0]}-{g[1]}{' '}</span>
-                    ))}
+                    <GameScore matchId={m.match_id} score={m.score}
+                               status={m.score_status} />
                   </td>
                   <td className="side-cell">
                     <Side players={m.side2} winner={m.winner_side === 2}
                           elo={te['2']} align="l" />
-                  </td>
-                  <td className="num">
-                    <Link to={`/matches/${m.match_id}`} className="muted small">view →</Link>
                   </td>
                 </tr>
               )
@@ -163,24 +164,18 @@ function SidePlayers({ players }) {
 }
 
 // The score, linking to the match; the winning point of each game is bold.
-function GameScore({ r }) {
-  if (r.score_status && r.score_status !== 'Normal') {
-    return (
-      <Link to={`/matches/${r.match_id}`} className="rubber-score">
-        <span className="pill warn tiny">{r.score_status}</span>
-      </Link>
-    )
-  }
-  return (
-    <Link to={`/matches/${r.match_id}`} className="rubber-score">
-      {r.score.map(([a, b], i) => (
+function GameScore({ matchId, score, status }) {
+  const inner = status && status !== 'Normal'
+    ? <span className="pill warn tiny">{status}</span>
+    : (score || []).map(([a, b], i) => (
         <span key={i} className="game">
           <span className={a > b ? 'gp win' : 'gp'}>{a}</span>
           <span className="gp-sep">-</span>
           <span className={b > a ? 'gp win' : 'gp'}>{b}</span>
         </span>
-      ))}
-    </Link>
+      ))
+  return (
+    <Link to={`/matches/${matchId}`} className="score-link">{inner}</Link>
   )
 }
 
@@ -194,7 +189,7 @@ function Rubber({ r }) {
       <span className={`rubber-side r ${r.winner_side === 1 ? 'win' : ''}`}>
         <SidePlayers players={r.side1} />
       </span>
-      <GameScore r={r} />
+      <GameScore matchId={r.match_id} score={r.score} status={r.score_status} />
       <span className={`rubber-side l ${r.winner_side === 2 ? 'win' : ''}`}>
         <SidePlayers players={r.side2} />
       </span>
