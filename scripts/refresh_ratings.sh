@@ -27,6 +27,9 @@ PY
   # Drop duplicate match rows (same contest under two match_ids) before rating,
   # so the served snapshot never double-counts even if the raw db still has them.
   .venv/bin/python manage.py dedup_matches --apply >/dev/null 2>&1
+  # Correct team-cup rubber disciplines (scraper labels them by position) so
+  # ratings land in the right bucket — self-heals future cup scrapes too.
+  .venv/bin/python manage.py fix_cup_events >/dev/null 2>&1
   # Full rebuild (~70s) so out-of-order historical periods (Wikipedia 1983-2006
   # backfill) integrate correctly, not just newest-appended matches.
   .venv/bin/python manage.py rate --rebuild >/dev/null 2>&1 || { unset SQLITE_PATH; return 1; }
