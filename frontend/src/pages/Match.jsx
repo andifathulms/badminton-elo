@@ -51,41 +51,37 @@ export default function Match() {
       </header>
 
       <div className="scorecard">
-        <div className={`team ${won(1)}`}>
-          <div className="players">
+        <div className={`sc-team r ${won(1)}`}>
+          {won(1) && <span className="sc-badge">✓ Won</span>}
+          <div className="sc-players">
             {side(1).map((p) => (
-              <Link key={p.player_id} to={`/players/${p.player_id}`}>
-                {p.name_display} <span className="country">{p.country_code}</span>
+              <Link key={p.player_id} to={`/players/${p.player_id}`} className="sc-pname">
+                {p.name_display}<span className="country">{p.country_code}</span>
               </Link>
             ))}
           </div>
           {teamEloTag(1)}
         </div>
 
-        <table className="games">
-          <tbody>
-            <tr>
-              {m.games.map((g) => (
-                <td key={g.game_no} className={g.side1_points > g.side2_points ? 'hi' : ''}>
-                  {g.side1_points}
-                </td>
-              ))}
-            </tr>
-            <tr>
-              {m.games.map((g) => (
-                <td key={g.game_no} className={g.side2_points > g.side1_points ? 'hi' : ''}>
-                  {g.side2_points}
-                </td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
+        <div className="sc-games">
+          {m.games.map((g) => (
+            <div key={g.game_no} className="sc-game">
+              <span className={`sc-pts ${g.side1_points > g.side2_points ? 'win' : ''}`}>
+                {g.side1_points}
+              </span>
+              <span className={`sc-pts ${g.side2_points > g.side1_points ? 'win' : ''}`}>
+                {g.side2_points}
+              </span>
+            </div>
+          ))}
+        </div>
 
-        <div className={`team ${won(2)}`}>
-          <div className="players">
+        <div className={`sc-team l ${won(2)}`}>
+          {won(2) && <span className="sc-badge">✓ Won</span>}
+          <div className="sc-players">
             {side(2).map((p) => (
-              <Link key={p.player_id} to={`/players/${p.player_id}`}>
-                {p.name_display} <span className="country">{p.country_code}</span>
+              <Link key={p.player_id} to={`/players/${p.player_id}`} className="sc-pname">
+                {p.name_display}<span className="country">{p.country_code}</span>
               </Link>
             ))}
           </div>

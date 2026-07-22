@@ -114,25 +114,23 @@ function GameChart({ g, index, big }) {
 
 function ScoreRace({ progression }) {
   const games = (progression || []).filter((g) => g && g.length)
-  const [tab, setTab] = useState(0) // 0 = overview, 1..n = that game
+  const [tab, setTab] = useState(0) // selected game index (defaults to Game 1)
   if (!games.length) return null
+  const game = games[Math.min(tab, games.length - 1)]
 
   return (
     <div className="chart-wrap">
-      <div className="tabs mini-tabs">
-        <button className={`tab ${tab === 0 ? 'active' : ''}`} onClick={() => setTab(0)}>
-          All games
-        </button>
-        {games.map((_, i) => (
-          <button key={i} className={`tab ${tab === i + 1 ? 'active' : ''}`}
-                  onClick={() => setTab(i + 1)}>
-            Game {i + 1}
-          </button>
-        ))}
-      </div>
-      {tab === 0
-        ? games.map((g, i) => <GameChart key={i} g={g} index={i} big={false} />)
-        : <GameChart key={tab} g={games[tab - 1]} index={tab - 1} big />}
+      {games.length > 1 && (
+        <div className="tabs mini-tabs">
+          {games.map((_, i) => (
+            <button key={i} className={`tab ${tab === i ? 'active' : ''}`}
+                    onClick={() => setTab(i)}>
+              Game {i + 1}
+            </button>
+          ))}
+        </div>
+      )}
+      <GameChart key={tab} g={game} index={Math.min(tab, games.length - 1)} big />
       <p className="muted small">
         Each side's running score, rally by rally (
         <b className="race-key s1">side&nbsp;1</b> vs{' '}
