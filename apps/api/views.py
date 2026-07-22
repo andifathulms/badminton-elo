@@ -78,21 +78,11 @@ def _side_country(players):
 
 
 def _rubber_discipline(s1, s2):
-    """True discipline of a rubber inferred from the lineup (player count) and
-    gender — the stored `event` on team-cup rubbers is unreliable (assigned by
-    position, not who actually played). Falls back to S/D when gender is unknown."""
-    if max(len(s1), len(s2)) == 1:
-        g = (s1[0].gender if s1 else "") or (s2[0].gender if s2 else "")
-        return {"M": "MS", "F": "WS"}.get(g, "S")
-    side = s1 if len(s1) == 2 else s2
-    gs = [p.gender for p in side if p.gender]
-    if "M" in gs and "F" in gs:
-        return "XD"
-    if gs and all(x == "M" for x in gs):
-        return "MD"
-    if gs and all(x == "F" for x in gs):
-        return "WD"
-    return "D"
+    """Discipline of a team-cup rubber for display: the gender-inferred value,
+    or a bare S/D from player count when gender is unknown."""
+    from apps.ingest.cup_events import rubber_discipline
+
+    return rubber_discipline(s1, s2) or ("S" if max(len(s1), len(s2)) == 1 else "D")
 
 # Full tournament prestige order (top = most prestigious). Multi-sport events and
 # team cups sit above the BWF World Tour, then development tiers. Anything
