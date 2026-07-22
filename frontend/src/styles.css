@@ -673,23 +673,37 @@ tr.clickable .link { color: var(--brand); font-weight: 600; }
 .mover-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; }
 
-/* Tournament: match table with two mirrored sides */
-.matchtable td { vertical-align: middle; }
-.matchtable .rnd { color: var(--muted); font-size: 12px; font-weight: 600;
-  white-space: nowrap; width: 1%; }
-.matchtable .side-cell { width: 40%; }
 .pill.warn.tiny { font-size: 10px; padding: 1px 6px; margin-left: 6px; }
-.mside { display: flex; align-items: center; gap: 7px; }
-.mside.r { justify-content: flex-end; }
-.mside.l { justify-content: flex-start; }
-.mside-players { display: flex; flex-direction: column; gap: 1px; min-width: 0;
+
+/* Tournament match list — a rigid, mirror-symmetric grid so every row lines up
+   (score always centred) whether or not a player has a flag. Columns:
+   round · name1 · flag1 · elo1 · score · elo2 · flag2 · name2. */
+.mlist { background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; }
+.mrow { display: grid; align-items: center; gap: 4px 10px; padding: 9px 16px;
+  border-bottom: 1px solid var(--line);
+  grid-template-columns:
+    72px minmax(0, 1fr) 22px 52px minmax(150px, auto) 52px 22px minmax(0, 1fr); }
+.mrow:last-child { border-bottom: none; }
+.mrow:hover { background: var(--surface-hover); }
+.mrow-round { color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
+
+.mrow-name { display: flex; flex-direction: column; gap: 1px; min-width: 0;
   padding: 2px 8px; border-radius: 7px; }
-.mside.r .mside-players { align-items: flex-end; text-align: right; }
+.mrow-name.s1 { align-items: flex-end; text-align: right; }
+.mrow-name.s2 { align-items: flex-start; text-align: left; }
+.mrow-name.win { background: rgba(16, 138, 78, .12); }
+.mrow-name.win .mname { font-weight: 800; color: var(--ink); }
 .mname { font-weight: 600; color: var(--ink-2); white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; max-width: 100%; }
 .mname:hover { color: var(--brand); }
-.mside.win .mside-players { background: rgba(16, 138, 78, .12); }
-.mside.win .mname { font-weight: 800; color: var(--ink); }
+
+.mrow-flag { text-align: center; }
+.mrow-elo { font-variant-numeric: tabular-nums; }
+.mrow-elo.s1 { text-align: right; }
+.mrow-elo.s2 { text-align: left; }
+.mrow-score { display: flex; justify-content: center; }
+
 .elo-chip { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .elo-chip.pos { color: var(--pos); }
 .elo-chip.neg { color: var(--neg); }

@@ -25,22 +25,25 @@ function EloTag({ e }) {
   )
 }
 
-// One side of a match: flag + player links (stacked for pairs), winner shown by
-// bold + a subtle tint, with the side's ELO change.
-function Side({ players, winner, elo, align }) {
-  return (
-    <div className={`mside ${align} ${winner ? 'win' : ''}`}>
-      <span className="fl">{flag(players[0]?.country_code)}</span>
-      <span className="mside-players">
-        {players.map((p) => (
-          <Link key={p.player_id} to={`/players/${p.player_id}`} className="mname">
-            {p.name_display}
-          </Link>
-        ))}
-      </span>
-      <EloTag e={elo} />
-    </div>
+// One side of a match as three fixed grid cells (name · flag · elo), so rows
+// stay symmetric even when a player has no flag. Returns a fragment (no wrapper)
+// so the cells sit directly in the row grid; order mirrors on side 2.
+function Side({ players, winner, elo, side }) {
+  const cc = players[0]?.country_code
+  const name = (
+    <span className={`mrow-name s${side} ${winner ? 'win' : ''}`}>
+      {players.map((p) => (
+        <Link key={p.player_id} to={`/players/${p.player_id}`} className="mname">
+          {p.name_display}
+        </Link>
+      ))}
+    </span>
   )
+  const fl = <span className="mrow-flag">{cc ? flag(cc) : ''}</span>
+  const eloCell = <span className={`mrow-elo s${side}`}><EloTag e={elo} /></span>
+  return side === 1
+    ? <>{name}{fl}{eloCell}</>
+    : <>{eloCell}{fl}{name}</>
 }
 
 function Movers({ movers, event }) {
@@ -116,35 +119,29 @@ function MatchList({ id, events, movers }) {
       {loading && <p className="muted">Loading…</p>}
       {error && <p className="error">Could not load matches.</p>}
       {data && (
-        <table className="board compact matchtable">
-          <tbody>
-            {shown.map((m) => {
-              const te = m.team_elo || {}
-              return (
-                <tr key={m.match_id}>
-                  <td className="rnd">
-                    {m.round_name}
-                    {m.score_status !== 'Normal' && (
-                      <span className="pill warn tiny">{m.score_status}</span>
-                    )}
-                  </td>
-                  <td className="side-cell">
-                    <Side players={m.side1} winner={m.winner_side === 1}
-                          elo={te['1']} align="r" />
-                  </td>
-                  <td className="score-cell mid">
-                    <GameScore matchId={m.match_id} score={m.score}
-                               status={m.score_status} />
-                  </td>
-                  <td className="side-cell">
-                    <Side players={m.side2} winner={m.winner_side === 2}
-                          elo={te['2']} align="l" />
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        <div className="mlist">
+          {shown.map((m) => {
+            const te = m.team_elo || {}
+            return (
+              <div key={m.match_id} className="mrow">
+                <span className="mrow-round">
+                  {m.round_name}
+                  {m.score_status !== 'Normal' && (
+                    <span className="pill warn tiny">{m.score_status}</span>
+                  )}
+                </span>
+                <Side players={m.side1} winner={m.winner_side === 1}
+                      elo={te['1']} side={1} />
+                <span className="mrow-score">
+                  <GameScore matchId={m.match_id} score={m.score}
+                             status={m.score_status} />
+                </span>
+                <Side players={m.side2} winner={m.winner_side === 2}
+                      elo={te['2']} side={2} />
+              </div>
+            )
+          })}
+        </div>
       )}
     </>
   )
