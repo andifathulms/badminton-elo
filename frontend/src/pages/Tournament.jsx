@@ -8,6 +8,9 @@ const eventLabel = (code) => EVENTS.find((e) => e.code === code)?.label || code
 const names = (players) => players.map((p) => p.name_display).join(' / ') || '—'
 const shortTier = (s) => (s || '').replace('HSBC BWF World Tour ', '').replace('BWF ', '')
 
+const ROUND_LABEL = { QF: 'Quarter-finals', SF: 'Semi-finals', F: 'Final' }
+const roundLabel = (r) => ROUND_LABEL[r] || r
+
 function isOngoing(t) {
   if (!t.start_date) return false
   const today = new Date().toISOString().slice(0, 10)
@@ -146,6 +149,96 @@ function MatchList({ id, events, movers }) {
   )
 }
 
+// One rubber inside a tie: order · discipline · side1 vs side2 · score.
+function Rubber({ r }) {
+  const s1win = r.winner_side === 1
+  const s2win = r.winner_side === 2
+  return (
+    <div className="rubber">
+      <span className="rubber-ord">{r.order}</span>
+      <span className="rubber-disc">{r.discipline}</span>
+      <span className={`rubber-side r ${s1win ? 'win' : ''}`}>
+        {s1win && <span className="trophy">✓</span>}
+        <Link to={`/matches/${r.match_id}`} className="rubber-names">{names(r.side1)}</Link>
+      </span>
+      <span className="rubber-score">
+        {r.score_status !== 'Normal'
+          ? <span className="pill warn tiny">{r.score_status}</span>
+          : r.score.map((g, i) => <span key={i}>{g[0]}-{g[1]}{' '}</span>)}
+      </span>
+      <span className={`rubber-side l ${s2win ? 'win' : ''}`}>
+        {s2win && <span className="trophy">✓</span>}
+        <Link to={`/matches/${r.match_id}`} className="rubber-names">{names(r.side2)}</Link>
+      </span>
+    </div>
+  )
+}
+
+// One nation-vs-nation tie: header (country score) + its rubbers.
+function Tie({ tie }) {
+  const c1win = tie.winner_country === tie.country1
+  const c2win = tie.winner_country === tie.country2
+  return (
+    <div className="tie-card">
+      <div className="tie-head">
+        <span className={`tie-team r ${c1win ? 'win' : ''}`}>
+          <span className="fl">{flag(tie.country1)}</span>{tie.country1}
+        </span>
+        <span className="tie-score">{tie.score1}<span className="dash">–</span>{tie.score2}</span>
+        <span className={`tie-team l ${c2win ? 'win' : ''}`}>
+          {tie.country2}<span className="fl">{flag(tie.country2)}</span>
+        </span>
+      </div>
+      <div className="rubbers">
+        {tie.rubbers.map((r) => <Rubber key={r.match_id} r={r} />)}
+      </div>
+    </div>
+  )
+}
+
+function TeamCup({ id }) {
+  const { data, error, loading } = useAsync(() => api.tournamentTies(id), [id])
+  if (loading) return <p className="muted">Loading ties…</p>
+  if (error) return <p className="error">Could not load ties: {error.message}</p>
+
+  const groups = data.rounds.filter((r) => /^group/i.test(r.round_name))
+  const knockout = data.rounds.filter((r) => !/^group/i.test(r.round_name))
+
+  return (
+    <div className="teamcup">
+      {data.champion && (
+        <div className="cup-champion">
+          <span className="cup-trophy">🏆</span>
+          <span className="fl big">{flag(data.champion)}</span>
+          <span className="cup-champion-name">{data.champion}</span>
+          <span className="cup-champion-label">Champions</span>
+        </div>
+      )}
+
+      {groups.length > 0 && (
+        <>
+          <h2>Group Stage</h2>
+          <div className="group-grid">
+            {groups.map((rd) => (
+              <section key={rd.round_name} className="group-block">
+                <h3>{rd.round_name}</h3>
+                {rd.ties.map((tie, i) => <Tie key={i} tie={tie} />)}
+              </section>
+            ))}
+          </div>
+        </>
+      )}
+
+      {knockout.map((rd) => (
+        <section key={rd.round_name} className="ko-block">
+          <h2>{roundLabel(rd.round_name)}</h2>
+          {rd.ties.map((tie, i) => <Tie key={i} tie={tie} />)}
+        </section>
+      ))}
+    </div>
+  )
+}
+
 export default function Tournament() {
   const { id } = useParams()
   const { data: t, error, loading } = useAsync(() => api.tournament(id), [id])
@@ -172,34 +265,40 @@ export default function Tournament() {
         </div>
       </header>
 
-      {t.finals.length > 0 && (
+      {t.is_team_cup ? (
+        <TeamCup id={id} />
+      ) : (
         <>
-          <h2>🏆 Champions</h2>
-          <div className="champ-list">
-            {t.finals.map((f) => (
-              <div key={f.match_id} className="champ-row">
-                <span className="champ-ev">{eventLabel(f.event)}</span>
-                <span className="champ-who">
-                  {f.champions.map((p, i) => (
-                    <span key={p.player_id}>
-                      {i > 0 ? ' / ' : ''}
-                      <span className="fl">{flag(p.country_code)}</span>{' '}
-                      <Link to={`/players/${p.player_id}`}>{p.name_display}</Link>
+          {t.finals.length > 0 && (
+            <>
+              <h2>🏆 Champions</h2>
+              <div className="champ-list">
+                {t.finals.map((f) => (
+                  <div key={f.match_id} className="champ-row">
+                    <span className="champ-ev">{eventLabel(f.event)}</span>
+                    <span className="champ-who">
+                      {f.champions.map((p, i) => (
+                        <span key={p.player_id}>
+                          {i > 0 ? ' / ' : ''}
+                          <span className="fl">{flag(p.country_code)}</span>{' '}
+                          <Link to={`/players/${p.player_id}`}>{p.name_display}</Link>
+                        </span>
+                      ))}
+                      {f.champions.length === 0 && <span className="muted">—</span>}
                     </span>
-                  ))}
-                  {f.champions.length === 0 && <span className="muted">—</span>}
-                </span>
-                <Link to={`/matches/${f.match_id}`} className="muted small">final →</Link>
+                    <Link to={`/matches/${f.match_id}`} className="muted small">final →</Link>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </>
-      )}
+            </>
+          )}
 
-      {t.events?.length > 0 && (
-        <>
-          <h2>Matches</h2>
-          <MatchList id={id} events={t.events} movers={t.movers} />
+          {t.events?.length > 0 && (
+            <>
+              <h2>Matches</h2>
+              <MatchList id={id} events={t.events} movers={t.movers} />
+            </>
+          )}
         </>
       )}
     </div>

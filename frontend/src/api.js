@@ -23,6 +23,7 @@ export const api = {
   pairDetail: (event, p1, p2) => get(`/pairs/detail?${qs({ event, p1, p2 })}`),
   tournamentMatches: (id, { event, limit = 100, offset = 0 } = {}) =>
     get(`/tournaments/${id}/matches?${qs({ event, limit, offset })}`),
+  tournamentTies: (id) => get(`/tournaments/${id}/ties`),
   analytics: (kind, { event, minMatches = 2, limit = 40, includeNew } = {}) =>
     get(`/analytics/${kind}?${qs({ event, min_matches: minMatches, limit, include_new: includeNew ? 1 : '' })}`),
   performancePath: (player, event, tournament) =>
