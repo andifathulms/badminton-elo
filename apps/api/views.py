@@ -761,21 +761,22 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
             ds = [d[2] for d in ds if d]
             return round(sum(ds) / len(ds), 1) if ds else None
 
-        def rubber(m, country1):
-            s1 = [l.player for l in m.lineup.all() if l.side == 1]
-            s2 = [l.player for l in m.lineup.all() if l.side == 2]
+        def build_rubber(m, s1, s2, c1, c2, country1, country2, order):
             games = [
                 [g.side1_points, g.side2_points]
                 for g in sorted(m.games.all(), key=lambda g: g.game_no)
             ]
             win = m.winner_side
-            # Orient so country1's players are side1.
-            if _side_country(s1) != country1 and _side_country(s2) == country1:
+            # Orient so country1's players read as side1. Works even when a side's
+            # country is unknown, by matching against the tie's two nations.
+            swap = (c1 is not None and c1 == country2) or (c2 is not None and c2 == country1)
+            if swap:
                 s1, s2 = s2, s1
                 games = [[b, a] for a, b in games]
                 win = {1: 2, 2: 1}.get(win)
             return {
                 "match_id": m.match_id,
+                "order": order,
                 "discipline": _rubber_discipline(s1, s2),
                 "side1": PlayerBriefSerializer(s1, many=True).data,
                 "side2": PlayerBriefSerializer(s2, many=True).data,
@@ -789,34 +790,47 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
         out_rounds = []
         champion = None
         for (rorder, rname), ms in sorted(rounds.items()):
-            ties = []
-            cur = None
-            cur_key = None
+            # Group consecutive rubbers into ties. A tie has at most two nations;
+            # a rubber joins the current tie as long as that stays true (so a
+            # rubber whose opponent has no country_code doesn't split the tie).
+            raw = []
             for m in ms:
                 s1 = [l.player for l in m.lineup.all() if l.side == 1]
                 s2 = [l.player for l in m.lineup.all() if l.side == 2]
                 c1, c2 = _side_country(s1), _side_country(s2)
-                key = frozenset((c1, c2))
-                if cur is None or key != cur_key:
-                    # country1 = the side-1 country of the tie's first rubber.
-                    cur = {"country1": c1, "country2": c2,
-                           "score1": 0, "score2": 0, "rubbers": []}
-                    ties.append(cur)
-                    cur_key = key
-                r = rubber(m, cur["country1"])
-                r["order"] = len(cur["rubbers"]) + 1
-                cur["rubbers"].append(r)
-                if r["winner_side"] == 1:
-                    cur["score1"] += 1
-                elif r["winner_side"] == 2:
-                    cur["score2"] += 1
-            for i, tie in enumerate(ties, 1):
-                tie["order"] = i
-                tie["winner_country"] = (
-                    tie["country1"] if tie["score1"] > tie["score2"]
-                    else tie["country2"] if tie["score2"] > tie["score1"]
-                    else None
-                )
+                known = {c for c in (c1, c2) if c}
+                cur = raw[-1] if raw else None
+                if cur is not None and len(cur["countries"] | known) <= 2:
+                    cur["countries"] |= known
+                else:
+                    cur = {"countries": set(known), "rubbers": []}
+                    raw.append(cur)
+                cur["rubbers"].append((m, s1, s2, c1, c2))
+
+            ties = []
+            for i, rt in enumerate(raw, 1):
+                cs = rt["countries"]
+                first = rt["rubbers"][0]
+                country1 = (first[3] if first[3] in cs
+                            else first[4] if first[4] in cs
+                            else next(iter(cs), None))
+                country2 = next((c for c in cs if c != country1), None)
+                rubbers, s1c, s2c = [], 0, 0
+                for j, (m, s1, s2, c1, c2) in enumerate(rt["rubbers"], 1):
+                    r = build_rubber(m, s1, s2, c1, c2, country1, country2, j)
+                    rubbers.append(r)
+                    if r["winner_side"] == 1:
+                        s1c += 1
+                    elif r["winner_side"] == 2:
+                        s2c += 1
+                ties.append({
+                    "order": i,
+                    "country1": country1, "country2": country2,
+                    "score1": s1c, "score2": s2c,
+                    "winner_country": (country1 if s1c > s2c
+                                       else country2 if s2c > s1c else None),
+                    "rubbers": rubbers,
+                })
             out_rounds.append({
                 "round_name": rname, "round_order": rorder, "ties": ties,
             })
