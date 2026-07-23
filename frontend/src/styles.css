@@ -1206,3 +1206,13 @@ tr.expandable:hover { background: var(--surface-hover); }
 @media (max-width: 480px) {
   .search input { width: 116px; }
 }
+
+/* Responsive: tighten dense match/tie grids so they fit small phones */
+@media (max-width: 560px) {
+  .mrow { padding: 9px 10px; font-size: 13px;
+    grid-template-columns:
+      44px minmax(0, 1fr) 16px 38px minmax(92px, auto) 38px 16px minmax(0, 1fr); }
+  .tie-grid { grid-template-columns:
+      20px 30px minmax(0, 1fr) 40px minmax(96px, auto) 40px minmax(0, 1fr); }
+  .rubber, .tie-head { padding-left: 10px; padding-right: 10px; }
+}

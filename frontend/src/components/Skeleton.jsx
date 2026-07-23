@@ -24,6 +24,32 @@ export function SkeletonList({ rows = 8 }) {
   )
 }
 
+// A stand-in for a hero header (green banner) plus a block of content below.
+export function MatchSkeleton() {
+  return (
+    <div aria-hidden="true">
+      <div className="sk-hero"><Skeleton w="42%" h={24} style={{ background: 'rgba(255,255,255,.25)' }} /></div>
+      <div className="sk-panel" style={{ marginTop: 18 }}>
+        <Skeleton w="100%" h={90} r={12} />
+      </div>
+      <SkeletonList rows={4} />
+    </div>
+  )
+}
+
+// A stand-in for the tournament detail page (hero + tabs + match rows).
+export function TournamentSkeleton() {
+  return (
+    <div aria-hidden="true">
+      <div className="sk-hero"><Skeleton w="52%" h={26} style={{ background: 'rgba(255,255,255,.25)' }} /></div>
+      <div style={{ display: 'flex', gap: 8, margin: '18px 0' }}>
+        {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} w={66} h={44} r={10} />)}
+      </div>
+      <SkeletonList rows={6} />
+    </div>
+  )
+}
+
 // A stand-in for the dashboard's reigning-#1 cards.
 export function SkeletonCards({ count = 5 }) {
   return (

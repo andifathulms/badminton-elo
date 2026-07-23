@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom'
 import { api, EVENTS } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import { flag } from '../flags.js'
+import { SkeletonList, TournamentSkeleton } from '../components/Skeleton.jsx'
+import { ErrorState } from '../components/Empty.jsx'
 
 const eventLabel = (code) => EVENTS.find((e) => e.code === code)?.label || code
 const shortTier = (s) => (s || '').replace('HSBC BWF World Tour ', '').replace('BWF ', '')
@@ -78,7 +80,7 @@ function Movers({ movers, event }) {
 function MatchList({ id, events, movers }) {
   const [event, setEvent] = useState(events[0]?.event || 'MS')
   const [round, setRound] = useState('All')
-  const { data, error, loading } = useAsync(
+  const { data, error, loading, reload } = useAsync(
     () => api.tournamentMatches(id, { event, limit: 300 }),
     [id, event],
   )
@@ -116,8 +118,8 @@ function MatchList({ id, events, movers }) {
           ))}
         </div>
       )}
-      {loading && <p className="muted">Loading…</p>}
-      {error && <p className="error">Could not load matches.</p>}
+      {loading && <SkeletonList rows={8} />}
+      {error && <ErrorState error={error} onRetry={reload} what="matches" />}
       {data && (
         <div className="mlist">
           {shown.map((m) => {
@@ -239,9 +241,9 @@ function Collapsible({ title, sub, defaultOpen = true, children }) {
 const tieCount = (n) => `${n} ${n === 1 ? 'tie' : 'ties'}`
 
 function TeamCup({ id }) {
-  const { data, error, loading } = useAsync(() => api.tournamentTies(id), [id])
-  if (loading) return <p className="muted">Loading ties…</p>
-  if (error) return <p className="error">Could not load ties: {error.message}</p>
+  const { data, error, loading, reload } = useAsync(() => api.tournamentTies(id), [id])
+  if (loading) return <SkeletonList rows={8} />
+  if (error) return <ErrorState error={error} onRetry={reload} what="the ties" />
 
   const groups = data.rounds.filter((r) => /^group/i.test(r.round_name))
   const knockout = data.rounds.filter((r) => !/^group/i.test(r.round_name))
@@ -283,10 +285,10 @@ function TeamCup({ id }) {
 
 export default function Tournament() {
   const { id } = useParams()
-  const { data: t, error, loading } = useAsync(() => api.tournament(id), [id])
+  const { data: t, error, loading, reload } = useAsync(() => api.tournament(id), [id])
 
-  if (loading) return <p className="muted">Loading…</p>
-  if (error) return <p className="error">Could not load tournament: {error.message}</p>
+  if (loading) return <TournamentSkeleton />
+  if (error) return <ErrorState error={error} onRetry={reload} what="this tournament" />
 
   return (
     <div>

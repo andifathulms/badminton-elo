@@ -3,13 +3,15 @@ import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import { flag } from '../flags.js'
 import MatchStats from '../components/MatchStats.jsx'
+import { ErrorState } from '../components/Empty.jsx'
+import { MatchSkeleton } from '../components/Skeleton.jsx'
 
 export default function Match() {
   const { id } = useParams()
-  const { data: m, error, loading } = useAsync(() => api.match(id), [id])
+  const { data: m, error, loading, reload } = useAsync(() => api.match(id), [id])
 
-  if (loading) return <p className="muted">Loading…</p>
-  if (error) return <p className="error">Could not load match: {error.message}</p>
+  if (loading) return <MatchSkeleton />
+  if (error) return <ErrorState error={error} onRetry={reload} what="this match" />
 
   const side = (n) => m.lineup.filter((l) => l.side === n).map((l) => l.player)
   const won = (n) => (m.winner_side === n ? 'winner' : '')
