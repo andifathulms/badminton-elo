@@ -369,67 +369,91 @@ class PairDetailView(APIView):
 
 
 class H2HView(APIView):
-    """GET /api/h2h?event=&p1=&p2= — a head-to-head matchup between two players
-    in one discipline: each side's current rating, a Glicko-2 win probability,
-    and every past meeting (they were on OPPOSITE sides) with the running record.
+    """GET /api/h2h?event=&s1=&s2= — a head-to-head matchup in one discipline.
 
-    Works for any discipline — the two players' individual (player, event)
-    ratings drive the prediction, so singles is the natural case but a mixed or
-    doubles pair of rivals compares their personal ratings too.
+    Each side is 1 player (singles) or a pair (doubles), given as a comma list of
+    ids: `s1=57945` or `s1=52749,54066`. Returns each side's combined rating, a
+    Glicko-2 win probability (team = mean mu, RMS rd — same blend as everywhere),
+    and every past meeting where those exact players faced each other, with the
+    running record. `p1`/`p2` are still accepted as single-player aliases so the
+    profile deep-link keeps working.
     """
 
     def get(self, request):
-        from .predict import win_probability
+        from .predict import team_rating, win_probability
 
         event = request.query_params.get("event")
         if event not in EVENTS:
             raise ValidationError({"event": f"required; one of {', '.join(EVENTS)}"})
-        try:
-            p1 = int(request.query_params["p1"])
-            p2 = int(request.query_params["p2"])
-        except (KeyError, ValueError):
-            raise ValidationError({"detail": "event, p1, p2 required"})
-        if p1 == p2:
-            raise ValidationError({"detail": "p1 and p2 must differ"})
 
-        players = {p.player_id: p for p in Player.objects.filter(player_id__in=(p1, p2))}
-        if p1 not in players or p2 not in players:
+        def parse_side(*keys):
+            for k in keys:
+                v = request.query_params.get(k)
+                if v:
+                    try:
+                        return [int(x) for x in v.split(",") if x != ""]
+                    except ValueError:
+                        raise ValidationError({k: "must be player id(s)"})
+            return []
+
+        s1_ids = parse_side("s1", "p1")
+        s2_ids = parse_side("s2", "p2")
+        cap = 2 if event in DOUBLES else 1
+        if not (1 <= len(s1_ids) <= cap) or not (1 <= len(s2_ids) <= cap):
+            raise ValidationError(
+                {"detail": f"each side needs 1{'-2' if cap == 2 else ''} player(s) for {event}"}
+            )
+        if set(s1_ids) & set(s2_ids):
+            raise ValidationError({"detail": "a player can't be on both sides"})
+
+        all_ids = s1_ids + s2_ids
+        players = {p.player_id: p for p in Player.objects.filter(player_id__in=all_ids)}
+        if any(pid not in players for pid in all_ids):
             raise ValidationError({"detail": "unknown player"})
         ratings = {
             r.player_id: r
-            for r in PlayerRating.objects.filter(player_id__in=(p1, p2), event=event)
+            for r in PlayerRating.objects.filter(player_id__in=all_ids, event=event)
         }
 
-        def rating_block(pid):
-            r = ratings.get(pid)
-            if not r:
-                return None
+        def side_block(ids):
+            members = [(ratings[i].mu, ratings[i].rd) for i in ids if i in ratings]
+            team = team_rating(members) if len(members) == len(ids) else None
             return {
-                "mu": round(r.mu, 1), "rd": round(r.rd, 1),
-                "rating": round(r.mu - 2.0 * r.rd, 1),
-                "peak_mu": round(r.peak_mu, 1) if r.peak_mu is not None else None,
-                "matches_played": r.matches_played,
+                "players": PlayerBriefSerializer(
+                    [players[i] for i in ids], many=True
+                ).data,
+                "rating": None if not team else {
+                    "mu": round(team[0], 1), "rd": round(team[1], 1),
+                    "rating": round(team[0] - 2.0 * team[1], 1),
+                },
             }
 
-        r1, r2 = rating_block(p1), rating_block(p2)
-        prob = (
-            round(win_probability(ratings[p1].mu, ratings[p1].rd,
-                                  ratings[p2].mu, ratings[p2].rd), 4)
-            if r1 and r2 else None
-        )
+        b1, b2 = side_block(s1_ids), side_block(s2_ids)
+        prob = None
+        if b1["rating"] and b2["rating"]:
+            t1 = team_rating([(ratings[i].mu, ratings[i].rd) for i in s1_ids])
+            t2 = team_rating([(ratings[i].mu, ratings[i].rd) for i in s2_ids])
+            prob = round(win_probability(t1[0], t1[1], t2[0], t2[1]), 4)
 
-        # Meetings: matches in this event where p1 and p2 were on opposite sides.
-        s1 = dict(
-            MatchPlayer.objects.filter(player_id=p1, match__event=event)
-            .values_list("match_id", "side")
-        )
-        s2 = dict(
-            MatchPlayer.objects.filter(player_id=p2, match__event=event)
-            .values_list("match_id", "side")
-        )
-        shared = [mid for mid, side in s1.items() if s2.get(mid) not in (None, side)]
+        # Meetings: matches in this event where ALL of s1 were on one side and ALL
+        # of s2 on the other (so the exact pairing actually faced off).
+        per_match: dict = defaultdict(dict)  # match_id -> {player_id: side}
+        for mid, pid, side in (
+            MatchPlayer.objects.filter(player_id__in=all_ids, match__event=event)
+            .values_list("match_id", "player_id", "side")
+        ):
+            per_match[mid][pid] = side
+        shared = {}
+        for mid, d in per_match.items():
+            if not all(p in d for p in all_ids):
+                continue
+            side1 = {d[p] for p in s1_ids}
+            side2 = {d[p] for p in s2_ids}
+            if len(side1) == 1 and len(side2) == 1 and side1 != side2:
+                shared[mid] = side1.pop()  # s1's side in this match
+
         matches = (
-            Match.objects.filter(match_id__in=shared)
+            Match.objects.filter(match_id__in=list(shared))
             .select_related("tournament")
             .prefetch_related("lineup__player", "games")
             .order_by("-match_time_utc", "-match_id")
@@ -437,18 +461,18 @@ class H2HView(APIView):
 
         meetings, w1, w2 = [], 0, 0
         for m in matches:
-            side1 = s1[m.match_id]  # p1's side in this match
+            side1 = shared[m.match_id]
             lineup = list(m.lineup.all())
             games = [
                 [g.side1_points, g.side2_points]
                 for g in sorted(m.games.all(), key=lambda g: g.game_no)
             ]
-            if side1 == 2:  # orient the score to p1's perspective
+            if side1 == 2:  # orient the score to side 1's perspective
                 games = [[b, a] for a, b in games]
-            p1_won = m.winner_side == side1
+            s1_won = m.winner_side == side1
             if m.winner_side in (1, 2):
-                w1 += p1_won
-                w2 += not p1_won
+                w1 += s1_won
+                w2 += not s1_won
             meetings.append({
                 "match_id": m.match_id,
                 "event": m.event,
@@ -456,23 +480,26 @@ class H2HView(APIView):
                 "match_time_utc": m.match_time_utc,
                 "tournament": TournamentBriefSerializer(m.tournament).data
                 if m.tournament_id else None,
-                "p1_won": p1_won if m.winner_side in (1, 2) else None,
+                "p1_won": s1_won if m.winner_side in (1, 2) else None,
                 "score": games,
                 "score_status": m.score_status,
+                # Any extra players on court not in the selected pairing (rare).
                 "p1_partners": PlayerBriefSerializer(
-                    [l.player for l in lineup if l.side == side1 and l.player_id != p1],
+                    [l.player for l in lineup
+                     if l.side == side1 and l.player_id not in s1_ids],
                     many=True,
                 ).data,
                 "p2_partners": PlayerBriefSerializer(
-                    [l.player for l in lineup if l.side != side1 and l.player_id != p2],
+                    [l.player for l in lineup
+                     if l.side != side1 and l.player_id not in s2_ids],
                     many=True,
                 ).data,
             })
 
         return Response({
             "event": event,
-            "player1": {**PlayerBriefSerializer(players[p1]).data, "rating": r1},
-            "player2": {**PlayerBriefSerializer(players[p2]).data, "rating": r2},
+            "side1": b1,
+            "side2": b2,
             "win_prob": prob,
             "record": {"p1_wins": w1, "p2_wins": w2, "meetings": len(meetings)},
             "meetings": meetings,

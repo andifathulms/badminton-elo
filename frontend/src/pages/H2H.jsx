@@ -6,9 +6,11 @@ import { flag } from '../flags.js'
 import Avatar from '../components/Avatar.jsx'
 import PageHeader from '../components/PageHeader.jsx'
 
-// Pick one player via the search endpoint. Shows the chosen player as a chip
-// with a clear button; typing again re-opens the results.
-function PlayerPicker({ label, value, onPick, onClear }) {
+const DOUBLES = new Set(['MD', 'WD', 'XD'])
+const capFor = (event) => (DOUBLES.has(event) ? 2 : 1)
+
+// Search box that calls onPick(player) when a result is chosen.
+function SearchPicker({ label, onPick }) {
   const [q, setQ] = useState('')
   const [results, setResults] = useState([])
   const box = useRef(null)
@@ -18,8 +20,7 @@ function PlayerPicker({ label, value, onPick, onClear }) {
     setQ(v)
     if (v.trim().length < 2) return setResults([])
     try {
-      const data = await api.searchPlayers(v.trim())
-      setResults(data.results)
+      setResults((await api.searchPlayers(v.trim())).results)
     } catch {
       setResults([])
     }
@@ -33,61 +34,58 @@ function PlayerPicker({ label, value, onPick, onClear }) {
     return () => document.removeEventListener('click', away)
   }, [])
 
-  if (value) {
-    return (
-      <div className="h2h-slot chosen">
-        <Avatar player={value} size="lg" />
-        <div className="h2h-slot-meta">
-          <div className="pname">{value.name_display}</div>
-          <div className="muted small">
-            <span className="fl">{flag(value.country_code)}</span> {value.country_code}
-          </div>
-        </div>
-        <button className="chip-x" onClick={onClear} aria-label="Clear">×</button>
-      </div>
-    )
-  }
-
   return (
-    <div className="h2h-slot" ref={box}>
-      <div className="search h2h-search">
-        <input
-          value={q}
-          onChange={onChange}
-          placeholder={label}
-          aria-label={label}
-        />
-        {results.length > 0 && (
-          <ul className="search-results">
-            {results.map((p) => (
-              <li key={p.player_id}>
-                <button
-                  onClick={() => {
-                    onPick(p)
-                    setQ('')
-                    setResults([])
-                  }}
-                >
-                  <Avatar player={p} size="sm" />
-                  <span className="pmeta">
-                    <span className="pname">{p.name_display}</span>{' '}
-                    <span className="flag">{p.country_code}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+    <div className="search h2h-search" ref={box}>
+      <input value={q} onChange={onChange} placeholder={label} aria-label={label} />
+      {results.length > 0 && (
+        <ul className="search-results">
+          {results.map((p) => (
+            <li key={p.player_id}>
+              <button onClick={() => { onPick(p); setQ(''); setResults([]) }}>
+                <Avatar player={p} size="sm" />
+                <span className="pmeta">
+                  <span className="pname">{p.name_display}</span>{' '}
+                  <span className="flag">{p.country_code}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
 
-function ProbBar({ prob, p1, p2 }) {
+// One side of the matchup: up to `cap` players, shown as chips with an add box.
+function SidePanel({ label, players, cap, onAdd, onRemove }) {
+  return (
+    <div className={`h2h-slot side${players.length ? ' chosen' : ''}`}>
+      {players.map((p) => (
+        <div className="h2h-chip" key={p.player_id}>
+          <Avatar player={p} size="md" />
+          <div className="h2h-slot-meta">
+            <div className="pname">{p.name_display}</div>
+            <div className="muted small"><span className="fl">{flag(p.country_code)}</span> {p.country_code}</div>
+          </div>
+          <button className="chip-x" onClick={() => onRemove(p.player_id)} aria-label="Remove">×</button>
+        </div>
+      ))}
+      {players.length < cap && (
+        <SearchPicker
+          label={players.length ? 'Add partner…' : label}
+          onPick={onAdd}
+        />
+      )}
+    </div>
+  )
+}
+
+function ProbBar({ prob, name1, name2 }) {
   if (prob == null) {
     return (
       <p className="muted">
-        No rating for one of these players in this discipline — pick another event.
+        One side isn’t fully rated in this discipline — the win probability needs a
+        current rating for every selected player.
       </p>
     )
   }
@@ -99,12 +97,12 @@ function ProbBar({ prob, p1, p2 }) {
       <div className="prob-heads">
         <div className={`prob-head ${fav ? 'fav' : ''}`}>
           <span className="prob-pct">{pct1}%</span>
-          <span className="muted small">{p1.name_display}</span>
+          <span className="muted small">{name1}</span>
         </div>
         <div className="prob-vs muted">win probability</div>
         <div className={`prob-head right ${!fav ? 'fav' : ''}`}>
           <span className="prob-pct">{pct2}%</span>
-          <span className="muted small">{p2.name_display}</span>
+          <span className="muted small">{name2}</span>
         </div>
       </div>
       <div className="prob-track">
@@ -115,27 +113,24 @@ function ProbBar({ prob, p1, p2 }) {
   )
 }
 
-function RatingLine({ r }) {
-  if (!r) return <span className="muted small">unrated</span>
-  return (
-    <span className="muted small">
-      {r.rating.toFixed(0)} <span className="muted">· mu {r.mu.toFixed(0)} · {r.matches_played} matches</span>
-    </span>
-  )
-}
+const sideName = (players) => players.map((p) => p.name_display).join(' / ')
 
-function Matchup({ p1, p2, event }) {
+function Matchup({ event, side1, side2 }) {
+  const ids1 = side1.map((p) => p.player_id)
+  const ids2 = side2.map((p) => p.player_id)
   const { data, error, loading } = useAsync(
-    () => api.h2h(event, p1.player_id, p2.player_id),
-    [event, p1.player_id, p2.player_id],
+    () => api.h2h(event, ids1, ids2),
+    [event, ids1.join(','), ids2.join(',')],
   )
   if (loading) return <p className="muted">Loading matchup…</p>
   if (error) return <p className="error">Could not load: {error.message}</p>
 
   const rec = data.record
+  const n1 = sideName(side1)
+  const n2 = sideName(side2)
   return (
     <div className="h2h-result">
-      <ProbBar prob={data.win_prob} p1={p1} p2={p2} />
+      <ProbBar prob={data.win_prob} name1={n1} name2={n2} />
 
       <div className="statgrid h2h-stats">
         <div className="statcard">
@@ -144,20 +139,28 @@ function Matchup({ p1, p2, event }) {
           <div className="sub">{rec.meetings} meeting{rec.meetings === 1 ? '' : 's'}</div>
         </div>
         <div className="statcard">
-          <div className="k">{p1.name_display}</div>
-          <div className="v">{data.player1.rating ? data.player1.rating.rating.toFixed(0) : '—'}</div>
-          <div className="sub"><RatingLine r={data.player1.rating} /></div>
+          <div className="k">{n1}</div>
+          <div className="v">{data.side1.rating ? data.side1.rating.rating.toFixed(0) : '—'}</div>
+          <div className="sub muted small">
+            {data.side1.rating ? `mu ${data.side1.rating.mu.toFixed(0)}` : 'unrated'}
+          </div>
         </div>
         <div className="statcard">
-          <div className="k">{p2.name_display}</div>
-          <div className="v">{data.player2.rating ? data.player2.rating.rating.toFixed(0) : '—'}</div>
-          <div className="sub"><RatingLine r={data.player2.rating} /></div>
+          <div className="k">{n2}</div>
+          <div className="v">{data.side2.rating ? data.side2.rating.rating.toFixed(0) : '—'}</div>
+          <div className="sub muted small">
+            {data.side2.rating ? `mu ${data.side2.rating.mu.toFixed(0)}` : 'unrated'}
+          </div>
         </div>
       </div>
 
       <h2>Past meetings</h2>
       {rec.meetings === 0 ? (
-        <p className="muted">These two have never met in {event}.</p>
+        <p className="muted">
+          {DOUBLES.has(event)
+            ? 'This exact pairing has never met in ' + event + '.'
+            : 'These two have never met in ' + event + '.'}
+        </p>
       ) : (
         <table className="board">
           <thead>
@@ -178,9 +181,7 @@ function Matchup({ p1, p2, event }) {
                 </td>
                 <td className="muted small">
                   {m.tournament ? (
-                    <Link to={`/tournaments/${m.tournament.tournament_id}`}>
-                      {m.tournament.name}
-                    </Link>
+                    <Link to={`/tournaments/${m.tournament.tournament_id}`}>{m.tournament.name}</Link>
                   ) : '—'}
                 </td>
                 <td className="muted small">{m.round_name}</td>
@@ -188,9 +189,7 @@ function Matchup({ p1, p2, event }) {
                   {m.p1_won == null ? (
                     <span className="muted small">{m.score_status}</span>
                   ) : (
-                    <span className={`wl ${m.p1_won ? 'w' : 'l'}`}>
-                      {m.p1_won ? 'W' : 'L'}
-                    </span>
+                    <span className={`wl ${m.p1_won ? 'w' : 'l'}`}>{m.p1_won ? 'W' : 'L'}</span>
                   )}
                 </td>
                 <td className="score-cell">
@@ -211,37 +210,51 @@ function Matchup({ p1, p2, event }) {
 
 export default function H2H() {
   const [params] = useSearchParams()
-  const [p1, setP1] = useState(null)
-  const [p2, setP2] = useState(null)
+  const [side1, setSide1] = useState([])
+  const [side2, setSide2] = useState([])
   const [event, setEvent] = useState(
     EVENTS.some((e) => e.code === params.get('event')) ? params.get('event') : 'MS',
   )
+  const cap = capFor(event)
 
-  // Deep link: /h2h?p1=<id>&p2=<id>&event=<E> (e.g. from a player profile).
-  // Runs once on mount to seed the pickers from the URL.
+  // Deep link: /h2h?event=E&s1=id,id&s2=id,id (or p1/p2 for a single player).
   useEffect(() => {
-    for (const [key, set] of [['p1', setP1], ['p2', setP2]]) {
-      const id = params.get(key)
-      if (id) api.player(id).then(set).catch(() => {})
+    async function load(keys, set) {
+      for (const k of keys) {
+        const raw = params.get(k)
+        if (raw) {
+          const ids = raw.split(',').filter(Boolean)
+          const ps = await Promise.all(ids.map((id) => api.player(id).catch(() => null)))
+          set(ps.filter(Boolean))
+          return
+        }
+      }
     }
+    load(['s1', 'p1'], setSide1)
+    load(['s2', 'p2'], setSide2)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Dropping to singles trims each side back to one player.
+  useEffect(() => {
+    setSide1((s) => s.slice(0, cap))
+    setSide2((s) => s.slice(0, cap))
+  }, [cap])
+
+  const addTo = (setter) => (p) =>
+    setter((s) => (s.some((x) => x.player_id === p.player_id) ? s : [...s, p].slice(0, cap)))
+  const removeFrom = (setter) => (id) => setter((s) => s.filter((x) => x.player_id !== id))
+
+  const ready = side1.length === cap && side2.length === cap
+  const overlap = side1.some((a) => side2.some((b) => b.player_id === a.player_id))
 
   return (
     <div>
       <PageHeader
         kicker="Predictor"
         title="Head-to-Head"
-        subtitle="Pick two players to see a Glicko-2 win probability, their all-time record, and every past meeting. The prediction uses each player's current rating in the chosen discipline."
+        subtitle="Pick two players — or two pairs for doubles — to see a Glicko-2 win probability, the all-time record, and every past meeting. The prediction uses each player's current rating in the chosen discipline."
       />
-
-      <div className="h2h-picker">
-        <PlayerPicker label="Search player 1…" value={p1}
-                      onPick={setP1} onClear={() => setP1(null)} />
-        <div className="h2h-vs">vs</div>
-        <PlayerPicker label="Search player 2…" value={p2}
-                      onPick={setP2} onClear={() => setP2(null)} />
-      </div>
 
       <div className="toolbar">
         <div className="segmented">
@@ -251,16 +264,31 @@ export default function H2H() {
               onClick={() => setEvent(e.code)}>{e.code}</button>
           ))}
         </div>
+        {DOUBLES.has(event) && (
+          <span className="muted small">Pick a pair (2 players) per side.</span>
+        )}
       </div>
 
-      {p1 && p2 ? (
-        p1.player_id === p2.player_id ? (
-          <p className="muted">Pick two different players.</p>
-        ) : (
-          <Matchup p1={p1} p2={p2} event={event} />
-        )
+      <div className="h2h-picker">
+        <SidePanel label={cap > 1 ? 'Search side 1…' : 'Search player 1…'}
+                   players={side1} cap={cap}
+                   onAdd={addTo(setSide1)} onRemove={removeFrom(setSide1)} />
+        <div className="h2h-vs">vs</div>
+        <SidePanel label={cap > 1 ? 'Search side 2…' : 'Search player 2…'}
+                   players={side2} cap={cap}
+                   onAdd={addTo(setSide2)} onRemove={removeFrom(setSide2)} />
+      </div>
+
+      {overlap ? (
+        <p className="muted">A player can’t be on both sides.</p>
+      ) : ready ? (
+        <Matchup event={event} side1={side1} side2={side2} />
       ) : (
-        <p className="muted">Choose two players above to compare.</p>
+        <p className="muted">
+          {DOUBLES.has(event)
+            ? 'Choose a pair on each side to compare.'
+            : 'Choose two players above to compare.'}
+        </p>
       )}
     </div>
   )

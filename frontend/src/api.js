@@ -21,7 +21,9 @@ export const api = {
   pairs: (event, { minMatches = 5, ranking = 'current', limit = 50, offset = 0 } = {}) =>
     get(`/pairs?${qs({ event, min_matches: minMatches, ranking, limit, offset })}`),
   pairDetail: (event, p1, p2) => get(`/pairs/detail?${qs({ event, p1, p2 })}`),
-  h2h: (event, p1, p2) => get(`/h2h?${qs({ event, p1, p2 })}`),
+  // s1/s2 are arrays of player ids (1 for singles, up to 2 for doubles).
+  h2h: (event, s1, s2) =>
+    get(`/h2h?${qs({ event, s1: s1.join(','), s2: s2.join(',') })}`),
   tournamentMatches: (id, { event, limit = 100, offset = 0 } = {}) =>
     get(`/tournaments/${id}/matches?${qs({ event, limit, offset })}`),
   tournamentTies: (id) => get(`/tournaments/${id}/ties`),
