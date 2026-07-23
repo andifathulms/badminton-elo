@@ -899,6 +899,25 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
             ds = [d[2] for d in ds if d]
             return round(sum(ds) / len(ds), 1) if ds else None
 
+        from apps.ingest.cup_events import rubber_discipline
+
+        # Old editions bundle Thomas (men) + Uber (women) into ONE article, so
+        # the cup label is ambiguous there — trust gender in that case.
+        _name = (t.name or "").lower()
+        combined = "thomas" in _name and "uber" in _name
+
+        def disc_of(s1, s2):
+            g = rubber_discipline(s1, s2)   # gender-based; None if unknown
+            if g:
+                return g
+            singles = max(len(s1), len(s2)) == 1
+            # Fall back to the cup's single gender only when it's unambiguous.
+            if not combined and kind == "thomas":
+                return "MS" if singles else "MD"
+            if not combined and kind == "uber":
+                return "WS" if singles else "WD"
+            return "S" if singles else "D"
+
         def build_rubber(m, s1, s2, c1, c2, country1, country2, order):
             games = [
                 [g.side1_points, g.side2_points]
@@ -915,7 +934,7 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
             return {
                 "match_id": m.match_id,
                 "order": order,
-                "discipline": _rubber_discipline(s1, s2),
+                "discipline": disc_of(s1, s2),
                 "side1": PlayerBriefSerializer(s1, many=True).data,
                 "side2": PlayerBriefSerializer(s2, many=True).data,
                 "winner_side": win,
@@ -928,33 +947,60 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
         out_rounds = []
         champion = None
         for (rorder, rname), ms in sorted(rounds.items()):
-            # Group consecutive rubbers into ties. A tie has at most two nations;
-            # a rubber joins the current tie as long as that stays true (so a
-            # rubber whose opponent has no country_code doesn't split the tie).
-            raw = []
+            parsed = []
             for m in ms:
                 s1 = [l.player for l in m.lineup.all() if l.side == 1]
                 s2 = [l.player for l in m.lineup.all() if l.side == 2]
-                c1, c2 = _side_country(s1), _side_country(s2)
-                known = {c for c in (c1, c2) if c}
-                cur = raw[-1] if raw else None
-                if cur is not None and len(cur["countries"] | known) <= 2:
-                    cur["countries"] |= known
+                parsed.append((m, s1, s2, _side_country(s1), _side_country(s2)))
+
+            # Group by the UNORDERED pair of nations, not by adjacency — a tie's
+            # rubbers can be interleaved with other ties in the schedule, so a
+            # consecutive-run grouping would split them. Rubbers whose opponent
+            # has no country_code are attached afterwards.
+            by_pair: dict = {}          # frozenset({c1,c2}) -> tie bucket
+            order: list = []            # first-seen order of pairs
+            pending: list = []
+            for idx, (m, s1, s2, c1, c2) in enumerate(parsed):
+                known = [c for c in (c1, c2) if c]
+                if len(known) == 2:
+                    key = frozenset(known)
+                    if key not in by_pair:
+                        by_pair[key] = {"countries": set(known), "rubbers": []}
+                        order.append(key)
+                    by_pair[key]["rubbers"].append((idx, m, s1, s2, c1, c2))
                 else:
-                    cur = {"countries": set(known), "rubbers": []}
-                    raw.append(cur)
-                cur["rubbers"].append((m, s1, s2, c1, c2))
+                    pending.append((idx, m, s1, s2, c1, c2))
+
+            # Attach unknown-opponent rubbers to the right tie: the one containing
+            # their known nation (nearest by schedule order when several match).
+            for row in pending:
+                idx, m, s1, s2, c1, c2 = row
+                k = c1 or c2
+                cands = [key for key in by_pair if (k in key if k else True)]
+                if len(cands) == 1:
+                    key = cands[0]
+                elif len(cands) > 1:
+                    key = min(cands, key=lambda ky: min(
+                        abs(idx - r[0]) for r in by_pair[ky]["rubbers"]))
+                else:
+                    key = frozenset([k]) if k else frozenset([f"?{idx}"])
+                    if key not in by_pair:
+                        by_pair[key] = {"countries": set([k] if k else []),
+                                        "rubbers": []}
+                        order.append(key)
+                by_pair[key]["rubbers"].append(row)
 
             ties = []
-            for i, rt in enumerate(raw, 1):
+            for i, key in enumerate(order, 1):
+                rt = by_pair[key]
+                rows = sorted(rt["rubbers"], key=lambda x: x[0])
                 cs = rt["countries"]
-                first = rt["rubbers"][0]
-                country1 = (first[3] if first[3] in cs
-                            else first[4] if first[4] in cs
+                f = rows[0]
+                country1 = (f[4] if f[4] in cs else f[5] if f[5] in cs
                             else next(iter(cs), None))
                 country2 = next((c for c in cs if c != country1), None)
                 rubbers, s1c, s2c = [], 0, 0
-                for j, (m, s1, s2, c1, c2) in enumerate(rt["rubbers"], 1):
+                for j, (_, m, s1, s2, c1, c2) in enumerate(rows, 1):
                     r = build_rubber(m, s1, s2, c1, c2, country1, country2, j)
                     rubbers.append(r)
                     if r["winner_side"] == 1:
