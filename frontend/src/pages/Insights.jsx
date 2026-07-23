@@ -10,6 +10,8 @@ import Entity from '../components/Entity.jsx'
 import ReliabilityChart from '../components/ReliabilityChart.jsx'
 import AgeCurveChart from '../components/AgeCurveChart.jsx'
 import DynastyTimeline from '../components/DynastyTimeline.jsx'
+import { SkeletonList } from '../components/Skeleton.jsx'
+import { EmptyState, ErrorState } from '../components/Empty.jsx'
 
 const PAGE = 10
 
@@ -79,14 +81,14 @@ function GainsTable({ kind, event, includeNew }) {
   const [page, setPage] = useState(0)
   const [open, setOpen] = useState(null)
   useEffect(() => { setPage(0); setOpen(null) }, [kind, event, includeNew])
-  const { data, error, loading } = useAsync(
+  const { data, error, loading, reload } = useAsync(
     () => api.analytics(kind, { event, minMatches: 3, limit: 100, includeNew }),
     [kind, event, includeNew],
   )
   const isUpset = kind === 'upsets'
   const isPerf = kind === 'performances'
-  if (loading) return <p className="muted">Loading…</p>
-  if (error) return <p className="error">Could not load: {error.message}</p>
+  if (loading) return <SkeletonList rows={8} />
+  if (error) return <ErrorState error={error} onRetry={reload} />
 
   const metricHead = isUpset ? 'Gain' : isPerf ? 'Perf' : 'Net ELO'
   const shown = data.results.slice(page * PAGE, page * PAGE + PAGE)
@@ -178,12 +180,12 @@ function GainsTable({ kind, event, includeNew }) {
 function UpsetsSection({ event, includeNew }) {
   const [page, setPage] = useState(0)
   useEffect(() => { setPage(0) }, [event, includeNew])
-  const { data, error, loading } = useAsync(
+  const { data, error, loading, reload } = useAsync(
     () => api.analytics('upsets', { event, minMatches: 3, limit: 100, includeNew }),
     [event, includeNew],
   )
-  if (loading) return <p className="muted">Loading…</p>
-  if (error) return <p className="error">Could not load: {error.message}</p>
+  if (loading) return <SkeletonList rows={8} />
+  if (error) return <ErrorState error={error} onRetry={reload} />
   const shown = data.results.slice(page * PAGE, page * PAGE + PAGE)
   return (
     <>
@@ -216,7 +218,7 @@ function Side({ players, win }) {
 function RecordsSection({ event }) {
   const [kind, setKind] = useState('longest')
   const tab = RECORD_TABS.find((t) => t.kind === kind)
-  const { data, error, loading } = useAsync(
+  const { data, error, loading, reload } = useAsync(
     () => api.records(kind, { event, limit: 25 }), [kind, event])
 
   return (
@@ -232,8 +234,8 @@ function RecordsSection({ event }) {
         <p className="muted small">Biggest points deficit a side clawed back to{' '}
           <strong>win a game</strong> (e.g. 10 = down 10-20, won 22-20).</p>
       )}
-      {loading && <p className="muted">Loading…</p>}
-      {error && <p className="error">Could not load: {error.message}</p>}
+      {loading && <SkeletonList rows={8} />}
+      {error && <ErrorState error={error} onRetry={reload} />}
       {data && (
         <table className="board">
           <thead>
@@ -276,18 +278,22 @@ function RecordsSection({ event }) {
         </table>
       )}
       {data && !data.results.length && (
-        <p className="muted">No matches with stats for this filter yet.</p>
+        <EmptyState icon="🏟️" title="No records yet"
+          hint="No matches with rally-by-rally stats for this filter yet." />
       )}
     </div>
   )
 }
 
 function CalibrationSection({ event }) {
-  const { data, error, loading } = useAsync(
+  const { data, error, loading, reload } = useAsync(
     () => api.calibration(event || 'ALL'), [event])
-  if (loading) return <p className="muted">Loading…</p>
-  if (error) return <p className="error">Could not load: {error.message}</p>
-  if (!data.n) return <p className="muted">No calibration data for this filter yet.</p>
+  if (loading) return <SkeletonList rows={8} />
+  if (error) return <ErrorState error={error} onRetry={reload} />
+  if (!data.n) return (
+    <EmptyState icon="🎯" title="No calibration data"
+      hint="No rated matches for this discipline yet." />
+  )
   return (
     <div>
       <div className="statgrid">
@@ -333,10 +339,13 @@ function CalibrationSection({ event }) {
 }
 
 function AgingSection({ event }) {
-  const { data, error, loading } = useAsync(() => api.aging(event || ''), [event])
-  if (loading) return <p className="muted">Loading…</p>
-  if (error) return <p className="error">Could not load: {error.message}</p>
-  if (!data.n) return <p className="muted">No age data for this filter yet.</p>
+  const { data, error, loading, reload } = useAsync(() => api.aging(event || ''), [event])
+  if (loading) return <SkeletonList rows={8} />
+  if (error) return <ErrorState error={error} onRetry={reload} />
+  if (!data.n) return (
+    <EmptyState icon="📈" title="No age data"
+      hint="Not enough players with a recorded date of birth for this filter." />
+  )
   return (
     <div>
       <div className="statgrid">
@@ -383,11 +392,14 @@ function AgingSection({ event }) {
 
 function ClutchSection({ event }) {
   const [order, setOrder] = useState('pct')
-  const { data, error, loading } = useAsync(
+  const { data, error, loading, reload } = useAsync(
     () => api.clutch(event, { min: 15, order }), [event, order])
-  if (loading) return <p className="muted">Loading…</p>
-  if (error) return <p className="error">Could not load: {error.message}</p>
-  if (!data.results.length) return <p className="muted">No clutch data for this filter yet.</p>
+  if (loading) return <SkeletonList rows={8} />
+  if (error) return <ErrorState error={error} onRetry={reload} />
+  if (!data.results.length) return (
+    <EmptyState icon="🔥" title="No clutch data"
+      hint="No players reach the minimum deciding games for this discipline yet." />
+  )
   return (
     <div>
       <div className="tabs mini-tabs">
@@ -432,10 +444,13 @@ function ClutchSection({ event }) {
 }
 
 function DynastiesSection({ event }) {
-  const { data, error, loading } = useAsync(() => api.dynasties(event), [event])
-  if (loading) return <p className="muted">Loading…</p>
-  if (error) return <p className="error">Could not load: {error.message}</p>
-  if (!data.timeline.length) return <p className="muted">No dynasty data for this filter yet.</p>
+  const { data, error, loading, reload } = useAsync(() => api.dynasties(event), [event])
+  if (loading) return <SkeletonList rows={8} />
+  if (error) return <ErrorState error={error} onRetry={reload} />
+  if (!data.timeline.length) return (
+    <EmptyState icon="👑" title="No dynasty data"
+      hint="Not enough rated players to rank nations in this discipline yet." />
+  )
   const current = data.timeline[data.timeline.length - 1]
   return (
     <div>
@@ -486,11 +501,14 @@ function DynastiesSection({ event }) {
 
 function ConsistencySection({ event }) {
   const [order, setOrder] = useState('steady')
-  const { data, error, loading } = useAsync(
+  const { data, error, loading, reload } = useAsync(
     () => api.consistency(event, { min: 40, order }), [event, order])
-  if (loading) return <p className="muted">Loading…</p>
-  if (error) return <p className="error">Could not load: {error.message}</p>
-  if (!data.results.length) return <p className="muted">No consistency data for this filter yet.</p>
+  if (loading) return <SkeletonList rows={8} />
+  if (error) return <ErrorState error={error} onRetry={reload} />
+  if (!data.results.length) return (
+    <EmptyState icon="🧊" title="No consistency data"
+      hint="No players reach the minimum matches for this discipline yet." />
+  )
   return (
     <div>
       <div className="tabs mini-tabs">
@@ -535,11 +553,14 @@ function ConsistencySection({ event }) {
 
 function SynergySection({ event }) {
   const [order, setOrder] = useState('best')
-  const { data, error, loading } = useAsync(
+  const { data, error, loading, reload } = useAsync(
     () => api.synergy(event, { min: 20, order }), [event, order])
-  if (loading) return <p className="muted">Loading…</p>
-  if (error) return <p className="error">Could not load: {error.message}</p>
-  if (!data.results.length) return <p className="muted">No synergy data for this filter yet.</p>
+  if (loading) return <SkeletonList rows={8} />
+  if (error) return <ErrorState error={error} onRetry={reload} />
+  if (!data.results.length) return (
+    <EmptyState icon="🤝" title="No synergy data"
+      hint="No partnerships reach the minimum matches together for this discipline yet." />
+  )
   return (
     <div>
       <div className="tabs mini-tabs">
