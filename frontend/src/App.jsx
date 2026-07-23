@@ -87,6 +87,11 @@ function Search() {
 }
 
 export default function App() {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const { pathname } = useLocation()
+  // Close the mobile menu whenever the route changes.
+  useEffect(() => { setMenuOpen(false) }, [pathname])
+
   return (
     <div className="app">
       <header className="topbar">
@@ -102,7 +107,7 @@ export default function App() {
           </span>
           <span><b>Badminton</b> <span>Ratings</span></span>
         </Link>
-        <nav className="nav">
+        <nav className={`nav ${menuOpen ? 'open' : ''}`}>
           <NavLink to="/" end>Dashboard</NavLink>
           <NavLink to="/rankings">Rankings</NavLink>
           <NavLink to="/tournaments">Tournaments</NavLink>
@@ -112,6 +117,19 @@ export default function App() {
         </nav>
         <Search />
         <ThemeToggle />
+        <button
+          className="nav-toggle"
+          onClick={() => setMenuOpen((o) => !o)}
+          aria-label="Menu"
+          aria-expanded={menuOpen}
+        >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+               strokeWidth="2.2" strokeLinecap="round">
+            {menuOpen
+              ? <><path d="M6 6l12 12" /><path d="M18 6L6 18" /></>
+              : <><path d="M3 6h18" /><path d="M3 12h18" /><path d="M3 18h18" /></>}
+          </svg>
+        </button>
       </header>
       <main className="content">
         <Outlet />

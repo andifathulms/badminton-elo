@@ -1184,3 +1184,25 @@ tr.expandable:hover { background: var(--surface-hover); }
 .sk-hero { background: var(--header); background-image: var(--grad-header);
   border-radius: var(--r-lg); padding: 24px 26px; box-shadow: var(--sh); }
 .sk-panel .skeleton { box-shadow: var(--sh-sm); }
+
+/* --- Mobile nav ------------------------------------------------------------ */
+.nav-toggle { display: none; place-items: center; width: 38px; height: 38px; flex: none;
+  border-radius: 10px; cursor: pointer; color: var(--on-green);
+  background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.24);
+  transition: background .15s; }
+.nav-toggle:hover { background: rgba(255,255,255,.24); color: var(--on-green); }
+@media (max-width: 760px) {
+  .nav-toggle { display: inline-grid; }
+  .nav {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 60;
+    flex-direction: column; gap: 3px; padding: 10px 16px 16px; margin-top: 2px;
+    background: var(--header); background-image: var(--grad-header);
+    box-shadow: var(--sh-md); display: none;
+  }
+  .nav.open { display: flex; animation: pop .16s ease-out; }
+  .nav a { padding: 12px 14px; font-size: 15px; border-radius: 10px; }
+  .search input { width: 150px; }
+}
+@media (max-width: 480px) {
+  .search input { width: 116px; }
+}
