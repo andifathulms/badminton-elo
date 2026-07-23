@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { api } from './api.js'
 import Avatar from './components/Avatar.jsx'
+import RefreshButton from './components/RefreshButton.jsx'
 
 function ThemeToggle() {
   const [theme, setTheme] = useState(
@@ -117,6 +118,7 @@ export default function App() {
           <NavLink to="/cups">Cups</NavLink>
         </nav>
         <Search />
+        <RefreshButton />
         <ThemeToggle />
         <button
           className="nav-toggle"

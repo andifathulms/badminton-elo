@@ -1254,3 +1254,36 @@ html { scroll-behavior: smooth; }
 #main:focus { outline: none; }
 /* Focus rings must stay visible on the deep-green header. */
 .topbar :focus-visible { outline-color: #fff; outline-offset: 3px; }
+
+/* --- Get-recent-data button + progress toast ------------------------------- */
+.refresh-btn { display: inline-grid; place-items: center; width: 38px; height: 38px;
+  flex: none; border-radius: 10px; cursor: pointer; color: var(--on-green);
+  background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.24);
+  transition: background .15s, transform .15s; }
+.refresh-btn:hover:not(:disabled) { background: rgba(255,255,255,.24); color: var(--on-green);
+  transform: translateY(-1px); }
+.refresh-btn:disabled { opacity: .7; cursor: default; }
+.refresh-btn .spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.refresh-toast { position: fixed; right: 20px; bottom: 20px; z-index: 90; width: 320px;
+  max-width: calc(100vw - 40px); background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-lg); box-shadow: var(--sh-pop); padding: 16px 18px;
+  animation: pop .18s ease-out; }
+.refresh-toast-x { position: absolute; top: 10px; right: 12px; border: none; background: none;
+  color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; }
+.refresh-toast-x:hover { color: var(--ink); }
+.rt-head { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-bottom: 6px; }
+.rt-phase { margin-bottom: 8px; }
+.rt-spinner { width: 15px; height: 15px; border-radius: 50%; flex: none;
+  border: 2px solid var(--brand-soft); border-top-color: var(--brand); animation: spin .8s linear infinite; }
+.rt-ok { color: var(--brand); font-weight: 800; }
+.rt-err { color: var(--accent-amber); font-weight: 800; }
+.rt-track { height: 7px; background: var(--surface-2); border-radius: 999px; overflow: hidden;
+  margin: 4px 0 8px; }
+.rt-fill { height: 100%; background: var(--grad-brand); border-radius: 999px;
+  transition: width .4s ease; }
+.rt-reload { margin-top: 10px; width: 100%; }
+@media (prefers-reduced-motion: reduce) {
+  .refresh-btn .spin, .rt-spinner { animation: none; }
+}

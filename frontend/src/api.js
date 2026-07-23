@@ -8,6 +8,12 @@ async function get(path) {
   return res.json()
 }
 
+async function post(path) {
+  const res = await fetch(`${BASE}${path}`, { method: 'POST' })
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  return res.json()
+}
+
 const qs = (params) =>
   Object.entries(params)
     .filter(([, v]) => v !== undefined && v !== null && v !== '')
@@ -57,6 +63,8 @@ export const api = {
   tournament: (id) => get(`/tournaments/${id}`),
   cup: (cup) => get(`/cups/${cup}`),
   cupHistory: (cup) => get(`/cups/${cup}/history`),
+  refreshStatus: () => get('/refresh/status'),
+  refreshStart: () => post('/refresh'),
 }
 
 export const EVENTS = [

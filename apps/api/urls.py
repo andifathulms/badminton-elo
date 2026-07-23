@@ -3,6 +3,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from . import reconcile
+from . import refresh
 
 from .views import (
     AgingView,
@@ -53,6 +54,8 @@ urlpatterns = [
     path("reconcile/decide", reconcile.decide, name="reconcile-decide"),
     path("reconcile/merge-all-single", reconcile.merge_all_single, name="reconcile-merge-all"),
     path("events", EventsView.as_view(), name="events"),
+    path("refresh", refresh.start, name="refresh-start"),
+    path("refresh/status", refresh.status, name="refresh-status"),
     path(
         "players/<int:player_id>/matches",
         PlayerMatchesView.as_view(),
