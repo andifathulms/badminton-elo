@@ -56,6 +56,9 @@ function Movers({ movers, event }) {
       <span className={`mover-delta ${sign}`}>
         {r.net_delta >= 0 ? '+' : ''}{r.net_delta.toFixed(0)}
       </span>
+      {/* Fixed-width flag slot — blank (but reserved) when the country is unknown,
+          so names stay aligned. */}
+      <span className="mover-fl">{r.player.country_code ? flag(r.player.country_code) : ''}</span>
       <Link to={`/players/${r.player.player_id}`} className="mover-name">
         {r.player.name_display}{r.partner && ` / ${r.partner.name_display}`}
       </Link>
@@ -79,7 +82,7 @@ function Movers({ movers, event }) {
 
 function MatchList({ id, events, movers }) {
   const [event, setEvent] = useState(events[0]?.event || 'MS')
-  const [round, setRound] = useState('All')
+  const [round, setRound] = useState(null)
   const { data, error, loading, reload } = useAsync(
     () => api.tournamentMatches(id, { event, limit: 300 }),
     [id, event],
@@ -89,9 +92,10 @@ function MatchList({ id, events, movers }) {
         .sort((a, b) => a[1] - b[1])
         .map(([name]) => name)
     : []
-  const shown = data
-    ? data.results.filter((m) => round === 'All' || m.round_name === round)
-    : []
+  // Default to the earliest round (no "All" tab); fall back if the chosen round
+  // isn't in this discipline.
+  const activeRound = round && rounds.includes(round) ? round : rounds[0]
+  const shown = data ? data.results.filter((m) => m.round_name === activeRound) : []
 
   return (
     <>
@@ -99,7 +103,7 @@ function MatchList({ id, events, movers }) {
         {events.map((e) => (
           <button key={e.event}
             className={`tab ${e.event === event ? 'active' : ''}`}
-            onClick={() => { setEvent(e.event); setRound('All') }}>
+            onClick={() => { setEvent(e.event); setRound(null) }}>
             {e.event}
             <span className="tab-label">{e.n}</span>
           </button>
@@ -110,10 +114,8 @@ function MatchList({ id, events, movers }) {
 
       {rounds.length > 1 && (
         <div className="roundtabs">
-          <button className={`rtab ${round === 'All' ? 'active' : ''}`}
-                  onClick={() => setRound('All')}>All</button>
           {rounds.map((r) => (
-            <button key={r} className={`rtab ${round === r ? 'active' : ''}`}
+            <button key={r} className={`rtab ${activeRound === r ? 'active' : ''}`}
                     onClick={() => setRound(r)}>{r}</button>
           ))}
         </div>

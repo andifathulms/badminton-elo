@@ -707,6 +707,10 @@ tr.clickable .link { color: var(--brand); font-weight: 600; }
 .sc-team.r { align-items: flex-end; text-align: right; }
 .sc-team.l { align-items: flex-start; text-align: left; }
 .sc-players { display: flex; flex-direction: column; gap: 3px; }
+/* Align each name row to the inner (centre-facing) edge so the flags of both
+   teams line up in a mirror — every name ends at the flag, flags at same x. */
+.sc-team.r .sc-players { align-items: flex-end; }
+.sc-team.l .sc-players { align-items: flex-start; }
 /* Flag sits on the inner (centre-facing) side via row-reverse on team 2. */
 .sc-pname { display: inline-flex; align-items: center; gap: 8px; font-weight: 600;
   font-size: 16px; color: var(--ink-2); }
@@ -742,6 +746,7 @@ tr.clickable .link { color: var(--brand); font-weight: 600; }
 .mover-delta { font-weight: 800; font-variant-numeric: tabular-nums; min-width: 42px; }
 .mover-delta.pos { color: var(--pos); }
 .mover-delta.neg { color: var(--neg); }
+.mover-fl { flex: none; width: 20px; text-align: center; font-size: 14px; line-height: 1; }
 .mover-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; }
 
