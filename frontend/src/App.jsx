@@ -94,6 +94,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <a href="#main" className="skip-link">Skip to content</a>
       <header className="topbar">
         <Link to="/" className="brand">
           <span className="brand-mark">
@@ -131,7 +132,7 @@ export default function App() {
           </svg>
         </button>
       </header>
-      <main className="content">
+      <main className="content" id="main" tabIndex={-1}>
         {/* Keyed by route so each page fades/rises in on navigation. */}
         <div className="route-fade" key={pathname}>
           <Outlet />
