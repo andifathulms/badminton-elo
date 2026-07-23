@@ -8,17 +8,19 @@ import PageHeader from '../components/PageHeader.jsx'
 import Confidence from '../components/Confidence.jsx'
 import { flag } from '../flags.js'
 
-function Legend() {
+function Legend({ showConf = true }) {
   return (
     <div className="legend">
       <span><b>Rating</b> conservative skill (mu − 2·rd)</span>
       <span><b>mu</b> estimated skill</span>
       <span><b>rd</b> rating deviation — how uncertain that estimate is (lower = more settled)</span>
-      <span>
-        <span className="conf conf-high"><span className="conf-dot" /></span>{' '}settled ·{' '}
-        <span className="conf conf-medium"><span className="conf-dot" /></span>{' '}firming ·{' '}
-        <span className="conf conf-low"><span className="conf-dot" /></span>{' '}provisional
-      </span>
+      {showConf && (
+        <span>
+          <span className="conf conf-high"><span className="conf-dot" /></span>{' '}settled ·{' '}
+          <span className="conf conf-medium"><span className="conf-dot" /></span>{' '}firming ·{' '}
+          <span className="conf conf-low"><span className="conf-dot" /></span>{' '}provisional
+        </span>
+      )}
     </div>
   )
 }
@@ -144,7 +146,7 @@ function IndividualBoard({ event, ranking, order, setOrder, gender }) {
   return (
     <>
       <div className="toolbar">
-        <Legend />
+        <Legend showConf={!isPeak} />
         {!isPeak && (
           <Select
             label="Sort"
@@ -194,7 +196,9 @@ function IndividualBoard({ event, ranking, order, setOrder, gender }) {
                     <span className="metric">
                       {isPeak ? row.peak_mu.toFixed(0) : row.rating.toFixed(1)}
                     </span>
-                    <Confidence rd={isPeak ? row.peak_rd : row.rd} />
+                    {/* Confidence is a property of the CURRENT estimate; a
+                        historical peak's rd doesn't mean "provisional". */}
+                    {!isPeak && <Confidence rd={row.rd} />}
                   </span>
                 </td>
                 <td className="num">
