@@ -502,7 +502,7 @@ export default function Insights() {
         <PageHeader
           kicker="Analytics"
           title="Insights"
-          subtitle="Standout runs and giant-killings across two decades of BWF results. Pick a lens to dig in."
+          subtitle="Standout runs and giant-killings, how accurate the ratings actually are, when players peak, and who wins the tight ones — across two decades of BWF results. Pick a lens to dig in."
         />
         <div className="insight-cards">
           {INSIGHTS.map((i) => (

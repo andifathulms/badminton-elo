@@ -163,6 +163,7 @@ function BiggestUpsets() {
 export default function Dashboard() {
   const { data: events } = useAsync(() => api.events(), [])
   const { data: tcount } = useAsync(() => api.tournaments({ limit: 1 }), [])
+  const { data: calib } = useAsync(() => api.calibration('ALL'), [])
   const totalRated = events ? events.reduce((a, e) => a + e.rated_players, 0) : null
 
   return (
@@ -179,6 +180,12 @@ export default function Dashboard() {
           <span className="chip"><b>{totalRated ? totalRated.toLocaleString() : '—'}</b> rated players</span>
           <span className="chip"><b>{tcount ? tcount.count.toLocaleString() : '—'}</b> tournaments</span>
           <span className="chip"><b>5</b> disciplines</span>
+          {calib?.accuracy != null && (
+            <Link to="/insights" className="chip chip-link"
+                  title={`The higher-rated side wins ${(calib.accuracy * 100).toFixed(1)}% of the time; predicted vs actual agree within ${(calib.calibration_error * 100).toFixed(1)}%. See the reliability diagram.`}>
+              <b>{(calib.accuracy * 100).toFixed(0)}%</b> predictions correct ✓
+            </Link>
+          )}
         </div>
       </section>
 

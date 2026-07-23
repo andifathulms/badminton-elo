@@ -1047,3 +1047,7 @@ tr.expandable:hover { background: var(--surface-hover); }
   font-size: 13px; padding: 8px 14px; border-radius: 10px; background: var(--brand);
   color: var(--brand-ink); border: 1px solid var(--brand); }
 .btn-compare:hover { background: var(--brand-2); color: var(--brand-ink); }
+
+/* Dashboard calibration trust badge (a clickable stat chip) */
+.chip-link { cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
+.chip-link:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
