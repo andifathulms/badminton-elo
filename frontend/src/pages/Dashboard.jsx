@@ -5,6 +5,7 @@ import { useAsync } from '../useAsync.js'
 import Avatar from '../components/Avatar.jsx'
 import Entity from '../components/Entity.jsx'
 import UpsetsTable from '../components/UpsetsTable.jsx'
+import { SkeletonList, SkeletonCards } from '../components/Skeleton.jsx'
 import { flag } from '../flags.js'
 
 const DOUBLES = new Set(['MD', 'WD', 'XD'])
@@ -51,7 +52,7 @@ function champOf(event) {
 
 function ReigningChamps() {
   const { data } = useAsync(() => Promise.all(EVENTS.map(champOf)), [])
-  if (!data) return <div className="champ-grid loading" />
+  if (!data) return <SkeletonCards count={5} />
   return (
     <div className="champ-grid">
       {data.filter((d) => d.players).map(({ event, players, rating, to }) => {
@@ -99,7 +100,7 @@ function MiniBoard() {
             onClick={() => setEvent(e.code)}>{e.code}</button>
         ))}
       </div>
-      {loading && <p className="muted small">Loading…</p>}
+      {loading && <SkeletonList rows={5} />}
       {data && (
         <ol className="mini-list">
           {data.results.map((row, i) => {
@@ -127,7 +128,7 @@ function RecentTournaments() {
   const { data, loading } = useAsync(() => api.tournaments({ limit: 6 }), [])
   return (
     <Panel title="Recent tournaments" to="/tournaments">
-      {loading && <p className="muted small">Loading…</p>}
+      {loading && <SkeletonList rows={5} />}
       {data && (
         <ul className="recent-list">
           {data.results.map((t) => (
@@ -154,7 +155,7 @@ function BiggestUpsets() {
   )
   return (
     <Panel title="⚡ Biggest upsets" to="/insights" linkText="More insights" wide>
-      {loading && <p className="muted small">Loading…</p>}
+      {loading && <SkeletonList rows={6} />}
       {data && <UpsetsTable rows={data.results} />}
     </Panel>
   )

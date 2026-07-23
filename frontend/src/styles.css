@@ -1140,3 +1140,33 @@ tr.expandable:hover { background: var(--surface-hover); }
   flex-wrap: wrap; }
 .insight-group-head h2 { margin: 0; font-size: 16px; }
 .insight-group-head .small { margin-bottom: 1px; }
+
+/* --- Loading skeletons ----------------------------------------------------- */
+.skeleton { position: relative; overflow: hidden; background: var(--surface-2);
+  border-radius: 8px; }
+.skeleton::after { content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, var(--surface-hover) 45%,
+    var(--surface-hover) 55%, transparent);
+  transform: translateX(-100%); animation: shimmer 1.35s infinite; }
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .skeleton::after { animation: none; } }
+
+.sk-list { background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r); box-shadow: var(--sh); padding: 4px 14px; }
+.sk-row { display: flex; align-items: center; gap: 12px; padding: 13px 0;
+  border-bottom: 1px solid var(--line); }
+.sk-row:last-child { border-bottom: none; }
+.sk-rank { width: 24px; height: 24px; border-radius: 7px; flex: none; }
+.sk-avatar { width: 34px; height: 34px; border-radius: 50%; flex: none; }
+.sk-lines { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.sk-metric { width: 44px; height: 15px; flex: none; }
+.sk-card { display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 22px 14px; border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--surface-2); }
+
+/* --- Responsive: keep wide tables inside the viewport --------------------- */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+@media (max-width: 560px) {
+  .board th, .board td { padding: 10px 10px; }
+  .board { font-size: 14px; }
+}

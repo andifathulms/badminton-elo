@@ -6,6 +6,7 @@ import Avatar from '../components/Avatar.jsx'
 import Select from '../components/Select.jsx'
 import PageHeader from '../components/PageHeader.jsx'
 import Confidence from '../components/Confidence.jsx'
+import { SkeletonList } from '../components/Skeleton.jsx'
 import { flag } from '../flags.js'
 
 function Legend({ showConf = true }) {
@@ -159,9 +160,10 @@ function IndividualBoard({ event, ranking, order, setOrder, gender }) {
           />
         )}
       </div>
-      {loading && <p className="muted">Loading…</p>}
+      {loading && <SkeletonList rows={PAGE} />}
       {error && <p className="error">Could not load: {error.message}</p>}
       {data && (
+        <div className="table-scroll">
         <table className="board">
           <thead>
             <tr>
@@ -216,6 +218,7 @@ function IndividualBoard({ event, ranking, order, setOrder, gender }) {
             })}
           </tbody>
         </table>
+        </div>
       )}
       {data && <Pager page={page} setPage={setPage} count={data.count} />}
       {data && data.results.length === 0 && <p className="muted">No players.</p>}
@@ -230,10 +233,11 @@ function PairsBoard({ event, ranking }) {
     () => api.pairs(event, { minMatches: 5, ranking, limit: PAGE, offset: page * PAGE }),
     [event, ranking, page],
   )
-  if (loading) return <p className="muted">Loading pairs…</p>
+  if (loading) return <SkeletonList rows={PAGE} />
   if (error) return <p className="error">Could not load pairs: {error.message}</p>
   return (
     <>
+      <div className="table-scroll">
       <table className="board">
         <thead>
           <tr>
@@ -284,6 +288,7 @@ function PairsBoard({ event, ranking }) {
           })}
         </tbody>
       </table>
+      </div>
       <Pager page={page} setPage={setPage} count={data.count} />
       {data.results.length === 0 && <p className="muted">No pairs.</p>}
     </>
