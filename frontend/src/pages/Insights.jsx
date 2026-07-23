@@ -585,47 +585,57 @@ function SynergySection({ event }) {
   )
 }
 
+// Groups organise the landing into scannable sections (see GROUPS below).
 const INSIGHTS = [
-  { key: 'breakouts', icon: '🚀', title: 'Biggest tournament breakouts',
+  { key: 'breakouts', icon: '🚀', title: 'Biggest tournament breakouts', group: 'runs',
     blurb: 'Most ELO gained by an established player across a single tournament — the standout runs.',
     sub: 'Most ELO gained by an established player across a single tournament. Start→End is the rating before and after; debut players are hidden by default since a first-timer\'s rating swings hugely.',
     toolbar: true },
-  { key: 'upsets', icon: '⚡', title: 'Biggest upsets',
+  { key: 'upsets', icon: '⚡', title: 'Biggest upsets', group: 'runs',
     blurb: "The single wins that moved a rating the most — beating someone you weren't supposed to.",
     sub: "The single wins that moved a rating the most — beating someone you weren't supposed to. Click a row to open the match.",
     toolbar: true },
-  { key: 'performances', icon: '🎯', title: 'Best tournament performances',
+  { key: 'performances', icon: '🎯', title: 'Best tournament performances', group: 'runs',
     blurb: 'The level a player/pair actually played at, based on the strength of the field they beat.',
     sub: 'Chess-style performance rating — the level a player/pair played AT across a tournament, based on the strength of the opponents they beat. Walkovers and retirements don\'t count — only contested wins vs a rated opponent (open a row to see the run).',
     toolbar: true },
-  { key: 'accuracy', icon: '🎯', title: 'Rating accuracy',
-    blurb: 'How often the higher-rated side actually wins — and whether the model’s confidence matches reality.',
-    sub: 'A reliability check: every rated match bucketed by the favorite’s pre-match win probability, versus how often that favorite actually won. Points on the diagonal mean the rating is well-calibrated. Pick a discipline to filter.',
-    toolbar: 'event' },
-  { key: 'synergy', icon: '🤝', title: 'Partnership synergy',
-    blurb: 'Which doubles pairs overperform the sum of their parts — real on-court chemistry, and the duos that never gelled.',
-    sub: 'Synergy = a pair’s performance rating (from their own results) minus their combined individual rating. Positive means they’re better together than their solo levels predict. Toggle best chemistry vs underperformers; pick a doubles discipline.',
-    toolbar: 'doubles' },
-  { key: 'consistency', icon: '🧊', title: 'Consistency',
+  { key: 'consistency', icon: '🧊', title: 'Consistency', group: 'players',
     blurb: 'The steadiest performers vs the most volatile — measured by how much a rating swings match to match.',
     sub: 'Form volatility: the standard deviation of a player’s per-match rating change. Low means predictable (results match their level); high means erratic (big upsets and bad losses). Toggle steadiest vs most volatile; pick a discipline.',
     toolbar: 'event-req' },
-  { key: 'dynasties', icon: '👑', title: 'Nation dynasties',
-    blurb: 'Which country ruled each discipline, and for how long — dominance eras from four decades of results.',
-    sub: 'The #1 nation in a discipline each year (by summed top-3 player rating), and the reigns those years form. Pick a discipline to trace its dynasties.',
-    toolbar: 'event-req' },
-  { key: 'clutch', icon: '🔥', title: 'Clutch: deciding games',
-    blurb: 'Who wins the matches that go the distance — third-game win rate across a discipline.',
-    sub: 'When a match reaches a deciding third game, who comes out on top? Ranked by third-game win rate (Normal matches only, minimum 15 deciders). Pick a discipline.',
-    toolbar: 'event-req' },
-  { key: 'aging', icon: '📈', title: 'When players peak',
+  { key: 'aging', icon: '📈', title: 'When players peak', group: 'players',
     blurb: 'The age players reach their career-best rating — and how peak level rises then fades with age.',
     sub: 'Each rated player’s career peak placed on an age axis. Bars show how many players peaked at each age; the line is the average peak rating reached. Most players peak young (they don’t last), but the highest ratings come later. Pick a discipline to compare.',
     toolbar: 'event' },
-  { key: 'records', icon: '🏟️', title: 'Match records',
+  { key: 'synergy', icon: '🤝', title: 'Partnership synergy', group: 'teams',
+    blurb: 'Which doubles pairs overperform the sum of their parts — real on-court chemistry, and the duos that never gelled.',
+    sub: 'Synergy = a pair’s performance rating (from their own results) minus their combined individual rating. Positive means they’re better together than their solo levels predict. Toggle best chemistry vs underperformers; pick a doubles discipline.',
+    toolbar: 'doubles' },
+  { key: 'dynasties', icon: '👑', title: 'Nation dynasties', group: 'teams',
+    blurb: 'Which country ruled each discipline, and for how long — dominance eras from four decades of results.',
+    sub: 'The #1 nation in a discipline each year (by summed top-3 player rating), and the reigns those years form. Pick a discipline to trace its dynasties.',
+    toolbar: 'event-req' },
+  { key: 'clutch', icon: '🔥', title: 'Clutch: deciding games', group: 'matchplay',
+    blurb: 'Who wins the matches that go the distance — third-game win rate across a discipline.',
+    sub: 'When a match reaches a deciding third game, who comes out on top? Ranked by third-game win rate (Normal matches only, minimum 15 deciders). Pick a discipline.',
+    toolbar: 'event-req' },
+  { key: 'records', icon: '🏟️', title: 'Match records', group: 'matchplay',
     blurb: 'Longest matches, most rallies, and biggest comebacks — from rally-by-rally stats.',
     sub: 'Extremes pulled from the rally-by-rally match statistics — only matches we\'ve collected point-by-point data for.',
     toolbar: false },
+  { key: 'accuracy', icon: '🎯', title: 'Rating accuracy', group: 'model',
+    blurb: 'How often the higher-rated side actually wins — and whether the model’s confidence matches reality.',
+    sub: 'A reliability check: every rated match bucketed by the favorite’s pre-match win probability, versus how often that favorite actually won. Points on the diagonal mean the rating is well-calibrated. Pick a discipline to filter.',
+    toolbar: 'event' },
+]
+
+// Ordered sections for the landing. Each card's `group` maps to one of these.
+const GROUPS = [
+  { id: 'runs', label: 'Standout runs', hint: 'The biggest gains, upsets, and tournament performances.' },
+  { id: 'players', label: 'Players', hint: 'Career shape and match-to-match form.' },
+  { id: 'teams', label: 'Pairs & nations', hint: 'Doubles chemistry and national dominance eras.' },
+  { id: 'matchplay', label: 'Match play', hint: 'What happens inside the matches themselves.' },
+  { id: 'model', label: 'The rating model', hint: 'How trustworthy the numbers are.' },
 ]
 
 function Toolbar({ event, setEvent, includeNew, setIncludeNew, showDebut = true, allowAll = true, codes }) {
@@ -674,16 +684,28 @@ export default function Insights() {
           title="Insights"
           subtitle="Standout runs and giant-killings, how accurate the ratings actually are, when players peak, and who wins the tight ones — across two decades of BWF results. Pick a lens to dig in."
         />
-        <div className="insight-cards">
-          {INSIGHTS.map((i) => (
-            <button key={i.key} className="insight-card" onClick={() => setView(i.key)}>
-              <span className="insight-icon">{i.icon}</span>
-              <span className="insight-title">{i.title}</span>
-              <span className="insight-desc">{i.blurb}</span>
-              <span className="insight-go">Explore →</span>
-            </button>
-          ))}
-        </div>
+        {GROUPS.map((g) => {
+          const cards = INSIGHTS.filter((i) => i.group === g.id)
+          if (!cards.length) return null
+          return (
+            <section key={g.id} className="insight-group">
+              <div className="insight-group-head">
+                <h2>{g.label}</h2>
+                <span className="muted small">{g.hint}</span>
+              </div>
+              <div className="insight-cards">
+                {cards.map((i) => (
+                  <button key={i.key} className="insight-card" onClick={() => setView(i.key)}>
+                    <span className="insight-icon">{i.icon}</span>
+                    <span className="insight-title">{i.title}</span>
+                    <span className="insight-desc">{i.blurb}</span>
+                    <span className="insight-go">Explore →</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )
+        })}
       </div>
     )
   }

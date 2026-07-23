@@ -1132,3 +1132,11 @@ tr.expandable:hover { background: var(--surface-hover); }
 .theme-toggle:hover { background: rgba(255,255,255,.24); color: var(--on-green);
   transform: translateY(-1px); }
 .theme-toggle:active { transform: translateY(0); }
+
+/* Insights landing — grouped sections */
+.insight-group { margin-top: 26px; }
+.insight-group:first-of-type { margin-top: 14px; }
+.insight-group-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px;
+  flex-wrap: wrap; }
+.insight-group-head h2 { margin: 0; font-size: 16px; }
+.insight-group-head .small { margin-bottom: 1px; }
