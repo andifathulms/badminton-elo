@@ -5,6 +5,8 @@ import { useAsync } from '../useAsync.js'
 import { flag } from '../flags.js'
 import Avatar from '../components/Avatar.jsx'
 import PageHeader from '../components/PageHeader.jsx'
+import Confidence from '../components/Confidence.jsx'
+import { confidence, uncertainty } from '../confidence.js'
 
 const DOUBLES = new Set(['MD', 'WD', 'XD'])
 const capFor = (event) => (DOUBLES.has(event) ? 2 : 1)
@@ -128,9 +130,19 @@ function Matchup({ event, side1, side2 }) {
   const rec = data.record
   const n1 = sideName(side1)
   const n2 = sideName(side2)
+  const r1 = data.side1.rating
+  const r2 = data.side2.rating
+  const lowConf = r1 && r2 &&
+    (confidence(r1.rd).level === 'low' || confidence(r2.rd).level === 'low')
   return (
     <div className="h2h-result">
       <ProbBar prob={data.win_prob} name1={n1} name2={n2} />
+      {lowConf && (
+        <p className="muted small conf-note">
+          ⚠ Low-confidence prediction — one side’s rating is still provisional
+          (few or old matches), so treat the probability as a rough guide.
+        </p>
+      )}
 
       <div className="statgrid h2h-stats">
         <div className="statcard">
@@ -140,16 +152,22 @@ function Matchup({ event, side1, side2 }) {
         </div>
         <div className="statcard">
           <div className="k">{n1}</div>
-          <div className="v">{data.side1.rating ? data.side1.rating.rating.toFixed(0) : '—'}</div>
+          <div className="v">
+            {r1 ? r1.rating.toFixed(0) : '—'}
+            {r1 && <span className="muted small"> ±{uncertainty(r1.rd)}</span>}
+          </div>
           <div className="sub muted small">
-            {data.side1.rating ? `mu ${data.side1.rating.mu.toFixed(0)}` : 'unrated'}
+            {r1 ? <>mu {r1.mu.toFixed(0)} · <Confidence rd={r1.rd} showLabel /></> : 'unrated'}
           </div>
         </div>
         <div className="statcard">
           <div className="k">{n2}</div>
-          <div className="v">{data.side2.rating ? data.side2.rating.rating.toFixed(0) : '—'}</div>
+          <div className="v">
+            {r2 ? r2.rating.toFixed(0) : '—'}
+            {r2 && <span className="muted small"> ±{uncertainty(r2.rd)}</span>}
+          </div>
           <div className="sub muted small">
-            {data.side2.rating ? `mu ${data.side2.rating.mu.toFixed(0)}` : 'unrated'}
+            {r2 ? <>mu {r2.mu.toFixed(0)} · <Confidence rd={r2.rd} showLabel /></> : 'unrated'}
           </div>
         </div>
       </div>

@@ -6,6 +6,8 @@ import RatingChart from '../components/RatingChart.jsx'
 import MatchHistory from '../components/MatchHistory.jsx'
 import StyleCard from '../components/StyleCard.jsx'
 import Avatar from '../components/Avatar.jsx'
+import Confidence from '../components/Confidence.jsx'
+import { confidence, uncertainty } from '../confidence.js'
 
 export default function Player() {
   const { id } = useParams()
@@ -65,8 +67,13 @@ export default function Player() {
         {top && (
           <div className="statcard">
             <div className="k">{top.event} Rating</div>
-            <div className="v">{top.rating.toFixed(0)}</div>
-            <div className="sub">mu {top.mu.toFixed(0)} · rd {top.rd.toFixed(0)}</div>
+            <div className="v">
+              {top.rating.toFixed(0)}
+              <span className="muted small"> ±{uncertainty(top.rd)}</span>
+            </div>
+            <div className="sub">
+              mu {top.mu.toFixed(0)} · <Confidence rd={top.rd} showLabel />
+            </div>
           </div>
         )}
         {top?.peak_mu != null && (
@@ -122,7 +129,9 @@ export default function Player() {
               onClick={() => setEvent(r.event)}
             >
               <td className="strong">{r.event}</td>
-              <td className="num strong">{r.rating.toFixed(1)}</td>
+              <td className="num strong">
+                <span className="rating-cell">{r.rating.toFixed(1)}<Confidence rd={r.rd} /></span>
+              </td>
               <td className="num">{r.mu.toFixed(0)}</td>
               <td className="num muted">{r.rd.toFixed(0)}</td>
               <td className="num">
