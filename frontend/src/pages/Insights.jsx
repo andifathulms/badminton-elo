@@ -6,6 +6,7 @@ import { flag } from '../flags.js'
 import Pager from '../components/Pager.jsx'
 import PageHeader from '../components/PageHeader.jsx'
 import UpsetsTable from '../components/UpsetsTable.jsx'
+import Entity from '../components/Entity.jsx'
 import ReliabilityChart from '../components/ReliabilityChart.jsx'
 import AgeCurveChart from '../components/AgeCurveChart.jsx'
 import DynastyTimeline from '../components/DynastyTimeline.jsx'
@@ -532,6 +533,58 @@ function ConsistencySection({ event }) {
   )
 }
 
+function SynergySection({ event }) {
+  const [order, setOrder] = useState('best')
+  const { data, error, loading } = useAsync(
+    () => api.synergy(event, { min: 20, order }), [event, order])
+  if (loading) return <p className="muted">Loading…</p>
+  if (error) return <p className="error">Could not load: {error.message}</p>
+  if (!data.results.length) return <p className="muted">No synergy data for this filter yet.</p>
+  return (
+    <div>
+      <div className="tabs mini-tabs">
+        <button className={`tab ${order === 'best' ? 'active' : ''}`}
+                onClick={() => setOrder('best')}>🤝 Best chemistry</button>
+        <button className={`tab ${order === 'worst' ? 'active' : ''}`}
+                onClick={() => setOrder('worst')}>💔 Underperformers</button>
+      </div>
+      <table className="board">
+        <thead>
+          <tr>
+            <th className="rank">#</th>
+            <th>Pair</th>
+            <th className="num">Synergy</th>
+            <th className="num">Perf</th>
+            <th className="num">Combined</th>
+            <th className="num">Together</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.results.map((r, i) => (
+            <tr key={r.players.map((p) => p.player_id).join('-')}>
+              <td className="rank">{i + 1}</td>
+              <td><Entity players={r.players} event={event} /></td>
+              <td className="num strong">
+                <span className={r.synergy >= 0 ? 'pos' : 'neg'}>
+                  {r.synergy >= 0 ? '+' : ''}{r.synergy}
+                </span>
+              </td>
+              <td className="num muted small">{r.perf_rating}</td>
+              <td className="num muted small">{r.combined_mu}</td>
+              <td className="num muted small">{r.wins_together}/{r.matches_together}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="muted small">
+        Synergy = the pair’s performance rating (from their own results vs the
+        fields they faced) minus their combined member rating. Positive = they
+        punch above the sum of their parts. Minimum 20 matches together.
+      </p>
+    </div>
+  )
+}
+
 const INSIGHTS = [
   { key: 'breakouts', icon: '🚀', title: 'Biggest tournament breakouts',
     blurb: 'Most ELO gained by an established player across a single tournament — the standout runs.',
@@ -549,6 +602,10 @@ const INSIGHTS = [
     blurb: 'How often the higher-rated side actually wins — and whether the model’s confidence matches reality.',
     sub: 'A reliability check: every rated match bucketed by the favorite’s pre-match win probability, versus how often that favorite actually won. Points on the diagonal mean the rating is well-calibrated. Pick a discipline to filter.',
     toolbar: 'event' },
+  { key: 'synergy', icon: '🤝', title: 'Partnership synergy',
+    blurb: 'Which doubles pairs overperform the sum of their parts — real on-court chemistry, and the duos that never gelled.',
+    sub: 'Synergy = a pair’s performance rating (from their own results) minus their combined individual rating. Positive means they’re better together than their solo levels predict. Toggle best chemistry vs underperformers; pick a doubles discipline.',
+    toolbar: 'doubles' },
   { key: 'consistency', icon: '🧊', title: 'Consistency',
     blurb: 'The steadiest performers vs the most volatile — measured by how much a rating swings match to match.',
     sub: 'Form volatility: the standard deviation of a player’s per-match rating change. Low means predictable (results match their level); high means erratic (big upsets and bad losses). Toggle steadiest vs most volatile; pick a discipline.',
@@ -571,7 +628,8 @@ const INSIGHTS = [
     toolbar: false },
 ]
 
-function Toolbar({ event, setEvent, includeNew, setIncludeNew, showDebut = true, allowAll = true }) {
+function Toolbar({ event, setEvent, includeNew, setIncludeNew, showDebut = true, allowAll = true, codes }) {
+  const list = codes || EVENTS.map((e) => e.code)
   return (
     <div className="toolbar wrap">
       <div className="segmented">
@@ -579,10 +637,10 @@ function Toolbar({ event, setEvent, includeNew, setIncludeNew, showDebut = true,
           <button className={event === '' ? 'seg active' : 'seg'}
                   onClick={() => setEvent('')}>All</button>
         )}
-        {EVENTS.map((e) => (
-          <button key={e.code}
-            className={event === e.code ? 'seg active' : 'seg'}
-            onClick={() => setEvent(e.code)}>{e.code}</button>
+        {list.map((code) => (
+          <button key={code}
+            className={event === code ? 'seg active' : 'seg'}
+            onClick={() => setEvent(code)}>{code}</button>
         ))}
       </div>
       {showDebut && (
@@ -605,6 +663,7 @@ export default function Insights() {
   // Cards that require a specific discipline can't use the "All" bucket.
   useEffect(() => {
     if (active?.toolbar === 'event-req' && event === '') setEvent('MS')
+    if (active?.toolbar === 'doubles' && !['MD', 'WD', 'XD'].includes(event)) setEvent('MD')
   }, [active, event])
 
   if (!active) {
@@ -637,13 +696,15 @@ export default function Insights() {
         <Toolbar event={event} setEvent={setEvent}
                  includeNew={includeNew} setIncludeNew={setIncludeNew}
                  showDebut={active.toolbar === true}
-                 allowAll={active.toolbar !== 'event-req'} />
+                 allowAll={active.toolbar === true || active.toolbar === 'event'}
+                 codes={active.toolbar === 'doubles' ? ['MD', 'WD', 'XD'] : undefined} />
       )}
       {view === 'accuracy' && <CalibrationSection event={event} />}
       {view === 'aging' && <AgingSection event={event} />}
       {view === 'clutch' && <ClutchSection event={event || 'MS'} />}
       {view === 'dynasties' && <DynastiesSection event={event || 'MS'} />}
       {view === 'consistency' && <ConsistencySection event={event || 'MS'} />}
+      {view === 'synergy' && <SynergySection event={['MD', 'WD', 'XD'].includes(event) ? event : 'MD'} />}
       {view === 'breakouts' && (
         <GainsTable kind="tournament-gains" event={event} includeNew={includeNew} />
       )}

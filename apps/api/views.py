@@ -1337,6 +1337,53 @@ class ClutchView(APIView):
         return Response({"event": event, "min": min_dec, "results": rows[:limit]})
 
 
+class SynergyView(APIView):
+    """GET /api/analytics/synergy?event=[&min=&order=&limit=] — partnership
+    chemistry. Ranks pairs by synergy = performance rating − combined member
+    rating: order=best (default) surfaces duos that overperform the sum of their
+    parts, order=worst the underperformers. `min` is the minimum matches together
+    (default 20). event is one of MD/WD/XD.
+    """
+
+    def get(self, request):
+        event = request.query_params.get("event")
+        if event not in DOUBLES:
+            raise ValidationError({"event": f"required; one of {', '.join(DOUBLES)}"})
+        try:
+            min_matches = int(request.query_params.get("min", 20))
+        except ValueError:
+            min_matches = 20
+        try:
+            limit = min(int(request.query_params.get("limit", 40)), 100)
+        except ValueError:
+            limit = 40
+
+        qs = (
+            Partnership.objects.filter(
+                event=event, matches_together__gte=min_matches, synergy__isnull=False
+            )
+            .select_related("player1", "player2")
+        )
+        desc = request.query_params.get("order") != "worst"
+        qs = qs.order_by("-synergy" if desc else "synergy")[:limit]
+        rows = [
+            {
+                "players": PlayerBriefSerializer([p.player1, p.player2], many=True).data,
+                "event": event,
+                "synergy": round(p.synergy, 1),
+                "perf_rating": round(p.perf_rating),
+                "combined_mu": round(p.combined_mu),
+                "matches_together": p.matches_together,
+                "wins_together": p.wins_together,
+                "win_pct": round(100.0 * p.wins_together / p.matches_together, 1)
+                if p.matches_together else None,
+            }
+            for p in qs
+        ]
+        return Response({"event": event, "order": "best" if desc else "worst",
+                         "min": min_matches, "results": rows})
+
+
 class ConsistencyView(APIView):
     """GET /api/analytics/consistency?event=[&min=&order=&limit=] — form
     volatility leaderboard. order=steady (default) ranks the lowest per-match

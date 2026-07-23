@@ -228,6 +228,11 @@ class Partnership(models.Model):
     combined_peak_mu = models.FloatField(null=True, blank=True)
     combined_peak_rd = models.FloatField(null=True, blank=True)
     last_match_utc = models.DateTimeField(null=True, blank=True)
+    # Chess-style performance rating from the pair's own results vs the fields
+    # they faced, and synergy = perf_rating − combined_mu (how much the duo
+    # over/under-performs the mean of its members). Set by build_synergy.
+    perf_rating = models.FloatField(null=True, blank=True)
+    synergy = models.FloatField(null=True, blank=True)
 
     class Meta:
         unique_together = ("event", "player1", "player2")

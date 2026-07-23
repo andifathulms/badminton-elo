@@ -40,6 +40,8 @@ export const api = {
   dynasties: (event) => get(`/analytics/dynasties?${qs({ event })}`),
   consistency: (event, { min = 40, order = 'steady' } = {}) =>
     get(`/analytics/consistency?${qs({ event, min, order })}`),
+  synergy: (event, { min = 20, order = 'best' } = {}) =>
+    get(`/analytics/synergy?${qs({ event, min, order })}`),
   player: (id) => get(`/players/${id}`),
   playerStyle: (id, partner) => get(`/players/${id}/style?${qs({ partner })}`),
   playerHistory: (id, event) => get(`/players/${id}/history?${qs({ event })}`),

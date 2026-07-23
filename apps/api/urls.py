@@ -23,6 +23,7 @@ from .views import (
     PlayerMatchesView,
     PlayerViewSet,
     RecordsView,
+    SynergyView,
     TournamentViewSet,
 )
 
@@ -42,6 +43,7 @@ urlpatterns = [
     path("analytics/clutch", ClutchView.as_view(), name="clutch"),
     path("analytics/dynasties", DynastiesView.as_view(), name="dynasties"),
     path("analytics/consistency", ConsistencyView.as_view(), name="consistency"),
+    path("analytics/synergy", SynergyView.as_view(), name="synergy"),
     path("analytics/<str:kind>", AnalyticsView.as_view(), name="analytics"),
     path("cups/<str:cup>/history", CupHistoryView.as_view(), name="cup-history"),
     path("cups/<str:cup>", CupView.as_view(), name="cups"),
