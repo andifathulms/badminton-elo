@@ -27,6 +27,9 @@ PY
   # Drop duplicate match rows (same contest under two match_ids) before rating,
   # so the served snapshot never double-counts even if the raw db still has them.
   .venv/bin/python manage.py dedup_matches --apply >/dev/null 2>&1
+  # Fold language/abbreviation event aliases (MIX->XD, HE->MS, "Ladies Singles"
+  # ->WS, …) into canonical buckets; preserves masters (MS45) and youth (MSU19).
+  .venv/bin/python manage.py normalize_events >/dev/null 2>&1
   # Correct team-cup rubber disciplines (scraper labels them by position) so
   # ratings land in the right bucket — self-heals future cup scrapes too.
   .venv/bin/python manage.py fix_cup_events >/dev/null 2>&1

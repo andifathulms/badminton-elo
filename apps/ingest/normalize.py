@@ -76,22 +76,34 @@ STATUS_MAP = {
 # as distinct suffixed buckets so they never pollute the open pools; flag
 # exhibitions for rating exclusion.
 OPEN_EVENTS = ("MS", "WS", "MD", "WD", "XD")
-_AGE = re.compile(r"\b(35|40|45|50|55|60|65|70|75)\b")
-_YOUTH = re.compile(r"u[\s-]?(1[3-9])\b")
+# Match an age even in the compact "MS45" form (no word boundary before it), but
+# not inside a longer number: 45 in "MS45" yes, 45 in "1450" no.
+_AGE = re.compile(r"(?<!\d)(35|40|45|50|55|60|65|70|75)(?!\d)")
+_YOUTH = re.compile(r"u[\s-]?(1[3-9])(?!\d)")
+# Already-canonical open/masters/youth codes — leave these untouched.
+_FINAL = re.compile(r"^(MS|WS|MD|WD|XD)(U1[3-9]|35|40|45|50|55|60|65|70|75)?$")
+
+
+def is_final_event(code: str) -> bool:
+    """True if `code` is already a clean open/masters/youth bucket."""
+    return bool(code) and bool(_FINAL.match(code))
 
 
 def _detect_discipline(low: str) -> str | None:
     """Best-effort open-discipline code from a lowercased label, else None."""
-    if "mixed" in low or "mixto" in low or "mixte" in low or low.startswith(("xd", "mx")):
+    if ("mix" in low or "mixto" in low or "mixte" in low
+            or low.startswith(("xd", "mx"))):
         return "XD"
     women = (
         "women" in low or "woman" in low or "girl" in low or "female" in low
+        or "ladies" in low or "lady" in low
         or "femenin" in low or "dames" in low or "damen" in low
         or low.startswith(("ws", "wd", "gs", "gd"))
     )
     # "men" is a substring of "women" — only credit it when women isn't present.
     men = (
         "boy" in low or "masculino" in low or "hommes" in low or "herren" in low
+        or "gentlem" in low
         or (("men" in low or "man" in low) and not women)
         or low.startswith(("ms", "md", "bs", "bd"))
     )
@@ -110,6 +122,22 @@ def _detect_discipline(low: str) -> str | None:
     return None
 
 
+# Exact foreign/abbreviated labels the word/regex heuristics can't parse.
+# French (Simple/Double Messieurs/Dames), Dutch/German (Heren/Dames Enkel/Dubbel,
+# Gemischt), and a few youth composites. Keyed by the lowercased, stripped label.
+_ALIAS = {
+    # singles
+    "sm": "MS", "sd": "WS", "he": "MS", "de": "WS", "hs": "MS", "ds": "WS",
+    # doubles
+    "dm": "MD", "dd": "WD", "hd": "MD", "gd": "XD",
+    # mixed
+    "mix": "XD", "mx": "XD", "dx": "XD",
+    # youth composites (Ladies/Men's, singles/doubles)
+    "u19 ms": "MSU19", "u19 ls": "WSU19", "u19 md": "MDU19",
+    "u19 ld": "WDU19", "u19 xd": "XDU19",
+}
+
+
 def canonical_event(raw: str) -> tuple[str, bool]:
     """Return (event_code, is_exhibition).
 
@@ -122,6 +150,8 @@ def canonical_event(raw: str) -> tuple[str, bool]:
     if s in OPEN_EVENTS:
         return s, False
     low = s.lower()
+    if low in _ALIAS:
+        return _ALIAS[low], False
     exhibition = any(w in low for w in ("exhibition", "farewell", "unified", "plate"))
     base = _detect_discipline(low)
     if base is None:
