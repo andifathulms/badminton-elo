@@ -1264,6 +1264,80 @@ class CalibrationView(APIView):
         })
 
 
+class AgingView(APIView):
+    """GET /api/analytics/aging?event=[&min_matches=] — when players peak.
+
+    Uses each rated player's all-time peak (peak_mu at peak_utc) and date of
+    birth to place their career peak on an age axis: the age distribution of
+    peaks, the median peak age, and the average peak rating per age — so you can
+    see the window a discipline's players tend to be at their best.
+    event omitted pools all five main disciplines.
+    """
+
+    AGE_MIN, AGE_MAX = 14, 42
+
+    def get(self, request):
+        event = request.query_params.get("event")
+        if event and event not in EVENTS:
+            raise ValidationError({"event": f"one of {', '.join(EVENTS)}"})
+        try:
+            min_matches = int(request.query_params.get("min_matches", 20))
+        except ValueError:
+            min_matches = 20
+
+        qs = (
+            PlayerRating.objects.filter(matches_played__gte=min_matches)
+            .exclude(peak_mu=None).exclude(peak_utc=None)
+            .filter(player__dob__isnull=False)
+            .select_related("player")
+        )
+        qs = qs.filter(event=event) if event else qs.filter(event__in=EVENTS)
+
+        ages: list[float] = []
+        by_age: dict = defaultdict(lambda: {"n": 0, "mu_sum": 0.0})
+        top: list = []
+        for r in qs:
+            dob = r.player.dob
+            peak = r.peak_utc
+            age = (peak.date() - dob).days / 365.25
+            if not (self.AGE_MIN <= age <= self.AGE_MAX):
+                continue
+            ages.append(age)
+            b = by_age[int(age)]
+            b["n"] += 1
+            b["mu_sum"] += r.peak_mu
+            top.append((r.peak_mu, age, r.player, r.event))
+
+        if not ages:
+            return Response({"event": event or "ALL", "n": 0, "bins": []})
+
+        ages.sort()
+        n = len(ages)
+        median = ages[n // 2] if n % 2 else (ages[n // 2 - 1] + ages[n // 2]) / 2
+        bins = [
+            {"age": age, "count": b["n"], "avg_peak": round(b["mu_sum"] / b["n"], 1)}
+            for age, b in sorted(by_age.items())
+        ]
+        top.sort(key=lambda t: t[0], reverse=True)
+        peakers = [
+            {
+                "player": PlayerBriefSerializer(p).data,
+                "event": ev,
+                "peak_mu": round(mu, 1),
+                "peak_age": round(age, 1),
+            }
+            for mu, age, p, ev in top[:10]
+        ]
+        return Response({
+            "event": event or "ALL",
+            "n": n,
+            "median_peak_age": round(median, 1),
+            "mean_peak_age": round(sum(ages) / n, 1),
+            "bins": bins,
+            "peakers": peakers,
+        })
+
+
 class EventsView(APIView):
     """GET /api/events — the discipline buckets and their rated-player counts."""
 

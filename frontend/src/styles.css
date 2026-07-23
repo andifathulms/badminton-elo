@@ -1037,3 +1037,6 @@ tr.expandable:hover { background: var(--surface-hover); }
   .h2h-picker { grid-template-columns: 1fr; }
   .h2h-vs { justify-self: center; }
 }
+
+/* Aging curve bars */
+.age-bar { fill: var(--brand-soft); stroke: var(--brand-ring); stroke-width: 1; }

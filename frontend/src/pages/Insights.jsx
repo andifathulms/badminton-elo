@@ -7,6 +7,7 @@ import Pager from '../components/Pager.jsx'
 import PageHeader from '../components/PageHeader.jsx'
 import UpsetsTable from '../components/UpsetsTable.jsx'
 import ReliabilityChart from '../components/ReliabilityChart.jsx'
+import AgeCurveChart from '../components/AgeCurveChart.jsx'
 
 const PAGE = 10
 
@@ -329,6 +330,55 @@ function CalibrationSection({ event }) {
   )
 }
 
+function AgingSection({ event }) {
+  const { data, error, loading } = useAsync(() => api.aging(event || ''), [event])
+  if (loading) return <p className="muted">Loading…</p>
+  if (error) return <p className="error">Could not load: {error.message}</p>
+  if (!data.n) return <p className="muted">No age data for this filter yet.</p>
+  return (
+    <div>
+      <div className="statgrid">
+        <div className="statcard">
+          <div className="k">Median peak age</div>
+          <div className="v">{data.median_peak_age}</div>
+          <div className="sub">half peak younger</div>
+        </div>
+        <div className="statcard">
+          <div className="k">Mean peak age</div>
+          <div className="v">{data.mean_peak_age}</div>
+          <div className="sub">{data.n.toLocaleString()} players</div>
+        </div>
+      </div>
+      <AgeCurveChart bins={data.bins} medianAge={data.median_peak_age} />
+      <h2>Latest to peak</h2>
+      <table className="board compact">
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th className="num">Peak age</th>
+            <th className="num">Peak</th>
+            <th>Event</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[...data.peakers].sort((a, b) => b.peak_age - a.peak_age).map((p) => (
+            <tr key={`${p.player.player_id}-${p.event}`}>
+              <td>
+                <span className="fl">{flag(p.player.country_code)}</span>{' '}
+                <Link to={`/players/${p.player.player_id}`}>{p.player.name_display}</Link>
+              </td>
+              <td className="num strong">{p.peak_age}</td>
+              <td className="num">{Math.round(p.peak_mu)}</td>
+              <td className="muted small">{p.event}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="muted small">Top-10 highest peaks in this filter, ordered by the age they hit it.</p>
+    </div>
+  )
+}
+
 const INSIGHTS = [
   { key: 'breakouts', icon: '🚀', title: 'Biggest tournament breakouts',
     blurb: 'Most ELO gained by an established player across a single tournament — the standout runs.',
@@ -345,6 +395,10 @@ const INSIGHTS = [
   { key: 'accuracy', icon: '🎯', title: 'Rating accuracy',
     blurb: 'How often the higher-rated side actually wins — and whether the model’s confidence matches reality.',
     sub: 'A reliability check: every rated match bucketed by the favorite’s pre-match win probability, versus how often that favorite actually won. Points on the diagonal mean the rating is well-calibrated. Pick a discipline to filter.',
+    toolbar: 'event' },
+  { key: 'aging', icon: '📈', title: 'When players peak',
+    blurb: 'The age players reach their career-best rating — and how peak level rises then fades with age.',
+    sub: 'Each rated player’s career peak placed on an age axis. Bars show how many players peaked at each age; the line is the average peak rating reached. Most players peak young (they don’t last), but the highest ratings come later. Pick a discipline to compare.',
     toolbar: 'event' },
   { key: 'records', icon: '🏟️', title: 'Match records',
     blurb: 'Longest matches, most rallies, and biggest comebacks — from rally-by-rally stats.',
@@ -413,6 +467,7 @@ export default function Insights() {
                  showDebut={active.toolbar !== 'event'} />
       )}
       {view === 'accuracy' && <CalibrationSection event={event} />}
+      {view === 'aging' && <AgingSection event={event} />}
       {view === 'breakouts' && (
         <GainsTable kind="tournament-gains" event={event} includeNew={includeNew} />
       )}

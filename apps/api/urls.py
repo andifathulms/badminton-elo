@@ -5,6 +5,7 @@ from rest_framework.routers import DefaultRouter
 from . import reconcile
 
 from .views import (
+    AgingView,
     AnalyticsView,
     CalibrationView,
     CupHistoryView,
@@ -34,6 +35,7 @@ urlpatterns = [
     path("pairs/detail", PairDetailView.as_view(), name="pair-detail"),
     path("pairs", PairsView.as_view(), name="pairs"),
     path("analytics/calibration", CalibrationView.as_view(), name="calibration"),
+    path("analytics/aging", AgingView.as_view(), name="aging"),
     path("analytics/<str:kind>", AnalyticsView.as_view(), name="analytics"),
     path("cups/<str:cup>/history", CupHistoryView.as_view(), name="cup-history"),
     path("cups/<str:cup>", CupView.as_view(), name="cups"),
