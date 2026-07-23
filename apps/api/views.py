@@ -368,6 +368,117 @@ class PairDetailView(APIView):
         )
 
 
+class H2HView(APIView):
+    """GET /api/h2h?event=&p1=&p2= — a head-to-head matchup between two players
+    in one discipline: each side's current rating, a Glicko-2 win probability,
+    and every past meeting (they were on OPPOSITE sides) with the running record.
+
+    Works for any discipline — the two players' individual (player, event)
+    ratings drive the prediction, so singles is the natural case but a mixed or
+    doubles pair of rivals compares their personal ratings too.
+    """
+
+    def get(self, request):
+        from .predict import win_probability
+
+        event = request.query_params.get("event")
+        if event not in EVENTS:
+            raise ValidationError({"event": f"required; one of {', '.join(EVENTS)}"})
+        try:
+            p1 = int(request.query_params["p1"])
+            p2 = int(request.query_params["p2"])
+        except (KeyError, ValueError):
+            raise ValidationError({"detail": "event, p1, p2 required"})
+        if p1 == p2:
+            raise ValidationError({"detail": "p1 and p2 must differ"})
+
+        players = {p.player_id: p for p in Player.objects.filter(player_id__in=(p1, p2))}
+        if p1 not in players or p2 not in players:
+            raise ValidationError({"detail": "unknown player"})
+        ratings = {
+            r.player_id: r
+            for r in PlayerRating.objects.filter(player_id__in=(p1, p2), event=event)
+        }
+
+        def rating_block(pid):
+            r = ratings.get(pid)
+            if not r:
+                return None
+            return {
+                "mu": round(r.mu, 1), "rd": round(r.rd, 1),
+                "rating": round(r.mu - 2.0 * r.rd, 1),
+                "peak_mu": round(r.peak_mu, 1) if r.peak_mu is not None else None,
+                "matches_played": r.matches_played,
+            }
+
+        r1, r2 = rating_block(p1), rating_block(p2)
+        prob = (
+            round(win_probability(ratings[p1].mu, ratings[p1].rd,
+                                  ratings[p2].mu, ratings[p2].rd), 4)
+            if r1 and r2 else None
+        )
+
+        # Meetings: matches in this event where p1 and p2 were on opposite sides.
+        s1 = dict(
+            MatchPlayer.objects.filter(player_id=p1, match__event=event)
+            .values_list("match_id", "side")
+        )
+        s2 = dict(
+            MatchPlayer.objects.filter(player_id=p2, match__event=event)
+            .values_list("match_id", "side")
+        )
+        shared = [mid for mid, side in s1.items() if s2.get(mid) not in (None, side)]
+        matches = (
+            Match.objects.filter(match_id__in=shared)
+            .select_related("tournament")
+            .prefetch_related("lineup__player", "games")
+            .order_by("-match_time_utc", "-match_id")
+        )
+
+        meetings, w1, w2 = [], 0, 0
+        for m in matches:
+            side1 = s1[m.match_id]  # p1's side in this match
+            lineup = list(m.lineup.all())
+            games = [
+                [g.side1_points, g.side2_points]
+                for g in sorted(m.games.all(), key=lambda g: g.game_no)
+            ]
+            if side1 == 2:  # orient the score to p1's perspective
+                games = [[b, a] for a, b in games]
+            p1_won = m.winner_side == side1
+            if m.winner_side in (1, 2):
+                w1 += p1_won
+                w2 += not p1_won
+            meetings.append({
+                "match_id": m.match_id,
+                "event": m.event,
+                "round_name": m.round_name,
+                "match_time_utc": m.match_time_utc,
+                "tournament": TournamentBriefSerializer(m.tournament).data
+                if m.tournament_id else None,
+                "p1_won": p1_won if m.winner_side in (1, 2) else None,
+                "score": games,
+                "score_status": m.score_status,
+                "p1_partners": PlayerBriefSerializer(
+                    [l.player for l in lineup if l.side == side1 and l.player_id != p1],
+                    many=True,
+                ).data,
+                "p2_partners": PlayerBriefSerializer(
+                    [l.player for l in lineup if l.side != side1 and l.player_id != p2],
+                    many=True,
+                ).data,
+            })
+
+        return Response({
+            "event": event,
+            "player1": {**PlayerBriefSerializer(players[p1]).data, "rating": r1},
+            "player2": {**PlayerBriefSerializer(players[p2]).data, "rating": r2},
+            "win_prob": prob,
+            "record": {"p1_wins": w1, "p2_wins": w2, "meetings": len(meetings)},
+            "meetings": meetings,
+        })
+
+
 class PerformancePathView(APIView):
     """GET /api/performance/path?player=&event=&tournament= — the player's/pair's
     run through one tournament: each match's opponent, round, result, score, ELO

@@ -997,3 +997,43 @@ tr.expandable:hover { background: var(--surface-hover); }
   .tl-legend { flex-flow: row wrap; }
   .tl-legend li { flex: 1 1 130px; }
 }
+
+/* --- Head-to-Head ---------------------------------------------------------- */
+.h2h-picker { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+  gap: 14px; margin: 18px 0 8px; }
+.h2h-vs { font-weight: 800; color: var(--muted); font-size: 15px; text-transform: uppercase;
+  letter-spacing: .06em; }
+.h2h-slot { min-height: 64px; display: flex; align-items: center; gap: 12px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  padding: 10px 12px; }
+.h2h-slot.chosen { border-color: var(--brand); box-shadow: 0 6px 18px -12px var(--brand-ring); }
+.h2h-slot-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.h2h-slot-meta .pname { font-weight: 700; }
+.h2h-search { margin-left: 0; width: 100%; }
+.h2h-search input { width: 100%; background: var(--surface); border: 1px solid var(--line-2);
+  color: var(--ink); padding: 12px 14px; border-radius: 12px; font-size: 14px; }
+.h2h-search input:focus { outline: none; border-color: var(--brand); }
+.h2h-search::before { content: none; }
+.chip-x { margin-left: auto; border: none; background: var(--neg-soft); color: var(--muted);
+  width: 24px; height: 24px; border-radius: 50%; cursor: pointer; font-size: 16px; line-height: 1; }
+.chip-x:hover { background: var(--neg); color: #fff; }
+
+.prob { margin: 20px 0 8px; }
+.prob-heads { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 8px; }
+.prob-head { display: flex; flex-direction: column; gap: 2px; }
+.prob-head.right { text-align: right; align-items: flex-end; }
+.prob-pct { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums;
+  color: var(--muted); line-height: 1; }
+.prob-head.fav .prob-pct { color: var(--brand); }
+.prob-vs { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; padding-bottom: 4px; }
+.prob-track { display: flex; height: 14px; border-radius: 8px; overflow: hidden;
+  border: 1px solid var(--line); }
+.prob-fill.p1 { background: var(--brand); }
+.prob-fill.p2 { background: var(--neg); }
+.h2h-stats { margin-top: 18px; }
+.h2h-result { margin-top: 8px; }
+
+@media (max-width: 640px) {
+  .h2h-picker { grid-template-columns: 1fr; }
+  .h2h-vs { justify-self: center; }
+}
