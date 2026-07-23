@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import Pager from './Pager.jsx'
+import { SkeletonList } from './Skeleton.jsx'
+import { EmptyState, ErrorState } from './Empty.jsx'
 
 const names = (players) =>
   players.map((p) => p.name_display).join(' / ') || '—'
@@ -12,17 +14,20 @@ export default function MatchHistory({ playerId, event }) {
   const navigate = useNavigate()
   const [page, setPage] = useState(0)
   useEffect(() => setPage(0), [playerId, event])
-  const { data, error, loading } = useAsync(
+  const { data, error, loading, reload } = useAsync(
     () => api.playerMatches(playerId, { event, limit: PAGE, offset: page * PAGE }),
     [playerId, event, page],
   )
 
-  if (loading) return <p className="muted">Loading matches…</p>
-  if (error) return <p className="error">Could not load matches: {error.message}</p>
-  if (!data.results.length) return <p className="muted">No matches.</p>
+  if (loading) return <SkeletonList rows={8} />
+  if (error) return <ErrorState error={error} onRetry={reload} what="matches" />
+  if (!data.results.length) return (
+    <EmptyState icon="🏸" title="No matches" hint="No matches recorded for this discipline yet." />
+  )
 
   return (
     <>
+    <div className="table-scroll">
     <table className="board compact matchlist">
       <thead>
         <tr>
@@ -83,6 +88,7 @@ export default function MatchHistory({ playerId, event }) {
         ))}
       </tbody>
     </table>
+    </div>
     <Pager page={page} setPage={setPage} count={data.count} pageSize={PAGE} unit="matches" />
     </>
   )

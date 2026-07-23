@@ -1231,3 +1231,14 @@ tr.expandable:hover { background: var(--surface-hover); }
   * { scroll-behavior: auto; }
 }
 html { scroll-behavior: smooth; }
+
+/* Responsive: tighten heroes and the profile on small phones */
+@media (max-width: 480px) {
+  .dash-hero { padding: 26px 20px; }
+  .page-hero { padding: 18px 18px; }
+  .profile { padding: 18px 16px; gap: 14px; align-items: flex-start; }
+  .profile .avatar.lg { width: 60px; height: 60px; font-size: 22px; border-radius: 18px; }
+  .profile h1 { font-size: 24px; }
+  .nat-power b { font-size: 19px; }
+  h1 { font-size: 26px; }
+}

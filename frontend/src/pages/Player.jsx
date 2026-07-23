@@ -111,6 +111,7 @@ export default function Player() {
       )}
 
       <h2>Ratings by discipline</h2>
+      <div className="table-scroll">
       <table className="board compact">
         <thead>
           <tr>
@@ -146,6 +147,7 @@ export default function Player() {
           ))}
         </tbody>
       </table>
+      </div>
       {player.ratings.length === 0 && (
         <p className="muted">No ratings yet for this player.</p>
       )}
