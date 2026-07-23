@@ -42,6 +42,8 @@
   --pos-soft: rgba(15, 138, 78, .12);
   --neg: #5f6b76;
   --neg-soft: rgba(95, 107, 118, .13);
+  /* Second chart series (vs brand green) — a restrained steel-slate. */
+  --race-2: #5f7d99;
   --warn-bg: #fdeecf;
   --warn-ink: #7a5600;
   --accent-amber: #c98a12;
@@ -96,6 +98,7 @@
   --pos-soft: rgba(53, 192, 123, .15);
   --neg: #8b98a4;
   --neg-soft: rgba(139, 152, 164, .16);
+  --race-2: #86a6c4;
   --warn-bg: rgba(201, 138, 18, .16);
   --warn-ink: #e7bd63;
   --accent-amber: #e0a63a;
@@ -915,14 +918,17 @@ tr.clickable .link { color: var(--brand); font-weight: 600; }
 @media (max-width: 560px) { .nat-roster { grid-template-columns: 1fr; } }
 
 /* Score race — two running-score lines per game (BWF-style) */
-.race-chart .race-line { stroke-width: 2.5; fill: none; stroke-linejoin: round; }
+.race-chart .worm-score { fill: var(--ink-2); font-size: 13px; font-weight: 800;
+  font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.race-chart .race-line { stroke-width: 2; fill: none; stroke-linejoin: round;
+  stroke-linecap: round; }
 .race-chart .race-line.s1 { stroke: var(--brand); }
-.race-chart .race-line.s2 { stroke: var(--ink-2); }
-.race-chart .race-line.winner { stroke-width: 3; }
+.race-chart .race-line.s2 { stroke: var(--race-2); }
+.race-chart .race-line.winner { stroke-width: 3.25; }
 .race-chart .race-dot.s1 { fill: var(--brand); }
-.race-chart .race-dot.s2 { fill: var(--ink-2); }
+.race-chart .race-dot.s2 { fill: var(--race-2); }
 .race-key.s1 { color: var(--brand); }
-.race-key.s2 { color: var(--ink-2); }
+.race-key.s2 { color: var(--race-2); }
 .race-chart .lead-mark { stroke: var(--accent-amber); stroke-width: 2;
   stroke-dasharray: 3 2; opacity: .8; }
 .race-chart .race-cursor { stroke: var(--line-2); stroke-width: 1; }

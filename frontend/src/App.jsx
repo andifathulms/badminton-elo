@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { api } from './api.js'
 import Avatar from './components/Avatar.jsx'
@@ -41,16 +41,21 @@ function Search() {
   const [q, setQ] = useState('')
   const [results, setResults] = useState([])
   const navigate = useNavigate()
+  // Monotonic request id — only the latest query's response is applied, so a
+  // slow earlier response ("as") can't overwrite the current one ("asd").
+  const seq = useRef(0)
 
   async function onChange(e) {
     const v = e.target.value
     setQ(v)
-    if (v.trim().length < 2) return setResults([])
+    const query = v.trim()
+    if (query.length < 2) { seq.current++; return setResults([]) }
+    const mine = ++seq.current
     try {
-      const data = await api.searchPlayers(v.trim())
-      setResults(data.results)
+      const data = await api.searchPlayers(query)
+      if (mine === seq.current) setResults(data.results)
     } catch {
-      setResults([])
+      if (mine === seq.current) setResults([])
     }
   }
 

@@ -31,8 +31,9 @@ function GameChart({ g, index, big }) {
   const [hover, setHover] = useState(null)
   const W = big ? 760 : 720
   const H = big ? 300 : 150
-  const PAD = { l: 30, r: 46, t: 30, b: 22 }
+  const PAD = { l: 16, r: 44, t: 30, b: 24 }
   const a = analyse(g)
+  const winnerIdx = a.s1win ? 0 : 1
   const maxScore = Math.max(a.last[0], a.last[1], 21)
   const stepX = (W - PAD.l - PAD.r) / Math.max(1, g.length - 1)
   const X = (i) => PAD.l + i * stepX
@@ -53,8 +54,8 @@ function GameChart({ g, index, big }) {
             <stop offset="100%" stopColor="var(--brand)" stopOpacity="0" />
           </linearGradient>
           <linearGradient id={`s2grad${index}${big ? 'b' : ''}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--ink-2)" stopOpacity="0.16" />
-            <stop offset="100%" stopColor="var(--ink-2)" stopOpacity="0" />
+            <stop offset="0%" stopColor="var(--race-2)" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="var(--race-2)" stopOpacity="0" />
           </linearGradient>
         </defs>
         {[0, 7, 14, 21].filter((v) => v <= maxScore).map((v) => (
@@ -63,12 +64,12 @@ function GameChart({ g, index, big }) {
             <text x={W - PAD.r + 6} y={Y(v) + 3} className="axis">{v}</text>
           </g>
         ))}
-        <text x={PAD.l} y={16} className="worm-title">Game {index + 1}</text>
-        <text x={W - PAD.r} y={16} className="worm-score" textAnchor="end">
+        <text x={W - PAD.r} y={17} className="worm-score" textAnchor="end">
           {a.last[0]}–{a.last[1]}
         </text>
-        <polygon points={areaPts(0)} fill={`url(#s1grad${index}${big ? 'b' : ''})`} />
-        <polygon points={areaPts(1)} fill={`url(#s2grad${index}${big ? 'b' : ''})`} />
+        {/* One soft fill under the winner's line — two stacked areas muddied it. */}
+        <polygon points={areaPts(winnerIdx)}
+                 fill={`url(#s${winnerIdx + 1}grad${index}${big ? 'b' : ''})`} />
         <polyline points={linePts(1)} fill="none"
                   className={`race-line s2 ${!a.s1win ? 'winner' : ''}`} />
         <polyline points={linePts(0)} fill="none"
