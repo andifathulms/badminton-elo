@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { api } from './api.js'
 import Avatar from './components/Avatar.jsx'
 import RefreshButton from './components/RefreshButton.jsx'
