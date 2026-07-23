@@ -46,7 +46,30 @@ class Command(BaseCommand):
         moves: Counter = Counter()
         # Per tournament — a single filter over 200+ tournaments blows SQLite's
         # expression-depth limit.
+        # Which cups can contain a mixed rubber? Only Sudirman / generic team
+        # events. Thomas & Uber (including the combined "Thomas & Uber Cup"
+        # record) have no XD, so one known gender settles a doubles pair.
+        names = dict(
+            Tournament.objects.filter(tournament_id__in=tour_ids).values_list(
+                "tournament_id", "name"
+            )
+        )
+        cats = dict(
+            Tournament.objects.filter(tournament_id__in=tour_ids).values_list(
+                "tournament_id", "category_name"
+            )
+        )
+
+        def allows_xd(tid):
+            hay = f"{names.get(tid, '')} {cats.get(tid, '')}".lower()
+            if "sudirman" in hay:
+                return True
+            if "thomas" in hay or "uber" in hay:
+                return False
+            return True  # unknown team event — keep the strict gender rule
+
         for tid in tour_ids:
+            allow_xd = allows_xd(tid)
             to_update = []
             for m in (
                 Match.objects.filter(tournament_id=tid)
@@ -54,7 +77,7 @@ class Command(BaseCommand):
             ):
                 s1 = [l.player for l in m.lineup.all() if l.side == 1]
                 s2 = [l.player for l in m.lineup.all() if l.side == 2]
-                disc = rubber_discipline(s1, s2)
+                disc = rubber_discipline(s1, s2, allow_xd=allow_xd)
                 if disc is None:
                     undetermined += 1
                     continue
