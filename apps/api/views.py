@@ -1337,6 +1337,49 @@ class ClutchView(APIView):
         return Response({"event": event, "min": min_dec, "results": rows[:limit]})
 
 
+class ConsistencyView(APIView):
+    """GET /api/analytics/consistency?event=[&min=&order=&limit=] — form
+    volatility leaderboard. order=steady (default) ranks the lowest per-match
+    rating-swing (most predictable), order=volatile the highest (giant-killers
+    and upset-prone). Restricted to players with at least `min` matches (default
+    40) so a short sample can't top either end.
+    """
+
+    def get(self, request):
+        event = request.query_params.get("event")
+        if event not in EVENTS:
+            raise ValidationError({"event": f"required; one of {', '.join(EVENTS)}"})
+        try:
+            min_matches = int(request.query_params.get("min", 40))
+        except ValueError:
+            min_matches = 40
+        try:
+            limit = min(int(request.query_params.get("limit", 40)), 100)
+        except ValueError:
+            limit = 40
+
+        qs = (
+            PlayerRating.objects.filter(
+                event=event, matches_played__gte=min_matches, volatility__isnull=False
+            )
+            .select_related("player")
+        )
+        desc = request.query_params.get("order") == "volatile"
+        qs = qs.order_by("-volatility" if desc else "volatility")[:limit]
+        rows = [
+            {
+                "player": PlayerBriefSerializer(r.player).data,
+                "volatility": round(r.volatility, 1),
+                "rating": round(r.mu - 2.0 * r.rd, 1),
+                "mu": round(r.mu),
+                "matches_played": r.matches_played,
+            }
+            for r in qs
+        ]
+        return Response({"event": event, "order": "volatile" if desc else "steady",
+                         "min": min_matches, "results": rows})
+
+
 class DynastiesView(APIView):
     """GET /api/analytics/dynasties?event= — which nation ruled a discipline, and
     when. For each year the top country (by summed top-3 rating) is the #1; runs

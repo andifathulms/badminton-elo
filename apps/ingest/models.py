@@ -173,6 +173,10 @@ class PlayerRating(models.Model):
     peak_mu = models.FloatField(null=True, blank=True)
     peak_rd = models.FloatField(null=True, blank=True)
     peak_utc = models.DateTimeField(null=True, blank=True)
+    # Standard deviation of this player's per-match rating deltas in the event —
+    # a form-volatility measure (low = steady, high = erratic). Set by
+    # build_consistency after rate; null until then.
+    volatility = models.FloatField(null=True, blank=True)
 
     class Meta:
         unique_together = ("player", "event")

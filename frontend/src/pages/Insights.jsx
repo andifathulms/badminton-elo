@@ -483,6 +483,55 @@ function DynastiesSection({ event }) {
   )
 }
 
+function ConsistencySection({ event }) {
+  const [order, setOrder] = useState('steady')
+  const { data, error, loading } = useAsync(
+    () => api.consistency(event, { min: 40, order }), [event, order])
+  if (loading) return <p className="muted">Loading…</p>
+  if (error) return <p className="error">Could not load: {error.message}</p>
+  if (!data.results.length) return <p className="muted">No consistency data for this filter yet.</p>
+  return (
+    <div>
+      <div className="tabs mini-tabs">
+        <button className={`tab ${order === 'steady' ? 'active' : ''}`}
+                onClick={() => setOrder('steady')}>🧊 Steadiest</button>
+        <button className={`tab ${order === 'volatile' ? 'active' : ''}`}
+                onClick={() => setOrder('volatile')}>🎲 Most volatile</button>
+      </div>
+      <table className="board">
+        <thead>
+          <tr>
+            <th className="rank">#</th>
+            <th>Player</th>
+            <th className="num">Volatility</th>
+            <th className="num">Rating</th>
+            <th className="num">Matches</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.results.map((r, i) => (
+            <tr key={r.player.player_id}>
+              <td className="rank">{i + 1}</td>
+              <td>
+                <span className="fl">{flag(r.player.country_code)}</span>{' '}
+                <Link to={`/players/${r.player.player_id}`}>{r.player.name_display}</Link>
+              </td>
+              <td className="num strong"><span className="metric">±{r.volatility}</span></td>
+              <td className="num muted small">{r.rating.toFixed(0)}</td>
+              <td className="num muted small">{r.matches_played}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="muted small">
+        Volatility = standard deviation of a player’s per-match rating change
+        (points). Low = steady, predictable form; high = big swings. Minimum 40
+        matches.
+      </p>
+    </div>
+  )
+}
+
 const INSIGHTS = [
   { key: 'breakouts', icon: '🚀', title: 'Biggest tournament breakouts',
     blurb: 'Most ELO gained by an established player across a single tournament — the standout runs.',
@@ -500,6 +549,10 @@ const INSIGHTS = [
     blurb: 'How often the higher-rated side actually wins — and whether the model’s confidence matches reality.',
     sub: 'A reliability check: every rated match bucketed by the favorite’s pre-match win probability, versus how often that favorite actually won. Points on the diagonal mean the rating is well-calibrated. Pick a discipline to filter.',
     toolbar: 'event' },
+  { key: 'consistency', icon: '🧊', title: 'Consistency',
+    blurb: 'The steadiest performers vs the most volatile — measured by how much a rating swings match to match.',
+    sub: 'Form volatility: the standard deviation of a player’s per-match rating change. Low means predictable (results match their level); high means erratic (big upsets and bad losses). Toggle steadiest vs most volatile; pick a discipline.',
+    toolbar: 'event-req' },
   { key: 'dynasties', icon: '👑', title: 'Nation dynasties',
     blurb: 'Which country ruled each discipline, and for how long — dominance eras from four decades of results.',
     sub: 'The #1 nation in a discipline each year (by summed top-3 player rating), and the reigns those years form. Pick a discipline to trace its dynasties.',
@@ -590,6 +643,7 @@ export default function Insights() {
       {view === 'aging' && <AgingSection event={event} />}
       {view === 'clutch' && <ClutchSection event={event || 'MS'} />}
       {view === 'dynasties' && <DynastiesSection event={event || 'MS'} />}
+      {view === 'consistency' && <ConsistencySection event={event || 'MS'} />}
       {view === 'breakouts' && (
         <GainsTable kind="tournament-gains" event={event} includeNew={includeNew} />
       )}
