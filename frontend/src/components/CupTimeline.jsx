@@ -74,8 +74,8 @@ export default function CupTimeline({ cup }) {
   if (error || !model) return null
 
   const { years, series, ranked } = model
-  const W = 900, H = 340
-  const PAD = { l: 46, r: 18, t: 16, b: 30 }
+  const W = 900, H = 420
+  const PAD = { l: 46, r: 18, t: 18, b: 32 }
   const allVals = series.flatMap((s) => s.known.map((p) => p.power))
   const yMin = Math.min(...allVals) * 0.98
   const yMax = Math.max(...allVals) * 1.02
@@ -84,6 +84,9 @@ export default function CupTimeline({ cup }) {
   const Y = (v) => H - PAD.b - ((v - yMin) / (yMax - yMin || 1)) * (H - PAD.t - PAD.b)
   const linePath = (known) =>
     known.map((p, i) => `${i ? 'L' : 'M'}${X(p.year).toFixed(1)},${Y(p.power).toFixed(1)}`).join(' ')
+  const areaPath = (known) =>
+    `${linePath(known)} L${X(known[known.length - 1].year).toFixed(1)},${(H - PAD.b).toFixed(1)}` +
+    ` L${X(known[0].year).toFixed(1)},${(H - PAD.b).toFixed(1)} Z`
 
   const ticks = Array.from({ length: 5 }, (_, k) => Math.round(yMin + (k / 4) * (yMax - yMin)))
   const step = Math.ceil(years.length / 9)
@@ -130,11 +133,15 @@ export default function CupTimeline({ cup }) {
 
           {series.map((s) => {
             const dim = hi != null && hi !== s.country
+            const emph = hi === s.country
             return (
-              <g key={s.country} opacity={dim ? 0.14 : 1}
+              <g key={s.country} opacity={dim ? 0.1 : 1}
                  onMouseEnter={() => setHi(s.country)} onMouseLeave={() => setHi(null)}>
+                {emph && (
+                  <path d={areaPath(s.known)} fill={s.color} fillOpacity="0.13" stroke="none" />
+                )}
                 <path d={linePath(s.known)} fill="none" stroke={s.color}
-                      strokeWidth={hi === s.country ? 3.25 : 1.75} className="tl-line" />
+                      strokeWidth={emph ? 3.75 : 2.25} className={`tl-line ${emph ? 'emph' : ''}`} />
               </g>
             )
           })}

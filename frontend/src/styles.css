@@ -549,8 +549,13 @@ tr.clickable .link { color: var(--brand); font-weight: 600; }
 .pcell .psub { font-size: 11.5px; color: var(--muted); font-weight: 500;
   text-transform: uppercase; letter-spacing: .03em; }
 /* search dropdown keeps name + flag inline */
-.search-results .pmeta { flex-direction: row; align-items: baseline; gap: 6px; }
-.search-results .pname { white-space: nowrap; }
+/* Single clean row: avatar · name (truncates) · country code pinned right. */
+.search-results button { gap: 11px; }
+.search-results .pmeta { display: flex; flex: 1; min-width: 0; flex-direction: row;
+  align-items: baseline; gap: 8px; }
+.search-results .pname { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; }
+.search-results .flag { flex: none; }
 
 /* Avatar */
 .avatar { flex: none; width: 34px; height: 34px; border-radius: 50%; object-fit: cover;
@@ -1010,7 +1015,8 @@ tr.expandable:hover { background: var(--surface-hover); }
 .tl-chart { width: 100%; height: auto; display: block; }
 .tl-chart .axis { fill: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
 .tl-chart .grid { stroke: var(--line); stroke-width: 1; }
-.tl-line { stroke-linejoin: round; stroke-linecap: round; transition: stroke-width .1s; }
+.tl-line { stroke-linejoin: round; stroke-linecap: round; transition: stroke-width .12s; }
+.tl-line.emph { filter: drop-shadow(0 2px 6px rgba(0,0,0,.3)); }
 .tl-cursor { stroke: var(--line-2); stroke-width: 1; }
 .tl-emph { font-size: 12px; font-weight: 800; paint-order: stroke; stroke: var(--surface);
   stroke-width: 3px; }
