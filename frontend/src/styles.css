@@ -65,6 +65,48 @@
   --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
 }
 
+/* Dark theme — flips surfaces / ink / lines / shadows; the court-green brand and
+   the green header/hero fills stay (colored headers read well on dark too). Set
+   by a pre-paint script in index.html and toggled from the header. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0d1512;
+  --bg-grad: radial-gradient(1150px 560px at 10% -12%, rgba(20,70,44,.42) 0%, rgba(20,70,44,0) 60%),
+             radial-gradient(950px 480px at 100% -6%, rgba(16,58,38,.34) 0%, rgba(16,58,38,0) 58%);
+  --surface: #16211c;
+  --surface-2: #1b2721;
+  --surface-hover: #21302a;
+  --ink: #e9f1ec;
+  --ink-2: #c3d2c9;
+  --muted: #8ea89a;
+  --faint: #6b8478;
+  --line: #26332c;
+  --line-2: #33453b;
+
+  /* Brand greens brighten a touch for contrast on dark surfaces. */
+  --brand: #24b268;
+  --brand-2: #46c47e;
+  --brand-soft: rgba(36, 178, 104, .14);
+  --brand-ring: rgba(36, 178, 104, .34);
+  --grad-brand: linear-gradient(135deg, #159a53 0%, #38b871 100%);
+
+  /* Win = green, loss = a lighter slate so it stays legible on dark. */
+  --pos: #35c07b;
+  --pos-soft: rgba(53, 192, 123, .15);
+  --neg: #8b98a4;
+  --neg-soft: rgba(139, 152, 164, .16);
+  --warn-bg: rgba(201, 138, 18, .16);
+  --warn-ink: #e7bd63;
+  --accent-amber: #e0a63a;
+
+  /* Elevation reads as depth on dark via darker, wider shadows. */
+  --sh-sm: 0 1px 2px rgba(0, 0, 0, .35);
+  --sh: 0 1px 3px rgba(0, 0, 0, .35), 0 6px 20px -8px rgba(0, 0, 0, .5);
+  --sh-md: 0 4px 12px -4px rgba(0, 0, 0, .5), 0 14px 34px -12px rgba(0, 0, 0, .6);
+  --sh-pop: 0 14px 42px -8px rgba(0, 0, 0, .7);
+}
+
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
 body {
@@ -1079,3 +1121,14 @@ tr.expandable:hover { background: var(--surface-hover); }
 .conf-low .conf-label { color: var(--neg); }
 .rating-cell { display: inline-flex; align-items: center; gap: 7px; justify-content: flex-end; }
 .conf-note { margin: 8px 0 0; }
+
+/* Theme toggle (header) */
+.theme-toggle {
+  display: inline-grid; place-items: center; width: 38px; height: 38px; flex: none;
+  border-radius: 10px; cursor: pointer; color: var(--on-green);
+  background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.24);
+  transition: background .15s, border-color .15s, transform .15s;
+}
+.theme-toggle:hover { background: rgba(255,255,255,.24); color: var(--on-green);
+  transform: translateY(-1px); }
+.theme-toggle:active { transform: translateY(0); }
