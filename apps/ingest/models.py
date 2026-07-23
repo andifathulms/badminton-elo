@@ -376,6 +376,31 @@ class CalibrationBin(models.Model):
         return f"calib {self.event} b{self.bucket}: {self.correct}/{self.n}"
 
 
+class ClutchStat(models.Model):
+    """Analytics: 'clutch' record — how a player fares when a match goes the
+    distance to a deciding third game. Built by `build_clutch` from the game
+    counts + winner side (Normal matches only). `deciders_won / deciders_played`
+    is the third-game win rate; `matches`/`wins` are the player's overall record
+    in that discipline for context.
+    """
+
+    player = models.ForeignKey(
+        Player, on_delete=models.CASCADE, related_name="clutch_stats"
+    )
+    event = models.CharField(max_length=8)  # MS/WS/MD/WD/XD
+    deciders_played = models.IntegerField(default=0)  # matches that reached a 3rd game
+    deciders_won = models.IntegerField(default=0)
+    matches = models.IntegerField(default=0)  # all Normal matches in the event
+    wins = models.IntegerField(default=0)
+
+    class Meta:
+        unique_together = ("player", "event")
+        indexes = [models.Index(fields=["event", "-deciders_played"])]
+
+    def __str__(self) -> str:
+        return f"clutch {self.player_id}/{self.event}: {self.deciders_won}/{self.deciders_played}"
+
+
 class RawCache(models.Model):
     """Read-through cache of every raw API response (PRD §5, domain rule 9).
 

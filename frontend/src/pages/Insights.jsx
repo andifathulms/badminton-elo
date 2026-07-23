@@ -379,6 +379,56 @@ function AgingSection({ event }) {
   )
 }
 
+function ClutchSection({ event }) {
+  const [order, setOrder] = useState('pct')
+  const { data, error, loading } = useAsync(
+    () => api.clutch(event, { min: 15, order }), [event, order])
+  if (loading) return <p className="muted">Loading…</p>
+  if (error) return <p className="error">Could not load: {error.message}</p>
+  if (!data.results.length) return <p className="muted">No clutch data for this filter yet.</p>
+  return (
+    <div>
+      <div className="tabs mini-tabs">
+        <button className={`tab ${order === 'pct' ? 'active' : ''}`}
+                onClick={() => setOrder('pct')}>Best win %</button>
+        <button className={`tab ${order === 'played' ? 'active' : ''}`}
+                onClick={() => setOrder('played')}>Most deciders</button>
+      </div>
+      <table className="board">
+        <thead>
+          <tr>
+            <th className="rank">#</th>
+            <th>Player</th>
+            <th className="num">3rd-game W%</th>
+            <th className="num">Deciders</th>
+            <th className="num">Overall W%</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.results.map((r, i) => (
+            <tr key={r.player.player_id}>
+              <td className="rank">{i + 1}</td>
+              <td>
+                <span className="fl">{flag(r.player.country_code)}</span>{' '}
+                <Link to={`/players/${r.player.player_id}`}>{r.player.name_display}</Link>
+              </td>
+              <td className="num strong">
+                <span className="metric">{r.decider_pct}%</span>
+              </td>
+              <td className="num muted small">{r.deciders_won}/{r.deciders_played}</td>
+              <td className="num muted small">{r.overall_pct != null ? `${r.overall_pct}%` : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="muted small">
+        Deciding game = a match that went to a third game (Normal matches only).
+        Minimum 15 deciders to rank.
+      </p>
+    </div>
+  )
+}
+
 const INSIGHTS = [
   { key: 'breakouts', icon: '🚀', title: 'Biggest tournament breakouts',
     blurb: 'Most ELO gained by an established player across a single tournament — the standout runs.',
@@ -396,6 +446,10 @@ const INSIGHTS = [
     blurb: 'How often the higher-rated side actually wins — and whether the model’s confidence matches reality.',
     sub: 'A reliability check: every rated match bucketed by the favorite’s pre-match win probability, versus how often that favorite actually won. Points on the diagonal mean the rating is well-calibrated. Pick a discipline to filter.',
     toolbar: 'event' },
+  { key: 'clutch', icon: '🔥', title: 'Clutch: deciding games',
+    blurb: 'Who wins the matches that go the distance — third-game win rate across a discipline.',
+    sub: 'When a match reaches a deciding third game, who comes out on top? Ranked by third-game win rate (Normal matches only, minimum 15 deciders). Pick a discipline.',
+    toolbar: 'event-req' },
   { key: 'aging', icon: '📈', title: 'When players peak',
     blurb: 'The age players reach their career-best rating — and how peak level rises then fades with age.',
     sub: 'Each rated player’s career peak placed on an age axis. Bars show how many players peaked at each age; the line is the average peak rating reached. Most players peak young (they don’t last), but the highest ratings come later. Pick a discipline to compare.',
@@ -406,12 +460,14 @@ const INSIGHTS = [
     toolbar: false },
 ]
 
-function Toolbar({ event, setEvent, includeNew, setIncludeNew, showDebut = true }) {
+function Toolbar({ event, setEvent, includeNew, setIncludeNew, showDebut = true, allowAll = true }) {
   return (
     <div className="toolbar wrap">
       <div className="segmented">
-        <button className={event === '' ? 'seg active' : 'seg'}
-                onClick={() => setEvent('')}>All</button>
+        {allowAll && (
+          <button className={event === '' ? 'seg active' : 'seg'}
+                  onClick={() => setEvent('')}>All</button>
+        )}
         {EVENTS.map((e) => (
           <button key={e.code}
             className={event === e.code ? 'seg active' : 'seg'}
@@ -434,6 +490,11 @@ export default function Insights() {
   const [event, setEvent] = useState('')
   const [includeNew, setIncludeNew] = useState(false)
   const active = INSIGHTS.find((i) => i.key === view)
+
+  // Cards that require a specific discipline can't use the "All" bucket.
+  useEffect(() => {
+    if (active?.toolbar === 'event-req' && event === '') setEvent('MS')
+  }, [active, event])
 
   if (!active) {
     return (
@@ -464,10 +525,12 @@ export default function Insights() {
       {active.toolbar && (
         <Toolbar event={event} setEvent={setEvent}
                  includeNew={includeNew} setIncludeNew={setIncludeNew}
-                 showDebut={active.toolbar !== 'event'} />
+                 showDebut={active.toolbar === true}
+                 allowAll={active.toolbar !== 'event-req'} />
       )}
       {view === 'accuracy' && <CalibrationSection event={event} />}
       {view === 'aging' && <AgingSection event={event} />}
+      {view === 'clutch' && <ClutchSection event={event || 'MS'} />}
       {view === 'breakouts' && (
         <GainsTable kind="tournament-gains" event={event} includeNew={includeNew} />
       )}

@@ -1264,6 +1264,52 @@ class CalibrationView(APIView):
         })
 
 
+class ClutchView(APIView):
+    """GET /api/analytics/clutch?event=[&min=&limit=&order=] — deciding-game
+    leaderboard: who wins the matches that go the distance to a third game.
+
+    Ranked by third-game win rate among players with at least `min` deciding
+    games (default 15), so a small sample can't top the board. order=played
+    ranks by sheer volume of deciders instead.
+    """
+
+    def get(self, request):
+        from apps.ingest.models import ClutchStat
+
+        event = request.query_params.get("event")
+        if event not in EVENTS:
+            raise ValidationError({"event": f"required; one of {', '.join(EVENTS)}"})
+        try:
+            min_dec = int(request.query_params.get("min", 15))
+        except ValueError:
+            min_dec = 15
+        try:
+            limit = min(int(request.query_params.get("limit", 40)), 100)
+        except ValueError:
+            limit = 40
+
+        qs = (
+            ClutchStat.objects.filter(event=event, deciders_played__gte=min_dec)
+            .select_related("player")
+        )
+        rows = [
+            {
+                "player": PlayerBriefSerializer(c.player).data,
+                "deciders_played": c.deciders_played,
+                "deciders_won": c.deciders_won,
+                "decider_pct": round(100.0 * c.deciders_won / c.deciders_played, 1),
+                "matches": c.matches,
+                "overall_pct": round(100.0 * c.wins / c.matches, 1) if c.matches else None,
+            }
+            for c in qs
+        ]
+        if request.query_params.get("order") == "played":
+            rows.sort(key=lambda r: (r["deciders_played"], r["decider_pct"]), reverse=True)
+        else:
+            rows.sort(key=lambda r: (r["decider_pct"], r["deciders_played"]), reverse=True)
+        return Response({"event": event, "min": min_dec, "results": rows[:limit]})
+
+
 class AgingView(APIView):
     """GET /api/analytics/aging?event=[&min_matches=] — when players peak.
 

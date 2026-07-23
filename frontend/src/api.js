@@ -33,6 +33,8 @@ export const api = {
     get(`/records/${kind}?${qs({ event, limit })}`),
   calibration: (event) => get(`/analytics/calibration?${qs({ event })}`),
   aging: (event) => get(`/analytics/aging?${qs({ event })}`),
+  clutch: (event, { min = 15, order = 'pct' } = {}) =>
+    get(`/analytics/clutch?${qs({ event, min, order })}`),
   player: (id) => get(`/players/${id}`),
   playerStyle: (id, partner) => get(`/players/${id}/style?${qs({ partner })}`),
   playerHistory: (id, event) => get(`/players/${id}/history?${qs({ event })}`),
