@@ -5,6 +5,8 @@ import { useAsync } from '../useAsync.js'
 import Select from '../components/Select.jsx'
 import Pager from '../components/Pager.jsx'
 import PageHeader from '../components/PageHeader.jsx'
+import { SkeletonList } from '../components/Skeleton.jsx'
+import { EmptyState, ErrorState } from '../components/Empty.jsx'
 
 const YEARS = Array.from({ length: 45 }, (_, i) => 2026 - i)
 const YEAR_OPTS = [{ value: '', label: 'All years' }, ...YEARS.map((y) => ({ value: y, label: String(y) }))]
@@ -52,11 +54,14 @@ function TournamentCard({ t }) {
 // sub-groups holding a grid of tournament cards. A card with 0 matches has no
 // draw data yet — the gap-spotter.
 function MasterView({ year }) {
-  const { data, error, loading } = useAsync(() => api.tournamentMaster(year), [year])
+  const { data, error, loading, reload } = useAsync(() => api.tournamentMaster(year), [year])
   const [collapsed, setCollapsed] = useState({})
-  if (loading) return <p className="muted">Loading {year}…</p>
-  if (error) return <p className="error">Could not load: {error.message}</p>
-  if (!data?.results?.length) return <p className="muted">No tournaments for {year}.</p>
+  if (loading) return <SkeletonList rows={8} />
+  if (error) return <ErrorState error={error} onRetry={reload} what="tournaments" />
+  if (!data?.results?.length) return (
+    <EmptyState icon="🗓" title={`No tournaments for ${year}`}
+      hint="Nothing has been ingested for this year yet." />
+  )
 
   // section (group) -> tier (category_name) -> rows, preserving prestige order
   const sections = []
@@ -108,14 +113,15 @@ function MasterView({ year }) {
 function FlatList({ year, tier }) {
   const [page, setPage] = useState(0)
   useEffect(() => setPage(0), [year, tier])
-  const { data, error, loading } = useAsync(
+  const { data, error, loading, reload } = useAsync(
     () => api.tournaments({ year, tier, limit: PAGE, offset: page * PAGE }),
     [year, tier, page])
-  if (loading) return <p className="muted">Loading…</p>
-  if (error) return <p className="error">Could not load: {error.message}</p>
+  if (loading) return <SkeletonList rows={10} />
+  if (error) return <ErrorState error={error} onRetry={reload} what="tournaments" />
   if (!data) return null
   return (
     <>
+      <div className="table-scroll">
       <table className="board">
         <thead>
           <tr><th>Tournament</th><th>Tier</th><th className="num">Dates</th><th className="num">Matches</th></tr>
@@ -134,8 +140,11 @@ function FlatList({ year, tier }) {
           ))}
         </tbody>
       </table>
-      <Pager page={page} setPage={setPage} count={data.count} pageSize={PAGE} unit="tournaments" />
-      {data.results.length === 0 && <p className="muted">No tournaments match.</p>}
+      </div>
+      {data.results.length > 0
+        ? <Pager page={page} setPage={setPage} count={data.count} pageSize={PAGE} unit="tournaments" />
+        : <EmptyState icon="🗓" title="No tournaments match"
+            hint="Try a different year or tier filter." />}
     </>
   )
 }

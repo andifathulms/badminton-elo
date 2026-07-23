@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 
-// Tiny async-data hook: returns { data, error, loading }. `deps` re-runs it.
+// Tiny async-data hook: returns { data, error, loading, reload }. `deps` re-runs
+// it; `reload()` re-runs on demand (for retry buttons).
 export function useAsync(fn, deps) {
+  const [nonce, setNonce] = useState(0)
   const [state, setState] = useState({ data: null, error: null, loading: true })
   useEffect(() => {
     let alive = true
@@ -14,6 +16,6 @@ export function useAsync(fn, deps) {
       alive = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps)
-  return state
+  }, [...deps, nonce])
+  return { ...state, reload: () => setNonce((n) => n + 1) }
 }

@@ -1170,3 +1170,17 @@ tr.expandable:hover { background: var(--surface-hover); }
   .board th, .board td { padding: 10px 10px; }
   .board { font-size: 14px; }
 }
+
+/* --- Empty / error states -------------------------------------------------- */
+.empty { display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 8px; padding: 44px 22px; color: var(--muted);
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: var(--sh-sm); }
+.empty-icon { font-size: 34px; line-height: 1; opacity: .9; }
+.empty-title { font-weight: 700; font-size: 15px; color: var(--ink-2); }
+.empty-hint { font-size: 13px; color: var(--muted); margin: 0; max-width: 46ch; line-height: 1.5; }
+.empty .pgbtn { margin-top: 6px; }
+
+.sk-hero { background: var(--header); background-image: var(--grad-header);
+  border-radius: var(--r-lg); padding: 24px 26px; box-shadow: var(--sh); }
+.sk-panel .skeleton { box-shadow: var(--sh-sm); }

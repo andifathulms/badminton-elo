@@ -5,6 +5,8 @@ import { useAsync } from '../useAsync.js'
 import { flag } from '../flags.js'
 import PageHeader from '../components/PageHeader.jsx'
 import CupTimeline from '../components/CupTimeline.jsx'
+import { SkeletonList } from '../components/Skeleton.jsx'
+import { EmptyState, ErrorState } from '../components/Empty.jsx'
 
 const CUPS = [
   { key: 'thomas', label: 'Thomas Cup', sub: "Men's team · 3 MS + 2 MD" },
@@ -64,7 +66,7 @@ function NationCard({ row, rank, maxPower }) {
 
 export default function Cups() {
   const [cup, setCup] = useState('thomas')
-  const { data, error, loading } = useAsync(() => api.cup(cup), [cup])
+  const { data, error, loading, reload } = useAsync(() => api.cup(cup), [cup])
   const meta = CUPS.find((c) => c.key === cup)
 
   return (
@@ -95,8 +97,8 @@ export default function Cups() {
       <CupTimeline cup={cup} />
 
       <h2 style={{ marginTop: 24 }}>Current standings</h2>
-      {loading && <p className="muted">Loading…</p>}
-      {error && <p className="error">Could not load: {error.message}</p>}
+      {loading && <SkeletonList rows={6} />}
+      {error && <ErrorState error={error} onRetry={reload} what="the standings" />}
       {data && data.results.length > 0 && (
         <>
           <div className="disc-legend">
@@ -113,7 +115,8 @@ export default function Cups() {
         </>
       )}
       {data && data.results.length === 0 && (
-        <p className="muted">No country can field a full team.</p>
+        <EmptyState icon="🏳️" title="No full teams"
+          hint="No country currently has enough active players/pairs to field a complete team." />
       )}
     </div>
   )

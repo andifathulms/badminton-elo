@@ -7,11 +7,12 @@ import MatchHistory from '../components/MatchHistory.jsx'
 import StyleCard from '../components/StyleCard.jsx'
 import Avatar from '../components/Avatar.jsx'
 import Confidence from '../components/Confidence.jsx'
+import { ErrorState } from '../components/Empty.jsx'
 import { confidence, uncertainty } from '../confidence.js'
 
 export default function Player() {
   const { id } = useParams()
-  const { data: player, error, loading } = useAsync(() => api.player(id), [id])
+  const { data: player, error, loading, reload } = useAsync(() => api.player(id), [id])
   const [event, setEvent] = useState(null)
 
   const activeEvent = event || player?.ratings?.[0]?.event
@@ -21,7 +22,7 @@ export default function Player() {
   )
 
   if (loading) return <p className="muted">Loading…</p>
-  if (error) return <p className="error">Could not load player: {error.message}</p>
+  if (error) return <ErrorState error={error} onRetry={reload} what="this player" />
 
   const wins = player.records?.reduce((a, r) => a + r.wins, 0) || 0
   const losses = player.records?.reduce((a, r) => a + r.losses, 0) || 0

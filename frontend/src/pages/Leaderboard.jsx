@@ -7,6 +7,7 @@ import Select from '../components/Select.jsx'
 import PageHeader from '../components/PageHeader.jsx'
 import Confidence from '../components/Confidence.jsx'
 import { SkeletonList } from '../components/Skeleton.jsx'
+import { EmptyState, ErrorState } from '../components/Empty.jsx'
 import { flag } from '../flags.js'
 
 function Legend({ showConf = true }) {
@@ -136,7 +137,7 @@ export default function Leaderboard() {
 function IndividualBoard({ event, ranking, order, setOrder, gender }) {
   const isPeak = ranking === 'peak'
   const [page, setPage] = useState(0)
-  const { data, error, loading } = useAsync(
+  const { data, error, loading, reload } = useAsync(
     () =>
       api.leaderboard(event, {
         order, ranking, gender, minMatches: 5, limit: PAGE, offset: page * PAGE,
@@ -161,7 +162,7 @@ function IndividualBoard({ event, ranking, order, setOrder, gender }) {
         )}
       </div>
       {loading && <SkeletonList rows={PAGE} />}
-      {error && <p className="error">Could not load: {error.message}</p>}
+      {error && <ErrorState error={error} onRetry={reload} what="the rankings" />}
       {data && (
         <div className="table-scroll">
         <table className="board">
@@ -220,8 +221,11 @@ function IndividualBoard({ event, ranking, order, setOrder, gender }) {
         </table>
         </div>
       )}
-      {data && <Pager page={page} setPage={setPage} count={data.count} />}
-      {data && data.results.length === 0 && <p className="muted">No players.</p>}
+      {data && data.results.length > 0 && <Pager page={page} setPage={setPage} count={data.count} />}
+      {data && data.results.length === 0 && (
+        <EmptyState icon="🏸" title="No players yet"
+          hint="No rated players match this filter. Try a different discipline or lower the minimum." />
+      )}
     </>
   )
 }
@@ -229,12 +233,12 @@ function IndividualBoard({ event, ranking, order, setOrder, gender }) {
 function PairsBoard({ event, ranking }) {
   const isPeak = ranking === 'peak'
   const [page, setPage] = useState(0)
-  const { data, error, loading } = useAsync(
+  const { data, error, loading, reload } = useAsync(
     () => api.pairs(event, { minMatches: 5, ranking, limit: PAGE, offset: page * PAGE }),
     [event, ranking, page],
   )
   if (loading) return <SkeletonList rows={PAGE} />
-  if (error) return <p className="error">Could not load pairs: {error.message}</p>
+  if (error) return <ErrorState error={error} onRetry={reload} what="the pairs" />
   return (
     <>
       <div className="table-scroll">
@@ -289,8 +293,10 @@ function PairsBoard({ event, ranking }) {
         </tbody>
       </table>
       </div>
-      <Pager page={page} setPage={setPage} count={data.count} />
-      {data.results.length === 0 && <p className="muted">No pairs.</p>}
+      {data.results.length > 0
+        ? <Pager page={page} setPage={setPage} count={data.count} />
+        : <EmptyState icon="🤝" title="No pairs yet"
+            hint="No partnerships match this filter — they may not have played enough together." />}
     </>
   )
 }

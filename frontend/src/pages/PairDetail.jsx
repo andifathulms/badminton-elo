@@ -5,6 +5,7 @@ import { useAsync } from '../useAsync.js'
 import Pager from '../components/Pager.jsx'
 import Avatar from '../components/Avatar.jsx'
 import StyleCard from '../components/StyleCard.jsx'
+import { ErrorState } from '../components/Empty.jsx'
 import { flag } from '../flags.js'
 
 const names = (players) => players.map((p) => p.name_display).join(' / ') || '—'
@@ -15,13 +16,13 @@ export default function PairDetail() {
   const navigate = useNavigate()
   const [page, setPage] = useState(0)
   useEffect(() => setPage(0), [event, p1, p2])
-  const { data, error, loading } = useAsync(
+  const { data, error, loading, reload } = useAsync(
     () => api.pairDetail(event, p1, p2),
     [event, p1, p2],
   )
 
   if (loading) return <p className="muted">Loading…</p>
-  if (error) return <p className="error">Could not load pair: {error.message}</p>
+  if (error) return <ErrorState error={error} onRetry={reload} what="this pair" />
 
   const pair = data.pair
   const winPct = data.matches_together

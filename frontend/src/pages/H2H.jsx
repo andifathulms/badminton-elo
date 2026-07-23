@@ -6,6 +6,7 @@ import { flag } from '../flags.js'
 import Avatar from '../components/Avatar.jsx'
 import PageHeader from '../components/PageHeader.jsx'
 import Confidence from '../components/Confidence.jsx'
+import { ErrorState } from '../components/Empty.jsx'
 import { confidence, uncertainty } from '../confidence.js'
 
 const DOUBLES = new Set(['MD', 'WD', 'XD'])
@@ -120,12 +121,12 @@ const sideName = (players) => players.map((p) => p.name_display).join(' / ')
 function Matchup({ event, side1, side2 }) {
   const ids1 = side1.map((p) => p.player_id)
   const ids2 = side2.map((p) => p.player_id)
-  const { data, error, loading } = useAsync(
+  const { data, error, loading, reload } = useAsync(
     () => api.h2h(event, ids1, ids2),
     [event, ids1.join(','), ids2.join(',')],
   )
   if (loading) return <p className="muted">Loading matchup…</p>
-  if (error) return <p className="error">Could not load: {error.message}</p>
+  if (error) return <ErrorState error={error} onRetry={reload} what="this matchup" />
 
   const rec = data.record
   const n1 = sideName(side1)
