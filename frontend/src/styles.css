@@ -833,9 +833,44 @@ tr.clickable .link { color: var(--brand); font-weight: 600; }
 }
 
 /* Cup power — national team contributors */
-.team-slots { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; }
-.team-slots .slot b { color: var(--brand); margin-right: 3px; }
-.team-slots .slot .muted { font-variant-numeric: tabular-nums; }
+/* Cup standings — one card per nation: rank · flag · power, a composition bar,
+   and the roster grouped by discipline. */
+.disc-legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 4px 0 12px;
+  font-size: 12px; color: var(--muted); font-weight: 700; }
+.disc-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.disc-legend .dot { width: 10px; height: 10px; border-radius: 3px; }
+
+.nat-list { display: flex; flex-direction: column; gap: 12px; }
+.nat { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface);
+  box-shadow: var(--sh); padding: 14px 16px; transition: border-color .12s; }
+.nat:hover { border-color: var(--line-2); }
+.nat-top { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; }
+.nat-id { display: inline-flex; align-items: center; gap: 8px; font-size: 16px; }
+.nat-id .fl { font-size: 19px; }
+.nat-power { display: inline-flex; align-items: baseline; gap: 6px; }
+.nat-power b { font-size: 22px; font-weight: 800; letter-spacing: -.01em; color: var(--brand);
+  font-variant-numeric: tabular-nums; }
+.nat-power small { font-size: 10px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--faint); font-weight: 700; }
+
+/* composition bar: length ∝ power vs leader; segments ∝ each slot's rating */
+.np-track { margin: 11px 0 12px; height: 10px; background: var(--surface-2);
+  border-radius: 999px; overflow: hidden; }
+.np-bar { height: 100%; display: flex; gap: 2px; min-width: 8px; }
+.np-seg { min-width: 3px; }
+.np-bar > :first-child { border-radius: 999px 0 0 999px; }
+.np-bar > :last-child { border-radius: 0 999px 999px 0; }
+
+.nat-roster { display: grid; gap: 5px 20px;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
+.nat-slot { display: flex; align-items: baseline; gap: 9px; min-width: 0; padding: 2px 0; }
+.nat-disc { flex: none; font-size: 11px; font-weight: 800; letter-spacing: .02em;
+  color: var(--ink-2); border-radius: 6px; padding: 2px 7px; }
+.nat-players { flex: 1; min-width: 0; font-weight: 600; }
+.nat-players a:hover { color: var(--brand); }
+.nat-rating { flex: none; font-variant-numeric: tabular-nums; font-weight: 700;
+  color: var(--ink-2); }
+@media (max-width: 560px) { .nat-roster { grid-template-columns: 1fr; } }
 
 /* Score race — two running-score lines per game (BWF-style) */
 .race-chart .race-line { stroke-width: 2.5; fill: none; stroke-linejoin: round; }
