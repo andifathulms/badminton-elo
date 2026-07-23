@@ -31,6 +31,7 @@ export const api = {
     get(`/performance/path?${qs({ player, event, tournament })}`),
   records: (kind, { event, limit = 25 } = {}) =>
     get(`/records/${kind}?${qs({ event, limit })}`),
+  calibration: (event) => get(`/analytics/calibration?${qs({ event })}`),
   player: (id) => get(`/players/${id}`),
   playerStyle: (id, partner) => get(`/players/${id}/style?${qs({ partner })}`),
   playerHistory: (id, event) => get(`/players/${id}/history?${qs({ event })}`),

@@ -353,6 +353,29 @@ class CupPowerHistory(models.Model):
         return f"{self.cup} {self.country} {self.year}: {self.power:.0f}"
 
 
+class CalibrationBin(models.Model):
+    """Analytics: rating reliability. Every rated match is bucketed by the
+    favorite's pre-match predicted win probability; `correct` counts how often
+    that favorite actually won. Comparing predicted vs actual per bucket is a
+    reliability diagram — the honest test of whether the rating is trustworthy.
+    Built by `build_calibration` from RatingHistory. event="ALL" is every
+    discipline pooled.
+    """
+
+    event = models.CharField(max_length=8)  # MS/WS/MD/WD/XD or "ALL"
+    bucket = models.IntegerField()  # floor(prob*10): 5→[.50,.60) … 9→[.90,1.0]
+    n = models.IntegerField(default=0)  # matches in this bucket
+    correct = models.IntegerField(default=0)  # favorite won
+    prob_sum = models.FloatField(default=0.0)  # Σ predicted prob (for the mean)
+
+    class Meta:
+        unique_together = ("event", "bucket")
+        ordering = ["event", "bucket"]
+
+    def __str__(self) -> str:
+        return f"calib {self.event} b{self.bucket}: {self.correct}/{self.n}"
+
+
 class RawCache(models.Model):
     """Read-through cache of every raw API response (PRD §5, domain rule 9).
 

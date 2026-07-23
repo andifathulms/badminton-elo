@@ -6,6 +6,7 @@ from . import reconcile
 
 from .views import (
     AnalyticsView,
+    CalibrationView,
     CupHistoryView,
     CupView,
     EventsView,
@@ -32,6 +33,7 @@ urlpatterns = [
     path("h2h", H2HView.as_view(), name="h2h"),
     path("pairs/detail", PairDetailView.as_view(), name="pair-detail"),
     path("pairs", PairsView.as_view(), name="pairs"),
+    path("analytics/calibration", CalibrationView.as_view(), name="calibration"),
     path("analytics/<str:kind>", AnalyticsView.as_view(), name="analytics"),
     path("cups/<str:cup>/history", CupHistoryView.as_view(), name="cup-history"),
     path("cups/<str:cup>", CupView.as_view(), name="cups"),

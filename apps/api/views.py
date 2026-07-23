@@ -1221,6 +1221,49 @@ class AnalyticsView(APIView):
                 r["achievement"] = friendly.get(round_name, round_name or None)
 
 
+class CalibrationView(APIView):
+    """GET /api/analytics/calibration?event= — rating reliability.
+
+    Returns the predicted-vs-actual win rate per probability bucket (a
+    reliability diagram) plus the headline accuracy: how often the higher-rated
+    side actually wins. event defaults to ALL (every discipline pooled).
+    """
+
+    def get(self, request):
+        from apps.ingest.models import CalibrationBin
+
+        event = request.query_params.get("event") or "ALL"
+        if event not in EVENTS and event != "ALL":
+            raise ValidationError({"event": f"one of ALL, {', '.join(EVENTS)}"})
+        rows = list(CalibrationBin.objects.filter(event=event).order_by("bucket"))
+        bins = [
+            {
+                "bucket": r.bucket,
+                "lo": round(r.bucket / 10, 2),
+                "hi": round((r.bucket + 1) / 10, 2),
+                "n": r.n,
+                "predicted": round(r.prob_sum / r.n, 4) if r.n else None,
+                "actual": round(r.correct / r.n, 4) if r.n else None,
+            }
+            for r in rows
+        ]
+        n = sum(r.n for r in rows)
+        correct = sum(r.correct for r in rows)
+        # Mean calibration error: |predicted − actual| weighted by bucket size.
+        ece = (
+            sum(abs(b["predicted"] - b["actual"]) * b["n"] for b in bins if b["n"])
+            / n
+            if n else None
+        )
+        return Response({
+            "event": event,
+            "n": n,
+            "accuracy": round(correct / n, 4) if n else None,
+            "calibration_error": round(ece, 4) if ece is not None else None,
+            "bins": bins,
+        })
+
+
 class EventsView(APIView):
     """GET /api/events — the discipline buckets and their rated-player counts."""
 

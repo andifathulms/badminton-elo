@@ -6,6 +6,7 @@ import { flag } from '../flags.js'
 import Pager from '../components/Pager.jsx'
 import PageHeader from '../components/PageHeader.jsx'
 import UpsetsTable from '../components/UpsetsTable.jsx'
+import ReliabilityChart from '../components/ReliabilityChart.jsx'
 
 const PAGE = 10
 
@@ -278,6 +279,56 @@ function RecordsSection({ event }) {
   )
 }
 
+function CalibrationSection({ event }) {
+  const { data, error, loading } = useAsync(
+    () => api.calibration(event || 'ALL'), [event])
+  if (loading) return <p className="muted">Loading…</p>
+  if (error) return <p className="error">Could not load: {error.message}</p>
+  if (!data.n) return <p className="muted">No calibration data for this filter yet.</p>
+  return (
+    <div>
+      <div className="statgrid">
+        <div className="statcard">
+          <div className="k">Accuracy</div>
+          <div className="v">{(data.accuracy * 100).toFixed(1)}%</div>
+          <div className="sub">favorite wins</div>
+        </div>
+        <div className="statcard">
+          <div className="k">Calibration error</div>
+          <div className="v">{(data.calibration_error * 100).toFixed(1)}%</div>
+          <div className="sub">mean |predicted − actual|</div>
+        </div>
+        <div className="statcard">
+          <div className="k">Matches</div>
+          <div className="v">{data.n.toLocaleString()}</div>
+          <div className="sub">rated, decisive</div>
+        </div>
+      </div>
+      <ReliabilityChart bins={data.bins} />
+      <table className="board compact">
+        <thead>
+          <tr>
+            <th>Predicted band</th>
+            <th className="num">Predicted</th>
+            <th className="num">Actual</th>
+            <th className="num">Matches</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.bins.filter((b) => b.n).map((b) => (
+            <tr key={b.bucket}>
+              <td>{Math.round(b.lo * 100)}–{Math.round(b.hi * 100)}%</td>
+              <td className="num">{(b.predicted * 100).toFixed(1)}%</td>
+              <td className="num strong">{(b.actual * 100).toFixed(1)}%</td>
+              <td className="num muted">{b.n.toLocaleString()}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 const INSIGHTS = [
   { key: 'breakouts', icon: '🚀', title: 'Biggest tournament breakouts',
     blurb: 'Most ELO gained by an established player across a single tournament — the standout runs.',
@@ -291,13 +342,17 @@ const INSIGHTS = [
     blurb: 'The level a player/pair actually played at, based on the strength of the field they beat.',
     sub: 'Chess-style performance rating — the level a player/pair played AT across a tournament, based on the strength of the opponents they beat. Walkovers and retirements don\'t count — only contested wins vs a rated opponent (open a row to see the run).',
     toolbar: true },
+  { key: 'accuracy', icon: '🎯', title: 'Rating accuracy',
+    blurb: 'How often the higher-rated side actually wins — and whether the model’s confidence matches reality.',
+    sub: 'A reliability check: every rated match bucketed by the favorite’s pre-match win probability, versus how often that favorite actually won. Points on the diagonal mean the rating is well-calibrated. Pick a discipline to filter.',
+    toolbar: 'event' },
   { key: 'records', icon: '🏟️', title: 'Match records',
     blurb: 'Longest matches, most rallies, and biggest comebacks — from rally-by-rally stats.',
     sub: 'Extremes pulled from the rally-by-rally match statistics — only matches we\'ve collected point-by-point data for.',
     toolbar: false },
 ]
 
-function Toolbar({ event, setEvent, includeNew, setIncludeNew }) {
+function Toolbar({ event, setEvent, includeNew, setIncludeNew, showDebut = true }) {
   return (
     <div className="toolbar wrap">
       <div className="segmented">
@@ -309,11 +364,13 @@ function Toolbar({ event, setEvent, includeNew, setIncludeNew }) {
             onClick={() => setEvent(e.code)}>{e.code}</button>
         ))}
       </div>
-      <label className="checkbox">
-        <input type="checkbox" checked={includeNew}
-               onChange={(e) => setIncludeNew(e.target.checked)} />
-        {' '}include debut players
-      </label>
+      {showDebut && (
+        <label className="checkbox">
+          <input type="checkbox" checked={includeNew}
+                 onChange={(e) => setIncludeNew(e.target.checked)} />
+          {' '}include debut players
+        </label>
+      )}
     </div>
   )
 }
@@ -352,8 +409,10 @@ export default function Insights() {
       <PageHeader kicker="Analytics" title={`${active.icon} ${active.title}`} subtitle={active.sub} />
       {active.toolbar && (
         <Toolbar event={event} setEvent={setEvent}
-                 includeNew={includeNew} setIncludeNew={setIncludeNew} />
+                 includeNew={includeNew} setIncludeNew={setIncludeNew}
+                 showDebut={active.toolbar !== 'event'} />
       )}
+      {view === 'accuracy' && <CalibrationSection event={event} />}
       {view === 'breakouts' && (
         <GainsTable kind="tournament-gains" event={event} includeNew={includeNew} />
       )}
