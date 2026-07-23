@@ -1052,3 +1052,17 @@ tr.expandable:hover { background: var(--surface-hover); }
 /* Dashboard calibration trust badge (a clickable stat chip) */
 .chip-link { cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
 .chip-link:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
+
+/* --- Nation dynasties ------------------------------------------------------ */
+.dynasty { margin: 8px 0 18px; }
+.dyn-bar { display: flex; height: 46px; border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--line); }
+.dyn-seg { display: flex; align-items: center; justify-content: center; min-width: 2px;
+  border-right: 1px solid rgba(255,255,255,.35); }
+.dyn-seg:last-child { border-right: none; }
+.dyn-seg-label { color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .02em;
+  text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+.dyn-axis { display: flex; justify-content: space-between; margin-top: 4px;
+  color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.dyn-grids { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 640px) { .dyn-grids { grid-template-columns: 1fr; } }

@@ -1337,6 +1337,71 @@ class ClutchView(APIView):
         return Response({"event": event, "min": min_dec, "results": rows[:limit]})
 
 
+class DynastiesView(APIView):
+    """GET /api/analytics/dynasties?event= — which nation ruled a discipline, and
+    when. For each year the top country (by summed top-3 rating) is the #1; runs
+    of the same #1 across consecutive years are 'reigns'. Returns the year-by-year
+    leader, the reigns (longest first), and total years at #1 per country.
+    """
+
+    def get(self, request):
+        from apps.ingest.models import NationYear
+
+        event = request.query_params.get("event")
+        if event not in EVENTS:
+            raise ValidationError({"event": f"required; one of {', '.join(EVENTS)}"})
+
+        rows = list(
+            NationYear.objects.filter(event=event).order_by("year", "-power")
+        )
+        if not rows:
+            return Response({"event": event, "timeline": [], "reigns": [], "totals": []})
+
+        by_year: dict = defaultdict(list)
+        for r in rows:
+            by_year[r.year].append(r)
+
+        timeline = []
+        for year in sorted(by_year):
+            ranked = sorted(by_year[year], key=lambda r: r.power, reverse=True)
+            top = ranked[0]
+            runner = ranked[1] if len(ranked) > 1 else None
+            timeline.append({
+                "year": year,
+                "country": top.country,
+                "power": round(top.power),
+                "margin": round(top.power - runner.power) if runner else None,
+                "runner_up": runner.country if runner else None,
+            })
+
+        # Reigns: consecutive runs of the same #1 country.
+        reigns = []
+        for t in timeline:
+            if reigns and reigns[-1]["country"] == t["country"] \
+                    and t["year"] == reigns[-1]["end"] + 1:
+                reigns[-1]["end"] = t["year"]
+                reigns[-1]["span"] += 1
+            else:
+                reigns.append({"country": t["country"], "start": t["year"],
+                               "end": t["year"], "span": 1})
+        reigns_sorted = sorted(reigns, key=lambda r: (r["span"], r["end"]), reverse=True)
+
+        totals: dict = defaultdict(int)
+        for t in timeline:
+            totals[t["country"]] += 1
+        totals_sorted = [
+            {"country": c, "years": n}
+            for c, n in sorted(totals.items(), key=lambda kv: kv[1], reverse=True)
+        ]
+
+        return Response({
+            "event": event,
+            "timeline": timeline,
+            "reigns": reigns_sorted,
+            "totals": totals_sorted,
+        })
+
+
 class AgingView(APIView):
     """GET /api/analytics/aging?event=[&min_matches=] — when players peak.
 

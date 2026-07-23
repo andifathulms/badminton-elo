@@ -401,6 +401,27 @@ class ClutchStat(models.Model):
         return f"clutch {self.player_id}/{self.event}: {self.deciders_won}/{self.deciders_played}"
 
 
+class NationYear(models.Model):
+    """Analytics: a country's strength in one discipline as of each year-end —
+    the sum of its top-3 active players' rating that year (mirrors
+    CupPowerHistory but per single discipline). Built by `build_nation_power`
+    from RatingHistory; powers the per-discipline dominance / dynasty timeline.
+    """
+
+    event = models.CharField(max_length=8)  # MS/WS/MD/WD/XD
+    country = models.CharField(max_length=8)
+    year = models.IntegerField()
+    power = models.FloatField()  # Σ top-3 active players' mu
+    players = models.IntegerField(default=0)  # how many contributed (<=3)
+
+    class Meta:
+        unique_together = ("event", "country", "year")
+        indexes = [models.Index(fields=["event", "year"])]
+
+    def __str__(self) -> str:
+        return f"{self.event} {self.country} {self.year}: {self.power:.0f}"
+
+
 class RawCache(models.Model):
     """Read-through cache of every raw API response (PRD §5, domain rule 9).
 

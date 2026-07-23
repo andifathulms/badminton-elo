@@ -8,6 +8,7 @@ import PageHeader from '../components/PageHeader.jsx'
 import UpsetsTable from '../components/UpsetsTable.jsx'
 import ReliabilityChart from '../components/ReliabilityChart.jsx'
 import AgeCurveChart from '../components/AgeCurveChart.jsx'
+import DynastyTimeline from '../components/DynastyTimeline.jsx'
 
 const PAGE = 10
 
@@ -429,6 +430,59 @@ function ClutchSection({ event }) {
   )
 }
 
+function DynastiesSection({ event }) {
+  const { data, error, loading } = useAsync(() => api.dynasties(event), [event])
+  if (loading) return <p className="muted">Loading…</p>
+  if (error) return <p className="error">Could not load: {error.message}</p>
+  if (!data.timeline.length) return <p className="muted">No dynasty data for this filter yet.</p>
+  const current = data.timeline[data.timeline.length - 1]
+  return (
+    <div>
+      <DynastyTimeline reigns={data.reigns} timeline={data.timeline} />
+      <div className="dyn-grids">
+        <div>
+          <h2>Longest reigns</h2>
+          <table className="board compact">
+            <thead>
+              <tr><th>Nation</th><th>Era</th><th className="num">Years</th></tr>
+            </thead>
+            <tbody>
+              {data.reigns.slice(0, 8).map((r, i) => (
+                <tr key={i}>
+                  <td><span className="fl">{flag(r.country)}</span> {r.country}</td>
+                  <td className="muted small">{r.start}{r.end !== r.start ? `–${r.end}` : ''}</td>
+                  <td className="num strong">{r.span}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <h2>Most years at #1</h2>
+          <table className="board compact">
+            <thead>
+              <tr><th>Nation</th><th className="num">Years #1</th></tr>
+            </thead>
+            <tbody>
+              {data.totals.slice(0, 8).map((t) => (
+                <tr key={t.country}>
+                  <td><span className="fl">{flag(t.country)}</span> {t.country}</td>
+                  <td className="num strong">{t.years}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p className="muted small">
+        Current #1: <span className="fl">{flag(current.country)}</span>{' '}
+        <strong>{current.country}</strong> ({current.year}). #1 = highest summed
+        top-3 rating that year.
+      </p>
+    </div>
+  )
+}
+
 const INSIGHTS = [
   { key: 'breakouts', icon: '🚀', title: 'Biggest tournament breakouts',
     blurb: 'Most ELO gained by an established player across a single tournament — the standout runs.',
@@ -446,6 +500,10 @@ const INSIGHTS = [
     blurb: 'How often the higher-rated side actually wins — and whether the model’s confidence matches reality.',
     sub: 'A reliability check: every rated match bucketed by the favorite’s pre-match win probability, versus how often that favorite actually won. Points on the diagonal mean the rating is well-calibrated. Pick a discipline to filter.',
     toolbar: 'event' },
+  { key: 'dynasties', icon: '👑', title: 'Nation dynasties',
+    blurb: 'Which country ruled each discipline, and for how long — dominance eras from four decades of results.',
+    sub: 'The #1 nation in a discipline each year (by summed top-3 player rating), and the reigns those years form. Pick a discipline to trace its dynasties.',
+    toolbar: 'event-req' },
   { key: 'clutch', icon: '🔥', title: 'Clutch: deciding games',
     blurb: 'Who wins the matches that go the distance — third-game win rate across a discipline.',
     sub: 'When a match reaches a deciding third game, who comes out on top? Ranked by third-game win rate (Normal matches only, minimum 15 deciders). Pick a discipline.',
@@ -531,6 +589,7 @@ export default function Insights() {
       {view === 'accuracy' && <CalibrationSection event={event} />}
       {view === 'aging' && <AgingSection event={event} />}
       {view === 'clutch' && <ClutchSection event={event || 'MS'} />}
+      {view === 'dynasties' && <DynastiesSection event={event || 'MS'} />}
       {view === 'breakouts' && (
         <GainsTable kind="tournament-gains" event={event} includeNew={includeNew} />
       )}
