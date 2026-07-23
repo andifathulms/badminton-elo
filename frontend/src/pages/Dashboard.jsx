@@ -6,6 +6,7 @@ import Avatar from '../components/Avatar.jsx'
 import Entity from '../components/Entity.jsx'
 import UpsetsTable from '../components/UpsetsTable.jsx'
 import { SkeletonList, SkeletonCards } from '../components/Skeleton.jsx'
+import CountUp from '../components/CountUp.jsx'
 import { flag } from '../flags.js'
 
 const DOUBLES = new Set(['MD', 'WD', 'XD'])
@@ -178,13 +179,17 @@ export default function Dashboard() {
           doubles strength.
         </p>
         <div className="stat-chips">
-          <span className="chip"><b>{totalRated ? totalRated.toLocaleString() : '—'}</b> rated players</span>
-          <span className="chip"><b>{tcount ? tcount.count.toLocaleString() : '—'}</b> tournaments</span>
+          <span className="chip">
+            <b>{totalRated ? <CountUp value={totalRated} /> : '—'}</b> rated players
+          </span>
+          <span className="chip">
+            <b>{tcount ? <CountUp value={tcount.count} /> : '—'}</b> tournaments
+          </span>
           <span className="chip"><b>5</b> disciplines</span>
           {calib?.accuracy != null && (
             <Link to="/insights" className="chip chip-link"
                   title={`The higher-rated side wins ${(calib.accuracy * 100).toFixed(1)}% of the time; predicted vs actual agree within ${(calib.calibration_error * 100).toFixed(1)}%. See the reliability diagram.`}>
-              <b>{(calib.accuracy * 100).toFixed(0)}%</b> predictions correct ✓
+              <b><CountUp value={calib.accuracy * 100} format={(n) => `${Math.round(n)}%`} /></b> predictions correct ✓
             </Link>
           )}
         </div>

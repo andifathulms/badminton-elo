@@ -132,7 +132,10 @@ export default function App() {
         </button>
       </header>
       <main className="content">
-        <Outlet />
+        {/* Keyed by route so each page fades/rises in on navigation. */}
+        <div className="route-fade" key={pathname}>
+          <Outlet />
+        </div>
       </main>
       <footer className="footer">
         Ratings are <strong>Glicko-2-with-pairs</strong> over BWF tournament data.

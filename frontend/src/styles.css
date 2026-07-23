@@ -1216,3 +1216,18 @@ tr.expandable:hover { background: var(--surface-hover); }
       20px 30px minmax(0, 1fr) 40px minmax(96px, auto) 40px minmax(0, 1fr); }
   .rubber, .tie-head { padding-left: 10px; padding-right: 10px; }
 }
+
+/* --- Motion ---------------------------------------------------------------- */
+.route-fade { animation: routeIn .3s ease-out; }
+@keyframes routeIn {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: none; }
+}
+/* Cards/rows already have hover transitions; add a gentle rise on interactive
+   surfaces for a more tactile feel. */
+.insight-card, .champ-card, .statcard, .tab, .nat { will-change: transform; }
+@media (prefers-reduced-motion: reduce) {
+  .route-fade { animation: none; }
+  * { scroll-behavior: auto; }
+}
+html { scroll-behavior: smooth; }
