@@ -1040,3 +1040,10 @@ tr.expandable:hover { background: var(--surface-hover); }
 
 /* Aging curve bars */
 .age-bar { fill: var(--brand-soft); stroke: var(--brand-ring); stroke-width: 1; }
+
+/* Compare-head-to-head action on the player profile */
+.pactions { margin-top: 12px; }
+.btn-compare { display: inline-flex; align-items: center; gap: 6px; font-weight: 700;
+  font-size: 13px; padding: 8px 14px; border-radius: 10px; background: var(--brand);
+  color: var(--brand-ink); border: 1px solid var(--brand); }
+.btn-compare:hover { background: var(--brand-2); color: var(--brand-ink); }

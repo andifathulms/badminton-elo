@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { api, EVENTS } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import { flag } from '../flags.js'
@@ -210,9 +210,22 @@ function Matchup({ p1, p2, event }) {
 }
 
 export default function H2H() {
+  const [params] = useSearchParams()
   const [p1, setP1] = useState(null)
   const [p2, setP2] = useState(null)
-  const [event, setEvent] = useState('MS')
+  const [event, setEvent] = useState(
+    EVENTS.some((e) => e.code === params.get('event')) ? params.get('event') : 'MS',
+  )
+
+  // Deep link: /h2h?p1=<id>&p2=<id>&event=<E> (e.g. from a player profile).
+  // Runs once on mount to seed the pickers from the URL.
+  useEffect(() => {
+    for (const [key, set] of [['p1', setP1], ['p2', setP2]]) {
+      const id = params.get(key)
+      if (id) api.player(id).then(set).catch(() => {})
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div>

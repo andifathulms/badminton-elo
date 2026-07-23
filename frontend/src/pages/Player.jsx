@@ -50,6 +50,14 @@ export default function Player() {
               <span>📊 {wins}–{losses} career ({winPct}%)</span>
             )}
           </div>
+          {top && (
+            <div className="pactions">
+              <Link className="btn-compare"
+                    to={`/h2h?p1=${player.player_id}&event=${activeEvent || top.event}`}>
+                ⚔️ Compare head-to-head
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 
