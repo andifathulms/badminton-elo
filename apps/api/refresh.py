@@ -41,7 +41,10 @@ def _target_year() -> int:
 
 
 # (label, callable) — mirrors scripts/refresh_ratings.sh.
-def _steps(year):
+# mode="full": collect the latest season, then re-rate + rebuild analytics.
+# mode="rebuild": skip collection — just re-rate the data already in the DB
+# (e.g. after manual Studio edits) and rebuild the derived analytics.
+def _steps(year, mode="full"):
     def cmd(name, **kw):
         return lambda: call_command(name, stdout=io.StringIO(), stderr=io.StringIO(), **kw)
 
@@ -53,19 +56,22 @@ def _steps(year):
         for b in builds:
             call_command(b, stdout=io.StringIO(), stderr=io.StringIO())
 
-    return [
+    collect = [
         (f"Collecting {year} tournaments", cmd("sync_calendar", year=year)),
         ("Deduplicating matches", cmd("dedup_matches", apply=True)),
+    ]
+    common = [
         ("Normalizing events", cmd("normalize_events")),
         ("Fixing cup disciplines", cmd("fix_cup_events")),
         ("Backfilling countries", cmd("backfill_cup_country")),
         ("Recomputing ratings", cmd("rate", rebuild=True)),
         ("Building analytics", run_builds),
     ]
+    return (collect + common) if mode == "full" else common
 
 
-def _run(year):
-    steps = _steps(year)
+def _run(year, mode="full"):
+    steps = _steps(year, mode)
     with _lock:
         _job["steps_total"] = len(steps)
     try:
@@ -94,19 +100,29 @@ def _snapshot():
         return {**_job, "allowed": _allowed()}
 
 
+def begin(mode="full"):
+    """Kick off a background job in `mode` if one isn't already running.
+
+    Returns (started, snapshot). Shared by the public refresh and the Studio
+    rebuild so there is only ever one pipeline in flight.
+    """
+    with _lock:
+        if _job["running"]:
+            return False, {**_job, "allowed": _allowed()}
+        _job.update(running=True, phase="Starting…", steps_done=0, steps_total=0,
+                    started_at=timezone.now(), finished_at=None, ok=None, message=None)
+    year = _target_year()
+    threading.Thread(target=_run, args=(year, mode), daemon=True).start()
+    return True, _snapshot()
+
+
 @api_view(["POST"])
 def start(request):
     """POST /api/refresh — kick off a background data refresh (if not running)."""
     if not _allowed():
         return Response({"allowed": False, "detail": "Data refresh is disabled."}, status=403)
-    with _lock:
-        if _job["running"]:
-            return Response({"started": False, **_job, "allowed": True})
-        _job.update(running=True, phase="Starting…", steps_done=0, steps_total=0,
-                    started_at=timezone.now(), finished_at=None, ok=None, message=None)
-    year = _target_year()
-    threading.Thread(target=_run, args=(year,), daemon=True).start()
-    return Response({"started": True, **_snapshot()})
+    started, snap = begin("full")
+    return Response({"started": started, **snap})
 
 
 @api_view(["GET"])

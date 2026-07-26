@@ -67,12 +67,19 @@ urlpatterns = [
         studio.tournament_edit,
         name="studio-tournament-edit",
     ),
+    path(
+        "studio/tournaments/<int:tournament_id>/matches",
+        studio.match_collection,
+        name="studio-match-collection",
+    ),
+    path("studio/matches/<int:match_id>", studio.match_detail, name="studio-match-detail"),
     path("studio/players", studio.player_create, name="studio-player-create"),
     path(
         "studio/players/<int:player_id>",
         studio.player_edit,
         name="studio-player-edit",
     ),
+    path("studio/rebuild", studio.rebuild, name="studio-rebuild"),
     path(
         "players/<int:player_id>/matches",
         PlayerMatchesView.as_view(),
