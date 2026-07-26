@@ -5,6 +5,7 @@ from rest_framework.routers import DefaultRouter
 from . import auth
 from . import reconcile
 from . import refresh
+from . import studio
 
 from .views import (
     AgingView,
@@ -60,6 +61,18 @@ urlpatterns = [
     path("auth/logout", auth.logout, name="auth-logout"),
     path("refresh", refresh.start, name="refresh-start"),
     path("refresh/status", refresh.status, name="refresh-status"),
+    # Studio (staff-only manual curation)
+    path(
+        "studio/tournaments/<int:tournament_id>",
+        studio.tournament_edit,
+        name="studio-tournament-edit",
+    ),
+    path("studio/players", studio.player_create, name="studio-player-create"),
+    path(
+        "studio/players/<int:player_id>",
+        studio.player_edit,
+        name="studio-player-edit",
+    ),
     path(
         "players/<int:player_id>/matches",
         PlayerMatchesView.as_view(),
