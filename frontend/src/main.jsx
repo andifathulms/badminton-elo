@@ -12,6 +12,8 @@ import Insights from './pages/Insights.jsx'
 import H2H from './pages/H2H.jsx'
 import PairDetail from './pages/PairDetail.jsx'
 import Cups from './pages/Cups.jsx'
+import Studio from './pages/Studio.jsx'
+import { AuthProvider } from './auth.jsx'
 import './styles.css'
 
 const router = createBrowserRouter([
@@ -28,6 +30,7 @@ const router = createBrowserRouter([
       { path: 'insights', element: <Insights /> },
       { path: 'h2h', element: <H2H /> },
       { path: 'cups', element: <Cups /> },
+      { path: 'studio', element: <Studio /> },
       { path: 'pairs/:event/:p1/:p2', element: <PairDetail /> },
     ],
   },
@@ -35,6 +38,8 @@ const router = createBrowserRouter([
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
   </React.StrictMode>,
 )

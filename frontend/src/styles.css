@@ -1304,3 +1304,62 @@ html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) {
   .refresh-btn .spin, .rt-spinner { animation: none; }
 }
+
+/* ============================ Studio (admin) ============================ */
+/* Staff-only curation surface. Reuses the global tokens so it themes with the
+   rest of the site (light/dark) for free. */
+.studio-link { display: inline-grid; place-items: center; width: 34px; height: 34px;
+  border-radius: 10px; color: var(--on-green-dim); }
+.studio-link:hover { background: var(--on-green-line); color: var(--on-green); }
+.studio-link.active { color: var(--on-green); }
+
+.studio-wrap { max-width: var(--maxw); margin: 0 auto; }
+
+/* Login */
+.studio-login { display: grid; place-items: center; min-height: 60vh; padding: 24px; }
+.studio-login-card { width: 100%; max-width: 360px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--sh-md);
+  padding: 28px 26px; display: grid; gap: 14px; }
+.studio-login-card h1 { font-size: 24px; margin: 0; }
+.studio-login-card > p { margin: -6px 0 4px; }
+.studio-login-card label { display: grid; gap: 6px; font-size: 13px; font-weight: 600;
+  color: var(--muted); }
+.studio-wrap input[type="text"], .studio-wrap input[type="password"],
+.studio-login-card input, .studio-field input, .studio-field select {
+  width: 100%; padding: 9px 11px; border: 1px solid var(--line-2);
+  border-radius: var(--r-sm); background: var(--bg); color: var(--ink);
+  font: inherit; font-size: 14px; }
+.studio-login-card input:focus, .studio-field input:focus, .studio-field select:focus {
+  outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-ring); }
+.studio-error { background: var(--neg-soft); color: var(--neg); border-radius: var(--r-sm);
+  padding: 8px 11px; font-size: 13px; }
+
+/* Buttons */
+.btn-primary { background: var(--grad-brand); color: var(--brand-ink); border: none;
+  padding: 10px 16px; border-radius: var(--r-sm); font-weight: 700; font-size: 14px;
+  cursor: pointer; box-shadow: var(--sh-sm); }
+.btn-primary:disabled { opacity: .5; cursor: default; }
+.btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--line-2);
+  padding: 7px 13px; border-radius: var(--r-sm); font-weight: 600; font-size: 13px;
+  cursor: pointer; }
+.btn-ghost:hover { border-color: var(--brand); color: var(--brand); }
+
+/* Shell */
+.studio-bar { display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin: 4px 0 18px; flex-wrap: wrap; }
+.studio-bar-title { display: flex; align-items: center; gap: 10px; }
+.studio-bar-title h1 { font-size: 26px; margin: 0; }
+.studio-badge { font-size: 10.5px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--brand); background: var(--brand-soft);
+  padding: 3px 8px; border-radius: 999px; }
+.studio-bar-right { display: flex; align-items: center; gap: 12px; }
+
+.studio-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line);
+  margin-bottom: 18px; }
+.studio-tabs button { background: transparent; border: none; border-bottom: 2px solid transparent;
+  color: var(--muted); font-weight: 700; font-size: 14px; padding: 9px 14px; cursor: pointer;
+  margin-bottom: -1px; }
+.studio-tabs button.active { color: var(--brand); border-bottom-color: var(--brand); }
+.studio-tabs button:hover { color: var(--ink); }
+
+.studio-panel { min-height: 200px; }

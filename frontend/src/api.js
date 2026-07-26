@@ -3,16 +3,46 @@
 const BASE = import.meta.env.VITE_API_BASE || '/api'
 
 async function get(path) {
-  const res = await fetch(`${BASE}${path}`)
+  const res = await fetch(`${BASE}${path}`, { credentials: 'same-origin' })
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
   return res.json()
 }
 
-async function post(path) {
-  const res = await fetch(`${BASE}${path}`, { method: 'POST' })
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
-  return res.json()
+// Django's CSRF token, planted as a cookie by GET /api/auth/me. Echoed back in
+// the X-CSRFToken header on every write so session-authenticated writes pass.
+function csrfToken() {
+  const m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/)
+  return m ? decodeURIComponent(m[1]) : ''
 }
+
+// Unsafe-method request with JSON body + CSRF. Throws an Error whose .status and
+// .data carry the server's response so callers can show a real message.
+async function send(method, path, body) {
+  const hasBody = body !== undefined
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    credentials: 'same-origin',
+    headers: {
+      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
+      'X-CSRFToken': csrfToken(),
+    },
+    body: hasBody ? JSON.stringify(body) : undefined,
+  })
+  if (!res.ok) {
+    let data = null
+    try { data = await res.json() } catch { /* non-JSON error */ }
+    const msg = data?.detail || Object.values(data || {})[0] || `${res.status} ${res.statusText}`
+    const err = new Error(Array.isArray(msg) ? msg[0] : msg)
+    err.status = res.status
+    err.data = data
+    throw err
+  }
+  return res.status === 204 ? null : res.json()
+}
+
+const post = (path, body) => send('POST', path, body)
+const patch = (path, body) => send('PATCH', path, body)
+const del = (path) => send('DELETE', path)
 
 const qs = (params) =>
   Object.entries(params)
@@ -65,6 +95,21 @@ export const api = {
   cupHistory: (cup) => get(`/cups/${cup}/history`),
   refreshStatus: () => get('/refresh/status'),
   refreshStart: () => post('/refresh'),
+
+  // --- Auth (session) ---
+  authMe: () => get('/auth/me'),
+  authLogin: (username, password) => post('/auth/login', { username, password }),
+  authLogout: () => post('/auth/logout'),
+
+  // --- Studio (staff-only writes) ---
+  studioTournamentEdit: (id, patchBody) => patch(`/studio/tournaments/${id}`, patchBody),
+  studioMatches: (tid) => get(`/studio/tournaments/${tid}/matches`),
+  studioMatchCreate: (tid, body) => post(`/studio/tournaments/${tid}/matches`, body),
+  studioMatchEdit: (id, body) => patch(`/studio/matches/${id}`, body),
+  studioMatchDelete: (id) => del(`/studio/matches/${id}`),
+  studioPlayerCreate: (body) => post('/studio/players', body),
+  studioPlayerEdit: (id, body) => patch(`/studio/players/${id}`, body),
+  studioRebuild: () => post('/studio/rebuild'),
 }
 
 export const EVENTS = [
