@@ -110,6 +110,13 @@ class Match(models.Model):
     winner_side = models.IntegerField(null=True, blank=True)  # 1 or 2 (advanced)
     side1_seed = models.CharField(max_length=8, blank=True)
     side2_seed = models.CharField(max_length=8, blank=True)
+    # Nation each side represented in this match, captured from the source at
+    # ingest (e.g. a team cup's Badmintonbox team1/team2). Unlike Player.country_code
+    # (a single present-day value), this is the nation AT MATCH TIME, so a player
+    # who switched countries (Grether GER→CAN, Audina INA→NED) is grouped into the
+    # correct tie. Blank when the source carries no per-side nation.
+    side1_country = models.CharField(max_length=8, blank=True)
+    side2_country = models.CharField(max_length=8, blank=True)
     scoring_format = models.CharField(max_length=16, blank=True)  # 3x21|3x15|…
     # True unless walkover/no-play/unknown status (PRD §6.6). Rating engine skips
     # rating_excluded matches; they are still ingested for completeness.

@@ -429,6 +429,11 @@ class Command(BaseCommand):
                 + timedelta(minutes=rorder) if t.start_date else None)
             match.score_status = "Retired" if m["retired"] else "Normal"
             match.winner_side = m["winner_side"]
+            # Nation each side represented in THIS match (from the flag/Badmintonbox),
+            # so team-cup ties group by nation-at-the-time, not the player's stored
+            # present-day country_code.
+            match.side1_country = m["side1"].get("country") or ""
+            match.side2_country = m["side2"].get("country") or ""
             match.scoring_format = scoring_format(m["games"]) if m["games"] else ""
             match.rating_excluded = not m["games"]  # finals-only rows w/o scores
             match.save()

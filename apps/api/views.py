@@ -951,7 +951,11 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
             for m in ms:
                 s1 = [l.player for l in m.lineup.all() if l.side == 1]
                 s2 = [l.player for l in m.lineup.all() if l.side == 2]
-                parsed.append((m, s1, s2, _side_country(s1), _side_country(s2)))
+                # Prefer the nation stored on the match (nation-at-the-time from the
+                # source); fall back to the players' present-day country_code.
+                c1 = m.side1_country or _side_country(s1)
+                c2 = m.side2_country or _side_country(s2)
+                parsed.append((m, s1, s2, c1, c2))
 
             # Group by the UNORDERED pair of nations, not by adjacency — a tie's
             # rubbers can be interleaved with other ties in the schedule, so a
