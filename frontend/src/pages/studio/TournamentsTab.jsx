@@ -16,7 +16,7 @@ function TournamentSearch({ onPick }) {
     if (query.length < 2) { seq.current++; return setResults([]) }
     const mine = ++seq.current
     try {
-      const data = await api.tournaments({ q: query, limit: 12 })
+      const data = await api.studioTournaments(query)
       if (mine === seq.current) setResults(data.results)
     } catch {
       if (mine === seq.current) setResults([])

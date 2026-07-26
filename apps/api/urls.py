@@ -62,7 +62,7 @@ urlpatterns = [
     path("refresh", refresh.start, name="refresh-start"),
     path("refresh/status", refresh.status, name="refresh-status"),
     # Studio (staff-only manual curation)
-    path("studio/tournaments", studio.tournament_create, name="studio-tournament-create"),
+    path("studio/tournaments", studio.tournament_collection, name="studio-tournament-collection"),
     path(
         "studio/tournaments/<int:tournament_id>",
         studio.tournament_edit,

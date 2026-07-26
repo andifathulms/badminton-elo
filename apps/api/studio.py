@@ -74,12 +74,16 @@ class TournamentEditSerializer(serializers.ModelSerializer):
         extra_kwargs = {f: {"required": False} for f in fields}
 
 
-@api_view(["POST"])
+@api_view(["GET", "POST"])
 @staff
-def tournament_create(request):
-    """POST /api/studio/tournaments — create a tournament from scratch (for an
-    old event not in any source). Draws a manual-band id; `code` stays blank so a
-    future scrape can still reconcile a real one by name."""
+def tournament_collection(request):
+    """GET  /api/studio/tournaments?q= — search ALL tournaments (unlike the
+    public list, this includes 0-match shells, which are exactly what a curator
+    needs to reach to add matches).
+    POST /api/studio/tournaments — create a tournament from scratch."""
+    if request.method == "GET":
+        return _tournament_search(request)
+
     name = (request.data.get("name") or "").strip()
     if not name:
         raise ValidationError({"name": "required"})
@@ -92,6 +96,20 @@ def tournament_create(request):
 
     fresh = Tournament.objects.annotate(match_count=Count("matches")).get(pk=t.pk)
     return Response(TournamentListSerializer(fresh).data, status=status.HTTP_201_CREATED)
+
+
+def _tournament_search(request):
+    from django.db.models import Count
+
+    qs = Tournament.objects.annotate(match_count=Count("matches"))
+    q = (request.query_params.get("q") or "").strip()
+    if q:
+        qs = qs.filter(name__icontains=q)
+    year = request.query_params.get("year")
+    if year and year.isdigit():
+        qs = qs.filter(start_date__year=int(year))
+    qs = qs.order_by("-start_date", "name")[:20]
+    return Response({"results": TournamentListSerializer(qs, many=True).data})
 
 
 @api_view(["PATCH"])
