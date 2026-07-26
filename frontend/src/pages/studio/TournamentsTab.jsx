@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { api } from '../../api.js'
+import MatchesEditor from './MatchesEditor.jsx'
 
 // Find a tournament by name, then edit its metadata (logo, dates, tier, venue,
 // prize). Only tournaments that already have matches are searchable.
@@ -148,6 +149,7 @@ export default function TournamentsTab() {
         tournament={picked}
         onSaved={(u) => setPicked((p) => ({ ...p, ...u }))}
       />
+      <MatchesEditor tournamentId={picked.tournament_id} />
     </div>
   )
 }
