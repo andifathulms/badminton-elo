@@ -102,6 +102,7 @@ export const api = {
   authLogout: () => post('/auth/logout'),
 
   // --- Studio (staff-only writes) ---
+  studioTournamentCreate: (body) => post('/studio/tournaments', body),
   studioTournamentEdit: (id, patchBody) => patch(`/studio/tournaments/${id}`, patchBody),
   studioMatches: (tid) => get(`/studio/tournaments/${tid}/matches`),
   studioMatchCreate: (tid, body) => post(`/studio/tournaments/${tid}/matches`, body),

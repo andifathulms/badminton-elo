@@ -122,14 +122,80 @@ function MetadataForm({ tournament, onSaved }) {
   )
 }
 
+// Create a tournament from scratch, then drop straight into its editor.
+function NewTournamentForm({ onCreated, onCancel }) {
+  const [form, setForm] = useState(() => {
+    const f = {}
+    for (const { key } of FIELDS) f[key] = ''
+    return f
+  })
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+
+  async function create() {
+    if (!form.name.trim()) { setErr('Name is required.'); return }
+    setSaving(true)
+    setErr('')
+    const body = {}
+    for (const { key, type } of FIELDS) {
+      const v = form[key]
+      body[key] = v === '' && (type === 'date' || type === 'number') ? null : v
+    }
+    try {
+      onCreated(await api.studioTournamentCreate(body))
+    } catch (e) {
+      setErr(e.message || 'Create failed')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="studio-form">
+      <div className="studio-form-grid">
+        {FIELDS.map(({ key, label, type }) => (
+          <label className="studio-field" key={key}>
+            <span>{label}{key === 'name' ? ' *' : ''}</span>
+            <input
+              type={type === 'date' ? 'date' : type === 'number' ? 'number' : 'text'}
+              value={form[key]}
+              autoFocus={key === 'name'}
+              onChange={(e) => { setForm((f) => ({ ...f, [key]: e.target.value })); setErr('') }}
+            />
+          </label>
+        ))}
+      </div>
+      {err && <div className="studio-error">{err}</div>}
+      <div className="studio-form-actions">
+        <button className="btn-primary" onClick={create} disabled={saving || !form.name.trim()}>
+          {saving ? 'Creating…' : 'Create tournament'}
+        </button>
+        <button className="btn-ghost" onClick={onCancel} disabled={saving}>Cancel</button>
+      </div>
+    </div>
+  )
+}
+
 export default function TournamentsTab() {
   const [picked, setPicked] = useState(null)
+  const [creating, setCreating] = useState(false)
 
   if (!picked) {
     return (
       <div className="studio-section">
-        <p className="muted">Pick a tournament to edit its details and matches.</p>
-        <TournamentSearch onPick={setPicked} />
+        <div className="studio-section-head">
+          <p className="muted">Pick a tournament to edit its details and matches.</p>
+          {!creating && (
+            <button className="btn-ghost" onClick={() => setCreating(true)}>+ New tournament</button>
+          )}
+        </div>
+        {creating ? (
+          <NewTournamentForm
+            onCreated={(t) => { setCreating(false); setPicked(t) }}
+            onCancel={() => setCreating(false)}
+          />
+        ) : (
+          <TournamentSearch onPick={setPicked} />
+        )}
       </div>
     )
   }
