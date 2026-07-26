@@ -74,6 +74,26 @@ class TournamentEditSerializer(serializers.ModelSerializer):
         extra_kwargs = {f: {"required": False} for f in fields}
 
 
+@api_view(["POST"])
+@staff
+def tournament_create(request):
+    """POST /api/studio/tournaments — create a tournament from scratch (for an
+    old event not in any source). Draws a manual-band id; `code` stays blank so a
+    future scrape can still reconcile a real one by name."""
+    name = (request.data.get("name") or "").strip()
+    if not name:
+        raise ValidationError({"name": "required"})
+    ser = TournamentEditSerializer(data=request.data, partial=True)
+    ser.is_valid(raise_exception=True)
+    with transaction.atomic():
+        tid = _next_manual_id(Tournament, "tournament_id")
+        t = Tournament.objects.create(tournament_id=tid, **ser.validated_data)
+    from django.db.models import Count
+
+    fresh = Tournament.objects.annotate(match_count=Count("matches")).get(pk=t.pk)
+    return Response(TournamentListSerializer(fresh).data, status=status.HTTP_201_CREATED)
+
+
 @api_view(["PATCH"])
 @staff
 def tournament_edit(request, tournament_id):
