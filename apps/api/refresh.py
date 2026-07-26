@@ -19,7 +19,13 @@ from django.conf import settings
 from django.core.management import call_command
 from django.db.models import Max
 from django.utils import timezone
-from rest_framework.decorators import api_view
+from rest_framework.authentication import SessionAuthentication
+from rest_framework.decorators import (
+    api_view,
+    authentication_classes,
+    permission_classes,
+)
+from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
 
 from apps.ingest.models import Tournament
@@ -117,8 +123,11 @@ def begin(mode="full"):
 
 
 @api_view(["POST"])
+@authentication_classes([SessionAuthentication])
+@permission_classes([IsAdminUser])
 def start(request):
-    """POST /api/refresh — kick off a background data refresh (if not running)."""
+    """POST /api/refresh — kick off a background data refresh (if not running).
+    Staff-only: it now lives in the Studio's Data tab, not the public header."""
     if not _allowed():
         return Response({"allowed": False, "detail": "Data refresh is disabled."}, status=403)
     started, snap = begin("full")

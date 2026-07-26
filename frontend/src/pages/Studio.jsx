@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuth } from '../auth.jsx'
 import TournamentsTab from './studio/TournamentsTab.jsx'
 import PlayersTab from './studio/PlayersTab.jsx'
+import DataTab from './studio/DataTab.jsx'
 
 // The in-app admin ("Studio"): a staff-gated surface for manually curating data
 // that the scrapers can't fully fill — old-tournament metadata, missing matches,
@@ -94,7 +95,7 @@ export default function Studio() {
       <div className="studio-panel">
         {tab === 'tournaments' && <TournamentsTab />}
         {tab === 'players' && <PlayersTab />}
-        {tab === 'data' && <p className="muted">Data tools — coming up.</p>}
+        {tab === 'data' && <DataTab />}
       </div>
     </div>
   )

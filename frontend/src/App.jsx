@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { api } from './api.js'
 import Avatar from './components/Avatar.jsx'
-import RefreshButton from './components/RefreshButton.jsx'
 
 function ThemeToggle() {
   const [theme, setTheme] = useState(
@@ -123,7 +122,6 @@ export default function App() {
           <NavLink to="/cups">Cups</NavLink>
         </nav>
         <Search />
-        <RefreshButton />
         <NavLink to="/studio" className="studio-link" aria-label="Studio (admin)" title="Studio">
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

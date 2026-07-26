@@ -1472,3 +1472,13 @@ html { scroll-behavior: smooth; }
   .me-sides { grid-template-columns: 1fr; }
   .me-vs { padding-top: 0; text-align: center; }
 }
+
+/* Studio: Data tab */
+.data-cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.data-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: var(--sh-sm); padding: 18px; display: grid; gap: 10px; align-content: start; }
+.data-card h3 { margin: 0; font-size: 16px; }
+.data-card p { margin: 0; }
+.data-card .btn-primary { justify-self: start; margin-top: 4px; }
+.data-progress { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: var(--sh-sm); padding: 16px; display: grid; gap: 8px; max-width: 460px; }
