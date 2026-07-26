@@ -9,6 +9,14 @@ import { ErrorState } from '../components/Empty.jsx'
 const eventLabel = (code) => EVENTS.find((e) => e.code === code)?.label || code
 const shortTier = (s) => (s || '').replace('HSBC BWF World Tour ', '').replace('BWF ', '')
 
+// Fixed discipline order for a tournament's champions + match tabs (the API
+// returns them by match count; we want the conventional MS WS MD WD XD).
+const EVENT_ORDER = ['MS', 'WS', 'MD', 'WD', 'XD']
+const eventRank = (code) => {
+  const i = EVENT_ORDER.indexOf(code)
+  return i === -1 ? 99 : i
+}
+
 const ROUND_LABEL = { QF: 'Quarter-finals', SF: 'Semi-finals', F: 'Final' }
 const roundLabel = (r) => ROUND_LABEL[r] || r
 
@@ -292,6 +300,10 @@ export default function Tournament() {
   if (loading) return <TournamentSkeleton />
   if (error) return <ErrorState error={error} onRetry={reload} what="this tournament" />
 
+  // Present champions + match tabs in the conventional discipline order.
+  const finals = [...(t.finals || [])].sort((a, b) => eventRank(a.event) - eventRank(b.event))
+  const events = [...(t.events || [])].sort((a, b) => eventRank(a.event) - eventRank(b.event))
+
   return (
     <div>
       <Link to="/tournaments" className="back">← Tournaments</Link>
@@ -315,11 +327,11 @@ export default function Tournament() {
         <TeamCup id={id} />
       ) : (
         <>
-          {t.finals.length > 0 && (
+          {finals.length > 0 && (
             <>
               <h2>🏆 Champions</h2>
               <div className="champ-list">
-                {t.finals.map((f) => (
+                {finals.map((f) => (
                   <div key={f.match_id} className="champ-row">
                     <span className="champ-ev">{eventLabel(f.event)}</span>
                     <span className="champ-who">
@@ -339,10 +351,10 @@ export default function Tournament() {
             </>
           )}
 
-          {t.events?.length > 0 && (
+          {events.length > 0 && (
             <>
               <h2>Matches</h2>
-              <MatchList id={id} events={t.events} movers={t.movers} />
+              <MatchList id={id} events={events} movers={t.movers} />
             </>
           )}
         </>
