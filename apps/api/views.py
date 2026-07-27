@@ -934,7 +934,11 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
             return {
                 "match_id": m.match_id,
                 "order": order,
-                "discipline": disc_of(s1, s2),
+                # Trust the stored discipline (set at ingest from the source's
+                # matchTypeValue or the draw's gender) — it's authoritative. Only
+                # re-infer from player genders when it isn't a clean code, so a
+                # rubber never shows a bare "S"/"D" when its event is really MD.
+                "discipline": m.event if m.event in EVENTS else disc_of(s1, s2),
                 "side1": PlayerBriefSerializer(s1, many=True).data,
                 "side2": PlayerBriefSerializer(s2, many=True).data,
                 "winner_side": win,
