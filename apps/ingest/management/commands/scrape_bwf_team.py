@@ -51,6 +51,13 @@ def team_round(draw_text: str, tie_round: str | None) -> tuple[str, int]:
     gm = re.search(r"group\s+([a-z0-9]+)", low)
     if gm:
         return (f"Group {gm.group(1).upper()}", 10)
+    # Placement/classification bracket: the draw suffix is a placing like '5/6',
+    # '7/9', '9-12'. These ties are also labelled 'Final' inside their sub-bracket,
+    # so give them their own round (after the main final) — otherwise the gold
+    # final stops being the single 'F' tie and the champion can't be identified.
+    pm = re.search(r"(\d+)\s*[/\-]\s*(\d+)\s*$", (draw_text or "").strip())
+    if pm:
+        return (f"{pm.group(1)}–{pm.group(2)} place", 95)
     tr = (tie_round or "").strip()
     hit = _KO.get(tr.lower())
     if hit:
@@ -66,6 +73,20 @@ def _to_date(v):
         return None
     s = str(v).replace("T", " ").split(" ")[0]
     return _date.fromisoformat(s)
+
+
+def _gendered_name(base: str, gender: str) -> str:
+    """A clear per-gender tournament name. When the event name embeds BOTH genders
+    ('… Men's and Women's Team Championships', 'Pan Am M&F Cup'), collapse that
+    phrase to just this gender so the name reads distinctly (and the gender isn't
+    hidden past a truncated card). Otherwise append a '– Men's/Women's team' tag."""
+    g_full = "Men's" if gender == "M" else "Women's"
+    # flexible whitespace: BWF sends e.g. "Men's  and Women's" (double space)
+    combo = (r"Men'?s\s*(?:and|&|/)\s*Women'?s|\bM\s*&\s*F\b"
+             r"|Men\s+and\s+Women|Male\s+(?:and|&)\s+Female")
+    if re.search(combo, base, flags=re.I):
+        return re.sub(r"\s{2,}", " ", re.sub(combo, g_full, base, flags=re.I)).strip()
+    return f"{base} – {g_full} team"
 
 
 def _gender_of(text: str) -> str:
@@ -115,13 +136,12 @@ class Command(BaseCommand):
         }
 
     def _gendered_tournament(self, meta, gender):
-        suffix = "Men's team" if gender == "M" else "Women's team"
         code = f"{meta['guid']}:{gender}"
         t, _ = Tournament.objects.update_or_create(
             tournament_id=synthetic_tournament_id(code),
             defaults={
                 "code": code,
-                "name": f"{meta['name']} – {suffix}",
+                "name": _gendered_name(meta["name"], gender),
                 "category_name": meta["tier"],
                 "start_date": meta["start"],
                 "end_date": meta["end"],
@@ -143,7 +163,11 @@ class Command(BaseCommand):
                     raw = MatchRaw.model_validate(rub)
                 except Exception:
                     continue
-                if not raw.team1 or not raw.team2:
+                # Skip bracket placeholders — BWF pads a tie with empty rubber
+                # slots (no players) for unplayed/dead rubbers and for TBD ties in
+                # placement brackets. A real rubber has a player on each side.
+                if not raw.team1 or not raw.team2 \
+                        or not raw.team1.players or not raw.team2.players:
                     continue
                 normalize_team_rubber(
                     raw, tournament=t, gender=gender,
