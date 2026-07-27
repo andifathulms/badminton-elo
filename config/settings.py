@@ -133,8 +133,21 @@ REST_FRAMEWORK = {
 
 # --- CORS (React dev server) ------------------------------------------------
 CORS_ALLOWED_ORIGINS = os.environ.get(
-    "CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+    "CORS_ALLOWED_ORIGINS",
+    "http://localhost:5173,http://127.0.0.1:5173,"
+    "http://localhost:8010,http://127.0.0.1:8010",
 ).split(",")
+
+# Origins allowed to POST (Studio actions come from the frontend origin, which is
+# a different port than the API, so Django's CSRF Origin check needs it listed).
+CSRF_TRUSTED_ORIGINS = [
+    o for o in os.environ.get(
+        "CSRF_TRUSTED_ORIGINS",
+        "http://localhost:8010,http://127.0.0.1:8010,"
+        "http://localhost:8011,http://127.0.0.1:8011,"
+        "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",") if o
+]
 
 # ---------------------------------------------------------------------------
 # Ingestion config (PRD §8) — read by apps/ingest.

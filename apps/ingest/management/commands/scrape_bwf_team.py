@@ -69,8 +69,13 @@ def _to_date(v):
 
 
 def _gender_of(text: str) -> str:
-    """'W' if a draw/tie label is a women's event, else 'M' (women contains men)."""
-    return "W" if "women" in (text or "").lower() else "M"
+    """'W' for a women's/female/ladies event, else 'M'. Read only the label PREFIX
+    (before ' - '), because a knockout draw's suffix can carry the full event name
+    — 'Men's Team - All Africa Men's & Women's Team Championships' is a MEN's draw
+    despite containing 'Women's'. Check women-side words first: 'female' contains
+    'male' and 'women' contains 'men' (Pan Am uses 'Male Cup' / 'Female Cup')."""
+    low = (text or "").split(" - ")[0].lower()
+    return "W" if ("women" in low or "female" in low or "ladies" in low) else "M"
 
 
 class Command(BaseCommand):
