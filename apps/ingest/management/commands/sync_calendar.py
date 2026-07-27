@@ -142,6 +142,11 @@ class Command(BaseCommand):
             )
         return len(tours), matches
 
+    # Re-fetch (ignore cache) day-matches for tournaments that ended within this
+    # many days: their days may have been cached while play was still ongoing
+    # (finals scheduled but not yet decided), so the cached copy is stale.
+    RECHECK_DAYS = 10
+
     def _collect_matches(self, client, tournament, cal, today) -> int:
         """Probe-first collection: many (esp. old, low-tier) tournaments have
         calendar metadata but NO match data. Probe one or two representative
@@ -150,6 +155,13 @@ class Command(BaseCommand):
         last = min(cal.end, today)
         if last < cal.start:
             return 0
+        # A recently-ended/ongoing event may have been cached mid-play — drop its
+        # cached day-matches so this pass picks up freshly-finished results.
+        if cal.end >= today - timedelta(days=self.RECHECK_DAYS):
+            from apps.ingest.models import RawCache
+            urls = [endpoints.day_matches(cal.code, cal.start + timedelta(days=i))
+                    for i in range((last - cal.start).days + 1)]
+            RawCache.objects.filter(pk__in=urls).delete()
         span = (last - cal.start).days
         probe_days = {cal.start + timedelta(days=span // 2), cal.start}
         if not any(self._day_has_matches(client, cal.code, d) for d in probe_days):
