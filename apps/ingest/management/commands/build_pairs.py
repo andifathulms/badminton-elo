@@ -13,7 +13,7 @@ from collections import defaultdict
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from apps.ingest.models import MatchPlayer, Partnership, PlayerRating
+from apps.ingest.models import MatchPlayer, Partnership, Player, PlayerRating
 
 DOUBLES = ("MD", "WD", "XD")
 
@@ -82,10 +82,18 @@ class Command(BaseCommand):
         def blend_rd(a, b):
             return math.sqrt((a * a + b * b) / 2.0)
 
+        # For a MIXED pair the convention is male first, female second (the pair
+        # is keyed by sorted ids for dedup, but stored in gender order for display).
+        genders = dict(
+            Player.objects.exclude(gender="").values_list("player_id", "gender")
+        )
+
         rows_out = []
         for (event, p1, p2), a in agg.items():
             if a["matches"] < min_matches:
                 continue
+            if event == "XD" and genders.get(p1) == "F" and genders.get(p2) == "M":
+                p1, p2 = p2, p1
             r1 = ratings.get((p1, event))
             r2 = ratings.get((p2, event))
             if not r1 or not r2:

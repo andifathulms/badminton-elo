@@ -1178,6 +1178,15 @@ class AnalyticsView(APIView):
                 seen.update(keys)
             picked.append(tp)
 
+        # Show mixed pairs male-first, female-second (the collapsed row's `player`
+        # is just whoever performed better that week, so order isn't stable).
+        for tp in picked:
+            if (tp.event == "XD" and tp.partner_id
+                    and tp.player.gender == "F" and tp.partner.gender == "M"):
+                # Assigning the related objects also swaps player_id/partner_id via
+                # the FK descriptor — don't swap the ids again or they desync.
+                tp.player, tp.partner = tp.partner, tp.player
+
         rows = TournamentPerformanceSerializer(picked, many=True).data
         self._enrich_achievement(picked, rows)
         return Response({"results": rows})
