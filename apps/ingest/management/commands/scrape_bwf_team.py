@@ -20,15 +20,21 @@ from datetime import date as _date
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from collections import defaultdict
+
 from apps.ingest.api import endpoints
 from apps.ingest.api.client import BwfClient
-from apps.ingest.models import RawCache, Tournament
+from apps.ingest.models import Match, RawCache, Tournament
 from apps.ingest.normalize import (
     canonical_event,
     normalize_team_rubber,
     synthetic_tournament_id,
 )
-from apps.ingest.schemas import MatchRaw
+from apps.ingest.schemas import GroupedYearTournaments, MatchRaw
+
+# Calendar-name filters for the bulk (--calendar) enumeration.
+_TEAM_NAME_RE = re.compile(r"\bteam\b|thomas|uber|sudirman|m&f cup|pan american cup", re.I)
+_JUNIOR_RE = re.compile(r"junior|youth|\bu1[3-9]\b", re.I)
 
 # Knock-out round label -> (display code, chronological order). Groups all sort
 # before the knock-out; a pure round-robin keeps its R1..Rn rounds.
@@ -104,7 +110,8 @@ class Command(BaseCommand):
     help = "Ingest BWF team championships (tmtIds) as gendered tournaments."
 
     def add_arguments(self, p):
-        p.add_argument("tmt_ids", nargs="+", type=int, help="BWF numeric tmtId(s)")
+        p.add_argument("tmt_ids", nargs="*", type=int,
+                       help="BWF numeric tmtId(s); omit when using --calendar")
         p.add_argument("--refresh", action="store_true", help="ignore cache")
         p.add_argument("--day-matches", dest="day_matches", action="store_true",
                        help="collect ties via the day-matches endpoint (date by "
@@ -115,12 +122,30 @@ class Command(BaseCommand):
                             "all 5 disciplines). Ingested as ONE tournament, with "
                             "each rubber's discipline from its matchTypeValue. "
                             "Implies a day-matches sweep.")
+        p.add_argument("--auto", action="store_true",
+                       help="auto-detect mixed vs gendered per tmtId (mixed if any "
+                            "rubber is a Mixed Doubles) and ingest accordingly")
+        p.add_argument("--calendar", help="year range 'START-END': enumerate every "
+                       "senior team event in the BWF calendar and ingest them all "
+                       "(implies --auto)")
+        p.add_argument("--skip-collected", dest="skip_collected", action="store_true",
+                       help="skip events that already have matches (resumable bulk)")
+        p.add_argument("--include-junior", dest="include_junior", action="store_true",
+                       help="also include junior team events in --calendar")
 
     def handle(self, *a, **o):
+        tmt_ids = o["tmt_ids"]
         with BwfClient() as client:
-            for tmt in o["tmt_ids"]:
+            if o["calendar"]:
+                y0, y1 = (int(x) for x in o["calendar"].split("-"))
+                tmt_ids = self._enumerate_team_events(client, y0, y1, o["include_junior"])
+                self.stdout.write(f"[calendar {y0}-{y1}] {len(tmt_ids)} senior team events")
+                o = {**o, "auto": True}
+            for tmt in tmt_ids:
                 try:
-                    if o["mixed"]:
+                    if o["auto"]:
+                        self._detect_and_ingest(client, tmt, o["refresh"], o["skip_collected"])
+                    elif o["mixed"]:
                         self._one_mixed(client, tmt, o["refresh"])
                     elif o["day_matches"]:
                         self._one_day_matches(client, tmt, o["refresh"])
@@ -279,6 +304,74 @@ class Command(BaseCommand):
         with transaction.atomic():
             total = self._ingest_ties(t, ties, meta["start"], mixed=True)
         self.stdout.write(self.style.SUCCESS(f"  ✓ {t.name}: {total} rubbers"))
+
+    # --- bulk: enumerate the calendar + auto-detect shape ------------------
+    def _enumerate_team_events(self, client, y0, y1, include_junior):
+        ids: list[int] = []
+        seen: set[int] = set()
+        for year in range(y0, y1 + 1):
+            try:
+                raw = client.get_json(
+                    endpoints.vue_grouped_year_tournaments(year, endpoints.ALL_CATEGORIES))
+            except Exception:
+                continue
+            data = GroupedYearTournaments.model_validate(
+                raw if isinstance(raw, dict) else {"results": raw})
+            for t in data.all_tournaments():
+                hay = f"{t.name} {t.category}"
+                if not _TEAM_NAME_RE.search(hay):
+                    continue
+                if not include_junior and _JUNIOR_RE.search(hay):
+                    continue
+                if t.id not in seen:
+                    seen.add(t.id)
+                    ids.append(t.id)
+        return ids
+
+    def _detect_and_ingest(self, client, tmt, refresh, skip_collected):
+        """Ingest one team event, auto-detecting its shape. A MIXED event (any
+        rubber is Mixed Doubles) fills the real tournament in place; a gendered
+        event splits into men's/women's tournaments and drops the empty
+        placeholder so it doesn't linger as a 0-match card."""
+        meta = self._meta(client, tmt, refresh)
+        if not meta["start"] or not meta["end"]:
+            return
+        ties = self._collect_day_ties(client, meta, refresh)
+        if not ties:
+            return
+        is_mixed = any(
+            canonical_event(r.get("matchTypeValue") or "")[0] == "XD"
+            for tie in ties for r in (tie.get("matches") or []))
+
+        if is_mixed:
+            t = Tournament.objects.filter(tournament_id=tmt).first()
+            if skip_collected and t and t.matches.exists():
+                return
+            if t is None:
+                t = Tournament.objects.create(
+                    tournament_id=tmt, code=meta["guid"], name=meta["name"],
+                    category_name=meta["tier"], start_date=meta["start"],
+                    end_date=meta["end"], logo_url=meta["logo"])
+            with transaction.atomic():
+                n = self._ingest_ties(t, ties, meta["start"], mixed=True)
+            self.stdout.write(self.style.SUCCESS(f"  ✓ [mixed] {t.name[:48]}: {n}"))
+            return
+
+        by_gender: dict[str, list] = defaultdict(list)
+        for m in ties:
+            by_gender[_gender_of(m.get("drawName") or m.get("eventName"))].append(m)
+        codes = [f"{meta['guid']}:{g}" for g in by_gender]
+        if skip_collected and Match.objects.filter(tournament__code__in=codes).exists():
+            return
+        for gender, gties in by_gender.items():
+            t = self._gendered_tournament(meta, gender)
+            with transaction.atomic():
+                n = self._ingest_ties(t, gties, meta["start"], gender=gender)
+            self.stdout.write(self.style.SUCCESS(f"  ✓ [gendered] {t.name[:48]}: {n}"))
+        # the split lives under synthetic ids — drop the now-empty real placeholder
+        ph = Tournament.objects.filter(tournament_id=tmt).first()
+        if ph is not None and not ph.matches.exists():
+            ph.delete()
 
 
 def _daterange(start, end):
