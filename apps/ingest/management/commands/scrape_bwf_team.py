@@ -68,95 +68,157 @@ def _to_date(v):
     return _date.fromisoformat(s)
 
 
+def _gender_of(text: str) -> str:
+    """'W' if a draw/tie label is a women's event, else 'M' (women contains men)."""
+    return "W" if "women" in (text or "").lower() else "M"
+
+
 class Command(BaseCommand):
     help = "Ingest BWF team championships (tmtIds) as gendered tournaments."
 
     def add_arguments(self, p):
         p.add_argument("tmt_ids", nargs="+", type=int, help="BWF numeric tmtId(s)")
         p.add_argument("--refresh", action="store_true", help="ignore cache")
+        p.add_argument("--day-matches", dest="day_matches", action="store_true",
+                       help="collect ties via the day-matches endpoint (date by "
+                            "date) instead of per-draw draw-data — use when a "
+                            "draw-data draw returns a server error")
 
     def handle(self, *a, **o):
         with BwfClient() as client:
             for tmt in o["tmt_ids"]:
                 try:
-                    self._one(client, tmt, o["refresh"])
+                    if o["day_matches"]:
+                        self._one_day_matches(client, tmt, o["refresh"])
+                    else:
+                        self._one(client, tmt, o["refresh"])
                 except Exception as e:  # keep going across tournaments
                     self.stdout.write(self.style.ERROR(f"  ! tmt {tmt}: {e}"))
 
-    def _one(self, client, tmt, refresh):
+    # --- shared -------------------------------------------------------------
+    def _meta(self, client, tmt, refresh):
         if refresh:
-            RawCache.objects.filter(pk__in=[
-                endpoints.vue_tournament_detail(tmt),
-                endpoints.vue_tournament_draws(tmt)]).delete()
+            RawCache.objects.filter(pk=endpoints.vue_tournament_detail(tmt)).delete()
         det = _res(client.get_json(endpoints.vue_tournament_detail(tmt)))
-        draws = _res(client.get_json(endpoints.vue_tournament_draws(tmt)))
-        name = det.get("name") or f"Tournament {tmt}"
-        tier = (det.get("categoryModel") or {}).get("name") or "Continental Team Championships"
-        start, end = _to_date(det.get("start_date")), _to_date(det.get("end_date"))
-        logo = det.get("tmtLogo") or ""
-        guid = det.get("code") or str(tmt)
-        self.stdout.write(f"[{tmt}] {name}  ({len(draws)} draws)")
+        return {
+            "name": det.get("name") or f"Tournament {tmt}",
+            "tier": (det.get("categoryModel") or {}).get("name") or "Continental Team Championships",
+            "start": _to_date(det.get("start_date")),
+            "end": _to_date(det.get("end_date")),
+            "logo": det.get("tmtLogo") or "",
+            "guid": det.get("code") or str(tmt),
+        }
 
-        by_gender: dict[str, list] = {"M": [], "W": []}
-        for dw in draws:
-            g = "W" if "women" in (dw.get("text") or "").lower() else "M"
-            by_gender[g].append(dw)
-
-        for gender, dws in by_gender.items():
-            if not dws:
-                continue
-            suffix = "Men's team" if gender == "M" else "Women's team"
-            total, failed = self._ingest_gender(
-                client, tmt, guid, gender, suffix, name, tier, start, end, logo, dws, refresh)
-            note = f"  (missing draws: {', '.join(failed)})" if failed else ""
-            self.stdout.write(self.style.SUCCESS(
-                f"  ✓ {name} – {suffix}: {total} rubbers{note}"))
-
-    @transaction.atomic
-    def _ingest_gender(self, client, tmt, guid, gender, suffix, name, tier,
-                       start, end, logo, dws, refresh):
-        code = f"{guid}:{gender}"
+    def _gendered_tournament(self, meta, gender):
+        suffix = "Men's team" if gender == "M" else "Women's team"
+        code = f"{meta['guid']}:{gender}"
         t, _ = Tournament.objects.update_or_create(
             tournament_id=synthetic_tournament_id(code),
             defaults={
                 "code": code,
-                "name": f"{name} – {suffix}",
-                "category_name": tier,
-                "start_date": start,
-                "end_date": end,
-                "logo_url": logo,
+                "name": f"{meta['name']} – {suffix}",
+                "category_name": meta["tier"],
+                "start_date": meta["start"],
+                "end_date": meta["end"],
+                "logo_url": meta["logo"],
             },
         )
+        return t
+
+    def _ingest_ties(self, t, gender, ties, fallback_date):
+        """Ingest every rubber of a list of tie dicts. Each tie's own drawName
+        gives its stage/round; rubbers are nested in tie['matches']."""
         total = 0
-        failed: list[str] = []
-        for dw in dws:
-            url = endpoints.vue_tournament_draw_data(tmt, dw["value"])
+        for tie in ties:
+            rname, rorder = team_round(tie.get("drawName"), tie.get("roundName"))
+            c1 = (tie.get("team1") or {}).get("countryCode") or ""
+            c2 = (tie.get("team2") or {}).get("countryCode") or ""
+            for rub in tie.get("matches") or []:
+                try:
+                    raw = MatchRaw.model_validate(rub)
+                except Exception:
+                    continue
+                if not raw.team1 or not raw.team2:
+                    continue
+                normalize_team_rubber(
+                    raw, tournament=t, gender=gender,
+                    round_name=rname, round_order_=rorder,
+                    side1_country=c1, side2_country=c2,
+                    match_date_fallback=fallback_date,
+                )
+                total += 1
+        return total
+
+    # --- draw-data path (default) ------------------------------------------
+    def _one(self, client, tmt, refresh):
+        meta = self._meta(client, tmt, refresh)
+        if refresh:
+            RawCache.objects.filter(pk=endpoints.vue_tournament_draws(tmt)).delete()
+        draws = _res(client.get_json(endpoints.vue_tournament_draws(tmt)))
+        self.stdout.write(f"[{tmt}] {meta['name']}  ({len(draws)} draws)")
+        by_gender: dict[str, list] = {"M": [], "W": []}
+        for dw in draws:
+            by_gender[_gender_of(dw.get("text"))].append(dw)
+
+        for gender, dws in by_gender.items():
+            if not dws:
+                continue
+            t = self._gendered_tournament(meta, gender)
+            total = 0
+            failed: list[str] = []
+            for dw in dws:
+                url = endpoints.vue_tournament_draw_data(tmt, dw["value"])
+                if refresh:
+                    RawCache.objects.filter(pk=url).delete()
+                try:
+                    dd = client.get_json(url)
+                except Exception:
+                    failed.append(dw.get("text") or str(dw.get("value")))
+                    continue
+                total += self._ingest_ties(t, gender, dd.get("matches") or [], meta["start"])
+            note = (f"  (missing draws: {', '.join(failed)} — retry with "
+                    f"--day-matches)") if failed else ""
+            self.stdout.write(self.style.SUCCESS(
+                f"  ✓ {t.name}: {total} rubbers{note}"))
+
+    # --- day-matches path (robust to broken draw-data) ---------------------
+    def _one_day_matches(self, client, tmt, refresh):
+        meta = self._meta(client, tmt, refresh)
+        if not meta["start"] or not meta["end"]:
+            raise RuntimeError("no start/end date for day-matches sweep")
+        self.stdout.write(f"[{tmt}] {meta['name']}  (day-matches "
+                          f"{meta['start']}..{meta['end']})")
+        ties_by_gender: dict[str, list] = {"M": [], "W": []}
+        seen: set[int] = set()
+        for day in _daterange(meta["start"], meta["end"]):
+            url = endpoints.day_matches(meta["guid"], day)
             if refresh:
                 RawCache.objects.filter(pk=url).delete()
             try:
-                dd = client.get_json(url)
+                data = client.get_json(url)
             except Exception:
-                failed.append(dw.get("text") or str(dw.get("value")))
                 continue
-            for tie in dd.get("matches") or []:
-                rname, rorder = team_round(dw.get("text"), tie.get("roundName"))
-                c1 = (tie.get("team1") or {}).get("countryCode") or ""
-                c2 = (tie.get("team2") or {}).get("countryCode") or ""
-                for rub in tie.get("matches") or []:
-                    try:
-                        raw = MatchRaw.model_validate(rub)
-                    except Exception:
-                        continue
-                    if not raw.team1 or not raw.team2:
-                        continue
-                    normalize_team_rubber(
-                        raw, tournament=t, gender=gender,
-                        round_name=rname, round_order_=rorder,
-                        side1_country=c1, side2_country=c2,
-                        match_date_fallback=start,
-                    )
-                    total += 1
-        return total, failed
+            for m in (data if isinstance(data, list) else _res(data) or []):
+                if not m.get("isTeamMatch") or m.get("id") in seen:
+                    continue
+                seen.add(m.get("id"))
+                ties_by_gender[_gender_of(m.get("drawName") or m.get("eventName"))].append(m)
+
+        for gender, ties in ties_by_gender.items():
+            if not ties:
+                continue
+            t = self._gendered_tournament(meta, gender)
+            with transaction.atomic():
+                total = self._ingest_ties(t, gender, ties, meta["start"])
+            self.stdout.write(self.style.SUCCESS(f"  ✓ {t.name}: {total} rubbers"))
+
+
+def _daterange(start, end):
+    from datetime import timedelta
+    d = start
+    while d <= end:
+        yield d.isoformat()
+        d += timedelta(days=1)
 
 
 def _res(payload):
