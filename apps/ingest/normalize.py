@@ -362,6 +362,72 @@ def normalize_match(
     return match
 
 
+def normalize_team_rubber(
+    raw: MatchRaw,
+    *,
+    tournament: Tournament,
+    gender: str,
+    round_name: str,
+    round_order_: int,
+    side1_country: str,
+    side2_country: str,
+    match_date_fallback: date | None = None,
+) -> Match:
+    """Upsert one individual rubber of a team tie (BWF team draw-data).
+
+    Unlike an open draw, the rubber's `eventName` is just 'Men's/Women's Team',
+    so the discipline is inferred from side size (1 = singles, 2 = doubles) and
+    `gender` ('M'/'W'). The tie's nation codes are stored on the match so ties
+    group by nation-at-the-time. Keyed on the real BWF match id (idempotent)."""
+    singles = max(
+        len(raw.team1.players) if raw.team1 else 0,
+        len(raw.team2.players) if raw.team2 else 0,
+    ) == 1
+    event_code = {
+        ("M", True): "MS", ("M", False): "MD",
+        ("W", True): "WS", ("W", False): "WD",
+    }[(gender, singles)]
+    status_label, rating_excluded = map_status(raw.score_status_value)
+    match_date = raw.match_time_utc.date() if raw.match_time_utc else match_date_fallback
+
+    match, _ = Match.objects.update_or_create(
+        match_id=raw.id,
+        defaults={
+            "code": raw.code,
+            "tournament": tournament,
+            "draw": None,
+            "event": event_code,
+            "round_name": round_name,
+            "round_order": round_order_,
+            "match_time_utc": raw.match_time_utc,
+            "duration_min": raw.duration,
+            "score_status": status_label,
+            "reliability": raw.reliability,
+            "winner_side": raw.winner,  # who ADVANCED — from the field, not score
+            "scoring_format": default_scoring_format(match_date),
+            "rating_excluded": rating_excluded,
+            "side1_country": side1_country,
+            "side2_country": side2_country,
+        },
+    )
+    match.lineup.all().delete()
+    for side, team in ((1, raw.team1), (2, raw.team2)):
+        if not team:
+            continue
+        for ref in team.players:
+            MatchPlayer.objects.update_or_create(
+                match=match, side=side, player=_upsert_player(ref)
+            )
+    match.games.all().delete()
+    for i, g in enumerate(raw.score, start=1):
+        Game.objects.update_or_create(
+            match=match,
+            game_no=g.set or i,
+            defaults={"side1_points": g.home, "side2_points": g.away},
+        )
+    return match
+
+
 def normalize_draw_data(
     data: DrawData,
     *,
