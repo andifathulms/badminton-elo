@@ -336,6 +336,14 @@ class Command(BaseCommand):
         meta = self._meta(client, tmt, refresh)
         if not meta["start"] or not meta["end"]:
             return
+        # Cheap DB check BEFORE the day-matches sweep: an already-collected event
+        # (filled placeholder, or gendered synthetics) is skipped without network.
+        if skip_collected and (
+            Match.objects.filter(tournament_id=tmt).exists()
+            or Match.objects.filter(
+                tournament__code__in=[f"{meta['guid']}:M", f"{meta['guid']}:W"]).exists()
+        ):
+            return
         ties = self._collect_day_ties(client, meta, refresh)
         if not ties:
             return
