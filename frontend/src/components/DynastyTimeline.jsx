@@ -20,12 +20,16 @@ export default function DynastyTimeline({ reigns, timeline }) {
 
   return (
     <div className="dynasty">
+      {/* Segments are positioned by ABSOLUTE year (not packed), so gap years —
+          where no nation qualified, common in the sparse pre-1982 era — show as
+          the track background and the recent reigns reach the right edge. */}
       <div className="dyn-bar">
         {chrono.map((r, i) => {
-          const w = (r.span / total) * 100
+          const left = ((r.start - first) / total) * 100
+          const w = ((r.end - r.start + 1) / total) * 100
           return (
             <div key={i} className="dyn-seg"
-                 style={{ width: `${w}%`, background: countryColor(r.country) }}
+                 style={{ left: `${left}%`, width: `${w}%`, background: countryColor(r.country) }}
                  title={`${r.country} ${r.start}–${r.end} (${r.span} yr${r.span > 1 ? 's' : ''})`}>
               {w > 6 && <span className="dyn-seg-label">{r.country}</span>}
             </div>
