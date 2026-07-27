@@ -378,21 +378,25 @@ CUP_EVENT = {
 }
 
 
+# Plurals matter: '\bfinal\b' would MISS 'Finals', so use 'finals?' etc. \bsemi
+# and \bquarter need no trailing boundary ('semi-finals', 'quarterfinals').
 _ROUND_WORD_RE = re.compile(
-    r"round of \d+|\b(group|final|semi|quarter|round|knockout|playoff|"
-    r"classification|placement)\b", re.I)
+    r"round of \d+|\bgroups?\b|\bfinals?\b|\bsemi|\bquarter|\bround\b|"
+    r"\bknockout|\bplay-?offs?\b|\bclassification\b|\bplacement\b", re.I)
 
 
 def _is_round_label(name: str) -> bool:
     """True if a section header names a round/stage (Group A, Quarter-finals,
-    Final, Round of 16) rather than a matchup (China vs Denmark) or a plain
-    container. A tie inherits its round from the nearest such header, so this
-    works whether the round sits at heading level 2 (Thomas/Uber/Sudirman, whose
-    level-3 headers ARE the matchups) or level 3 (continental team championships,
-    where level 2 is a container like 'Knockouts' and level 3 is 'Quarter-finals').
+    Final, Finals, Round of 16) rather than a matchup (China vs Denmark) or a
+    plain container. A tie inherits its round from the nearest such header, so
+    this works whether the round sits at heading level 2 (Thomas/Uber/Sudirman,
+    whose level-3 headers ARE the matchups) or level 3+ (continental team
+    championships, where level 2 is a container like 'Knockouts').
     """
     l = f" {name.lower()} "
-    if " vs " in l or " v " in l:  # opponent-nation heading, not a round
+    if " vs " in l or " vs. " in l or " v " in l:  # opponent-nation heading
+        return False
+    if "ranking" in l or "standing" in l:  # 'Final ranking' is a table, not a round
         return False
     return bool(_ROUND_WORD_RE.search(name))
 
@@ -452,6 +456,27 @@ def parse_team_ties(text: str, cup: str) -> list[dict]:
                 "retired": False,
             })
     return _dedupe(out)
+
+
+def split_by_gender(text: str) -> list[tuple[str, str]]:
+    """Split a combined 'Men's and Women's Team Championships' article into its
+    per-gender draw sections. Returns [(cup, section_text), ...] — 'thomas' for a
+    men's section (MS/MD), 'uber' for a women's one (WS/WD) — each sliced from its
+    top-level (==) gender header to the next top-level header. Only top-level
+    headers count, so a nested Qualification '=== Men's team ===' is ignored;
+    sections without ties parse to nothing downstream. Feed each slice to
+    parse_team_ties with its cup, ingesting the two as separate tournaments."""
+    heads = [(m.start(), _clean(m.group(1)))
+             for m in re.finditer(r"^==\s*([^=].*?)\s*==\s*$", text, re.M)]
+    out = []
+    for i, (start, name) in enumerate(heads):
+        end = heads[i + 1][0] if i + 1 < len(heads) else len(text)
+        low = name.lower()
+        if re.search(r"\bwomen'?s\b", low):
+            out.append(("uber", text[start:end]))
+        elif re.search(r"\bmen'?s\b", low):
+            out.append(("thomas", text[start:end]))
+    return out
 
 
 def _team_winner(games):

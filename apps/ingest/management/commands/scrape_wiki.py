@@ -210,6 +210,10 @@ class Command(BaseCommand):
                        choices=["thomas", "uber", "sudirman"],
                        help="rubber->discipline mapping for --team-pages: thomas "
                             "(MS/MD) | uber (WS/WD) | sudirman (MS/WS/MD/WD/XD)")
+        p.add_argument("--combined-page", dest="combined_page",
+                       help="a single article covering BOTH the men's and women's "
+                            "team events (e.g. European Team Championships); "
+                            "ingested as two separate tournaments (;-separated)")
         p.add_argument("--tier", default="", help="category_name for --pages")
         p.add_argument("--refresh", action="store_true", help="ignore cache")
 
@@ -281,6 +285,40 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.SUCCESS(f"  ✓ {title}: {n} matches"))
             client.close()
             self.stdout.write(self.style.SUCCESS(f"Done: {tot_t} events, {tot_m} matches."))
+            return
+
+        if o["combined_page"]:
+            # One article, both genders. Slice it by top-level gender section and
+            # ingest each half as its own tournament (men's -> thomas MS/MD,
+            # women's -> uber WS/WD), keyed by a gendered code so they stay apart.
+            tier = o["tier"] or "Team Championships"
+            titles = [t.strip() for t in o["combined_page"].split(";") if t.strip()]
+            self.stdout.write(f"[combined-page] {len(titles)} article(s), tier={tier!r}")
+            for title in titles:
+                if o["refresh"]:
+                    cp = client._cache_path(title)
+                    if cp.exists():
+                        cp.unlink()
+                wt = client.wikitext(title)
+                if not wt:
+                    self.stdout.write(self.style.WARNING(f"  ! {title}: no wikitext")); continue
+                base = infobox_meta(wt).get("name") or clean_name(title)
+                for cup, sectext in wiki_parse.split_by_gender(wt):
+                    parsed = [m for m in wiki_parse.dedupe(wiki_parse.parse_team_ties(sectext, cup))
+                              if m["winner_side"]]
+                    if not parsed:
+                        continue
+                    suffix = "Men's team" if cup == "thomas" else "Women's team"
+                    sub_title = f"{title} – {suffix}"
+                    n = self._ingest(sub_title, tier, wt, parsed, players, tourns, matches)
+                    # infobox name is the combined event — give each split a
+                    # clear gendered name.
+                    t = Tournament.objects.get(code=f"wiki:{sub_title}")
+                    t.name = f"{base} – {suffix}"; t.save(update_fields=["name"])
+                    tot_t += 1; tot_m += n
+                    self.stdout.write(self.style.SUCCESS(f"  ✓ {sub_title}: {n} rubbers"))
+            client.close()
+            self.stdout.write(self.style.SUCCESS(f"Done: {tot_t} tournaments, {tot_m} rubbers."))
             return
 
         if o["team_pages"]:
@@ -442,8 +480,14 @@ class Command(BaseCommand):
         for m in parsed:
             rname, rorder = normalize_round(
                 m["round_label"], m["round_index"], m["bracket_size"])
+            # Team-cup rubbers share a constant round_index (50), so keying by it
+            # collapses a rematch of the SAME players across rounds (e.g. two
+            # nations that meet in the group AND the knockout). Key those by the
+            # resolved round name instead; bracket matches keep their unique
+            # round_index so their existing keys are unchanged.
+            round_key = rname if m["round_index"] == 50 else m["round_index"]
             skey = "wiki:{}:{}:{}:{}|{}".format(
-                title, m["event"], m["round_index"],
+                title, m["event"], round_key,
                 "+".join(sorted(p[0] for p in m["side1"]["players"])),
                 "+".join(sorted(p[0] for p in m["side2"]["players"])))
             match = Match.objects.filter(source_key=skey).first()
