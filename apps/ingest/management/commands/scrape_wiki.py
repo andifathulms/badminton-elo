@@ -203,6 +203,13 @@ class Command(BaseCommand):
                        help="ingest Thomas/Uber/Sudirman team cups (rubber-level)")
         p.add_argument("--games", action="store_true",
                        help="ingest multi-sport events (Olympics, Asian/SEA/etc.)")
+        p.add_argument("--team-pages", dest="team_pages",
+                       help="explicit team-event article titles (;-separated) to "
+                            "ingest rubber-level, e.g. a continental team championship")
+        p.add_argument("--cup", default="thomas",
+                       choices=["thomas", "uber", "sudirman"],
+                       help="rubber->discipline mapping for --team-pages: thomas "
+                            "(MS/MD) | uber (WS/WD) | sudirman (MS/WS/MD/WD/XD)")
         p.add_argument("--tier", default="", help="category_name for --pages")
         p.add_argument("--refresh", action="store_true", help="ignore cache")
 
@@ -276,6 +283,28 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f"Done: {tot_t} events, {tot_m} matches."))
             return
 
+        if o["team_pages"]:
+            # Standalone team-event articles (e.g. a continental team championship)
+            # carry nation-vs-nation Badmintonbox ties like Thomas/Uber/Sudirman,
+            # but aren't in those categories. Parse them rubber-level with the
+            # given --cup discipline mapping and a caller-supplied --tier.
+            cup = o["cup"]
+            tier = o["tier"] or "Team Championships"
+            titles = [t.strip() for t in o["team_pages"].split(";") if t.strip()]
+            self.stdout.write(f"[team-pages] {len(titles)} article(s), cup={cup}, tier={tier!r}")
+            for title in titles:
+                try:
+                    n = self._one_team(client, title, cup, o["refresh"],
+                                       players, tourns, matches, tier=tier)
+                except Exception as e:
+                    self.stdout.write(self.style.WARNING(f"  ! {title}: {e}")); continue
+                if n:
+                    tot_t += 1; tot_m += n
+                    self.stdout.write(self.style.SUCCESS(f"  ✓ {title}: {n} rubbers"))
+            client.close()
+            self.stdout.write(self.style.SUCCESS(f"Done: {tot_t} tournaments, {tot_m} rubbers."))
+            return
+
         if o["pages"]:
             jobs = [(t.strip(), o["tier"]) for t in o["pages"].split(";") if t.strip()]
         elif o["category"] or o["all_majors"]:
@@ -338,11 +367,14 @@ class Command(BaseCommand):
                     break
         return out
 
-    def _one_team(self, client, title, cup, refresh, players, tourns, matches):
+    def _one_team(self, client, title, cup, refresh, players, tourns, matches, tier=None):
         """Ingest one team cup. Rubbers come from the cup-specific stage
         sub-articles ('{title} group/knockout stage'); the main article (which
         may be a combined Thomas & Uber page) is used only for name/dates, and
-        parsed for rubbers only when it isn't a combined article."""
+        parsed for rubbers only when it isn't a combined article.
+
+        `tier` overrides the category_name (default: the Thomas/Uber/Sudirman
+        label) so non-cup team events can supply their own."""
         if refresh:
             for s in (title, f"{title} group stage", f"{title} knockout stage"):
                 cp = client._cache_path(s)
@@ -361,8 +393,8 @@ class Command(BaseCommand):
         parsed = [m for m in wiki_parse.dedupe(parsed) if m["winner_side"]]
         if not parsed:
             return None
-        tier = {"thomas": "Thomas Cup", "uber": "Uber Cup",
-                "sudirman": "Sudirman Cup"}[cup]
+        tier = tier or {"thomas": "Thomas Cup", "uber": "Uber Cup",
+                        "sudirman": "Sudirman Cup"}[cup]
         meta_wt = main_wt or ""
         return self._ingest(title, tier, meta_wt, parsed, players, tourns, matches)
 

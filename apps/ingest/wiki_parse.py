@@ -378,16 +378,35 @@ CUP_EVENT = {
 }
 
 
+_ROUND_WORD_RE = re.compile(
+    r"round of \d+|\b(group|final|semi|quarter|round|knockout|playoff|"
+    r"classification|placement)\b", re.I)
+
+
+def _is_round_label(name: str) -> bool:
+    """True if a section header names a round/stage (Group A, Quarter-finals,
+    Final, Round of 16) rather than a matchup (China vs Denmark) or a plain
+    container. A tie inherits its round from the nearest such header, so this
+    works whether the round sits at heading level 2 (Thomas/Uber/Sudirman, whose
+    level-3 headers ARE the matchups) or level 3 (continental team championships,
+    where level 2 is a container like 'Knockouts' and level 3 is 'Quarter-finals').
+    """
+    l = f" {name.lower()} "
+    if " vs " in l or " v " in l:  # opponent-nation heading, not a round
+        return False
+    return bool(_ROUND_WORD_RE.search(name))
+
+
 def parse_team_ties(text: str, cup: str) -> list[dict]:
     """All individual rubbers from a team-cup article's {{Badmintonbox}} ties.
     `cup` in {thomas, uber, sudirman} sets how rubber -> discipline."""
     ev_fn = CUP_EVENT.get(cup, CUP_EVENT["thomas"])
-    # The STAGE is the level-2 header (== Group A ==, == Quarter-finals ==);
-    # level-3 headers are individual ties (=== China vs Denmark ===). Track only
-    # level-2 so a rubber's round is its stage, not the opponent-nation heading.
+    # A rubber's round is the nearest preceding round-like header at ANY level
+    # (matchup headings like '=== China vs Denmark ===' are skipped). This handles
+    # both the level-2-round layout and the 'Knockouts' > 'Quarter-finals' nesting.
     heads = [(m.start(), _clean(m.group(2)))
              for m in re.finditer(r"^(=+)\s*(.+?)\s*=+\s*$", text, re.M)
-             if len(m.group(1)) == 2]
+             if _is_round_label(_clean(m.group(2)))]
     out = []
     for bm in re.finditer(r"\{\{\s*Badmintonbox\b", text, re.I):
         body = _template_body(text, bm.start())
