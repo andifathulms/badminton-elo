@@ -366,27 +366,33 @@ def normalize_team_rubber(
     raw: MatchRaw,
     *,
     tournament: Tournament,
-    gender: str,
     round_name: str,
     round_order_: int,
     side1_country: str,
     side2_country: str,
+    gender: str | None = None,
+    event_override: str | None = None,
     match_date_fallback: date | None = None,
 ) -> Match:
     """Upsert one individual rubber of a team tie (BWF team draw-data).
 
-    Unlike an open draw, the rubber's `eventName` is just 'Men's/Women's Team',
-    so the discipline is inferred from side size (1 = singles, 2 = doubles) and
-    `gender` ('M'/'W'). The tie's nation codes are stored on the match so ties
-    group by nation-at-the-time. Keyed on the real BWF match id (idempotent)."""
-    singles = max(
-        len(raw.team1.players) if raw.team1 else 0,
-        len(raw.team2.players) if raw.team2 else 0,
-    ) == 1
-    event_code = {
-        ("M", True): "MS", ("M", False): "MD",
-        ("W", True): "WS", ("W", False): "WD",
-    }[(gender, singles)]
+    Discipline: `event_override` (an MS/WS/MD/WD/XD code) wins — used by a MIXED
+    team event, where the rubber carries its own matchTypeValue. Otherwise it is
+    inferred from side size (1 = singles, 2 = doubles) and `gender` ('M'/'W'),
+    for a single-gender men's/women's team draw whose rubbers are unlabelled.
+    The tie's nation codes are stored on the match so ties group by nation-at-
+    the-time. Keyed on the real BWF match id (idempotent)."""
+    if event_override:
+        event_code = event_override
+    else:
+        singles = max(
+            len(raw.team1.players) if raw.team1 else 0,
+            len(raw.team2.players) if raw.team2 else 0,
+        ) == 1
+        event_code = {
+            ("M", True): "MS", ("M", False): "MD",
+            ("W", True): "WS", ("W", False): "WD",
+        }[(gender, singles)]
     status_label, rating_excluded = map_status(raw.score_status_value)
     match_date = raw.match_time_utc.date() if raw.match_time_utc else match_date_fallback
 

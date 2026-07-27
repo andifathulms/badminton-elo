@@ -24,6 +24,7 @@ from apps.ingest.api import endpoints
 from apps.ingest.api.client import BwfClient
 from apps.ingest.models import RawCache, Tournament
 from apps.ingest.normalize import (
+    canonical_event,
     normalize_team_rubber,
     synthetic_tournament_id,
 )
@@ -109,12 +110,19 @@ class Command(BaseCommand):
                        help="collect ties via the day-matches endpoint (date by "
                             "date) instead of per-draw draw-data — use when a "
                             "draw-data draw returns a server error")
+        p.add_argument("--mixed", action="store_true",
+                       help="a MIXED team event (Sudirman-style: one team plays "
+                            "all 5 disciplines). Ingested as ONE tournament, with "
+                            "each rubber's discipline from its matchTypeValue. "
+                            "Implies a day-matches sweep.")
 
     def handle(self, *a, **o):
         with BwfClient() as client:
             for tmt in o["tmt_ids"]:
                 try:
-                    if o["day_matches"]:
+                    if o["mixed"]:
+                        self._one_mixed(client, tmt, o["refresh"])
+                    elif o["day_matches"]:
                         self._one_day_matches(client, tmt, o["refresh"])
                     else:
                         self._one(client, tmt, o["refresh"])
@@ -150,9 +158,12 @@ class Command(BaseCommand):
         )
         return t
 
-    def _ingest_ties(self, t, gender, ties, fallback_date):
+    def _ingest_ties(self, t, ties, fallback_date, *, gender=None, mixed=False):
         """Ingest every rubber of a list of tie dicts. Each tie's own drawName
-        gives its stage/round; rubbers are nested in tie['matches']."""
+        gives its stage/round; rubbers are nested in tie['matches']. For a MIXED
+        team event the rubber's discipline comes from matchTypeValue ('Men's
+        Singles'…'Mixed Doubles'); otherwise it's inferred from side size +
+        gender (a single-gender men's or women's team draw)."""
         total = 0
         for tie in ties:
             rname, rorder = team_round(tie.get("drawName"), tie.get("roundName"))
@@ -169,8 +180,13 @@ class Command(BaseCommand):
                 if not raw.team1 or not raw.team2 \
                         or not raw.team1.players or not raw.team2.players:
                     continue
+                event_override = None
+                if mixed:
+                    event_override = canonical_event(rub.get("matchTypeValue") or "")[0]
+                    if event_override not in ("MS", "WS", "MD", "WD", "XD"):
+                        continue  # can't classify this rubber's discipline
                 normalize_team_rubber(
-                    raw, tournament=t, gender=gender,
+                    raw, tournament=t, gender=gender, event_override=event_override,
                     round_name=rname, round_order_=rorder,
                     side1_country=c1, side2_country=c2,
                     match_date_fallback=fallback_date,
@@ -204,20 +220,18 @@ class Command(BaseCommand):
                 except Exception:
                     failed.append(dw.get("text") or str(dw.get("value")))
                     continue
-                total += self._ingest_ties(t, gender, dd.get("matches") or [], meta["start"])
+                total += self._ingest_ties(t, dd.get("matches") or [], meta["start"], gender=gender)
             note = (f"  (missing draws: {', '.join(failed)} — retry with "
                     f"--day-matches)") if failed else ""
             self.stdout.write(self.style.SUCCESS(
                 f"  ✓ {t.name}: {total} rubbers{note}"))
 
-    # --- day-matches path (robust to broken draw-data) ---------------------
-    def _one_day_matches(self, client, tmt, refresh):
-        meta = self._meta(client, tmt, refresh)
+    # --- day-matches collection (robust to broken draw-data) ---------------
+    def _collect_day_ties(self, client, meta, refresh):
+        """Every team tie across the tournament's date range, deduped by id."""
         if not meta["start"] or not meta["end"]:
             raise RuntimeError("no start/end date for day-matches sweep")
-        self.stdout.write(f"[{tmt}] {meta['name']}  (day-matches "
-                          f"{meta['start']}..{meta['end']})")
-        ties_by_gender: dict[str, list] = {"M": [], "W": []}
+        ties: list = []
         seen: set[int] = set()
         for day in _daterange(meta["start"], meta["end"]):
             url = endpoints.day_matches(meta["guid"], day)
@@ -228,18 +242,43 @@ class Command(BaseCommand):
             except Exception:
                 continue
             for m in (data if isinstance(data, list) else _res(data) or []):
-                if not m.get("isTeamMatch") or m.get("id") in seen:
-                    continue
-                seen.add(m.get("id"))
-                ties_by_gender[_gender_of(m.get("drawName") or m.get("eventName"))].append(m)
+                if m.get("isTeamMatch") and m.get("id") not in seen:
+                    seen.add(m.get("id"))
+                    ties.append(m)
+        return ties
 
-        for gender, ties in ties_by_gender.items():
+    def _one_day_matches(self, client, tmt, refresh):
+        meta = self._meta(client, tmt, refresh)
+        self.stdout.write(f"[{tmt}] {meta['name']}  (day-matches "
+                          f"{meta['start']}..{meta['end']})")
+        by_gender: dict[str, list] = {"M": [], "W": []}
+        for m in self._collect_day_ties(client, meta, refresh):
+            by_gender[_gender_of(m.get("drawName") or m.get("eventName"))].append(m)
+        for gender, ties in by_gender.items():
             if not ties:
                 continue
             t = self._gendered_tournament(meta, gender)
             with transaction.atomic():
-                total = self._ingest_ties(t, gender, ties, meta["start"])
+                total = self._ingest_ties(t, ties, meta["start"], gender=gender)
             self.stdout.write(self.style.SUCCESS(f"  ✓ {t.name}: {total} rubbers"))
+
+    # --- mixed team (Sudirman-style: one team, all 5 disciplines) ----------
+    def _one_mixed(self, client, tmt, refresh):
+        meta = self._meta(client, tmt, refresh)
+        self.stdout.write(f"[{tmt}] {meta['name']}  (mixed, day-matches "
+                          f"{meta['start']}..{meta['end']})")
+        ties = self._collect_day_ties(client, meta, refresh)
+        # Fill the real tournament row (the calendar placeholder) in place, keeping
+        # its existing name/venue/logo; only create it if it's somehow absent.
+        t = Tournament.objects.filter(tournament_id=tmt).first()
+        if t is None:
+            t = Tournament.objects.create(
+                tournament_id=tmt, code=meta["guid"], name=meta["name"],
+                category_name=meta["tier"], start_date=meta["start"],
+                end_date=meta["end"], logo_url=meta["logo"])
+        with transaction.atomic():
+            total = self._ingest_ties(t, ties, meta["start"], mixed=True)
+        self.stdout.write(self.style.SUCCESS(f"  ✓ {t.name}: {total} rubbers"))
 
 
 def _daterange(start, end):
