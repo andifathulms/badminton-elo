@@ -116,7 +116,7 @@ GAMES = {
     "Badminton at the African Games": "African Games",
 }
 # SEA Games badminton has no clean category; construct titles for its editions.
-SEA_YEARS = list(range(1977, 2007, 2)) + [1959, 1961, 1965, 1967, 1969, 1971, 1973]
+SEA_YEARS = list(range(1977, 2027, 2)) + [1959, 1961, 1965, 1967, 1969, 1971, 1973]
 TEAM_SUBS = [("Men's team", "thomas"), ("Women's team", "uber"),
              ("Mixed team", "sudirman")]
 
