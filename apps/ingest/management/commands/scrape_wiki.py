@@ -165,10 +165,18 @@ def _text_date(s: str, year: int | None):
 def infobox_meta(text: str, year: int | None = None) -> dict:
     """Pull tournament name + dates from the {{infobox badminton event}}."""
     meta = {"name": None, "start": None, "end": None}
-    m = re.search(r"\|\s*name\s*=\s*(.+)", text)
+    # Only look in the article LEAD (before the first section heading): the
+    # multi-sport "Infobox … Games event" has no |name=, and a footer navbox can
+    # carry a stray "|name=Main Page}}" that would otherwise hijack the title.
+    lead = re.split(r"\n==", text, 1)[0]
+    m = re.search(r"\|\s*name\s*=\s*(.+)", lead)
     if m:
         nm = re.sub(r"\[\[([^\]|]+\|)?([^\]]+)\]\]", r"\2", m.group(1)).strip()
-        meta["name"] = re.sub(r"'''|\{\{[^}]*\}\}", "", nm).strip() or None
+        nm = re.sub(r"'''|\{\{[^}]*\}\}", "", nm).strip()
+        # Reject template/parse artifacts (stray braces, the wiki Main Page) so
+        # the caller falls back to the clean article title.
+        if nm and "{" not in nm and "}" not in nm and nm.lower() != "main page":
+            meta["name"] = nm
     dates = re.findall(r"\{\{(?:Start|End) date\|(\d{4})\|(\d{1,2})\|(\d{1,2})", text)
     if dates:
         y, mo, d = dates[0]
