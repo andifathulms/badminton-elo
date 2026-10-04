@@ -81,7 +81,7 @@ def test_exhibitions_flagged_for_exclusion(raw, base):
 
 def test_unmappable_passes_through():
     # Ambiguous 2-letter foreign codes stay as-is (won't pollute the open pools).
-    assert canonical_event("HE") == ("HE", False)
+    assert canonical_event("ZZ") == ("ZZ", False)
     assert canonical_event("") == ("", False)
 
 
