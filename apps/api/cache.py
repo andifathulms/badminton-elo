@@ -3,7 +3,7 @@
 Every public GET under /api/ is a pure function of the database, and the
 database only changes when a command or a staff write bumps the DataVersion.
 So a response is cached under (version, path + sorted query) and sent with
-`ETag: "<version>"`:
+`ETag: "<code salt>-<version>"`:
 
   * a browser that already holds this version gets `304 Not Modified` without
     the view (or the cache) running;
@@ -20,8 +20,10 @@ Staff/auth/live endpoints are never cached (see NEVER_CACHE).
 from __future__ import annotations
 
 import hashlib
+from pathlib import Path
 from urllib.parse import urlencode
 
+from django.conf import settings
 from django.core.cache import caches
 from django.http import HttpResponse, HttpResponseNotModified
 
@@ -42,6 +44,25 @@ CACHE_ALIAS = "api"
 CACHE_CONTROL = "no-cache"  # always revalidate; the ETag makes that a cheap 304
 
 
+def _code_salt() -> str:
+    """Fingerprint of the serving code, part of every key, so a deploy never
+    serves responses rendered by older code from a shared cache (Redis).
+    settings.API_CACHE_SALT (e.g. the image tag) wins; otherwise a hash of the
+    source files' sizes and mtimes — the same in every worker of one deploy."""
+    if getattr(settings, "API_CACHE_SALT", ""):
+        return settings.API_CACHE_SALT
+    h = hashlib.sha1()
+    root = Path(settings.BASE_DIR)
+    for sub in ("apps", "rating", "config"):
+        for f in sorted((root / sub).rglob("*.py")):
+            st = f.stat()
+            h.update(f"{f.relative_to(root)}:{st.st_size}:{st.st_mtime_ns}".encode())
+    return h.hexdigest()[:10]
+
+
+CODE_SALT = _code_salt()
+
+
 def _cacheable_path(path: str) -> bool:
     return (
         path.startswith(API_PREFIX)
@@ -53,11 +74,12 @@ def _cacheable_path(path: str) -> bool:
 def _key(version: str, request) -> str:
     query = urlencode(sorted(request.GET.lists()), doseq=True)
     raw = f"{request.path}?{query}"
-    return f"api:{version}:{hashlib.sha1(raw.encode()).hexdigest()}"
+    return f"api:{CODE_SALT}:{version}:{hashlib.sha1(raw.encode()).hexdigest()}"
 
 
 def _etag(version: str) -> str:
-    return f'"{version}"'
+    # Code salt too: after a deploy a browser must not 304 onto old output.
+    return f'"{CODE_SALT}-{version}"'
 
 
 class ApiCacheMiddleware:

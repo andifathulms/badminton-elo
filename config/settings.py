@@ -164,6 +164,9 @@ CACHES = {
     "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
     "api": _api_cache,
 }
+# Part of every API cache key; set it per deploy (e.g. the image tag) when the
+# cache is shared. Empty = derive from the source files (apps/api/cache.py).
+API_CACHE_SALT = os.environ.get("API_CACHE_SALT", "")
 
 # --- DRF (Phase 3 read API) -------------------------------------------------
 REST_FRAMEWORK = {

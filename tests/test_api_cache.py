@@ -82,3 +82,10 @@ def test_bump_refreshes_tournament_match_counts(db):
     assert Tournament.objects.get(pk=7).match_count == 0
     bump()
     assert Tournament.objects.get(pk=7).match_count == 1
+
+
+def test_etag_and_key_carry_the_code_salt(client, board):
+    from apps.api import cache as api_cache
+
+    r = client.get(URL)
+    assert r["ETag"].startswith(f'"{api_cache.CODE_SALT}-')
