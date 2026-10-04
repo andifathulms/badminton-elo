@@ -13,10 +13,10 @@ from __future__ import annotations
 import re
 from datetime import datetime, time as dt_time, timedelta, timezone as dt_tz
 
-from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils.dateparse import parse_date
 
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import Game, Match, MatchPlayer, Player, Tournament
 from apps.ingest.wiki_client import WikiClient
 from apps.ingest import wiki_parse
@@ -197,7 +197,7 @@ def scoring_format(games) -> str:
     return f"3x{target}"
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Ingest 1983-2006 tournaments from Wikipedia into the synthetic namespace."
 
     def add_arguments(self, p):

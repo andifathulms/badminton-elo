@@ -16,9 +16,9 @@ from __future__ import annotations
 
 from collections import Counter
 
-from django.core.management.base import BaseCommand
 
 from apps.ingest.cup_events import rubber_discipline
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import Draw, Match
 from apps.ingest.normalize import _AGE, _YOUTH, canonical_event, is_final_event
 
@@ -34,7 +34,7 @@ def _suffix(raw: str) -> str:
     return a.group(1) if a else ""
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Fold Match/Draw event codes to canonical disciplines in place."
 
     def add_arguments(self, parser):

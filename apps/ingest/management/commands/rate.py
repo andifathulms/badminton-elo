@@ -19,11 +19,11 @@ from collections import defaultdict
 from datetime import datetime, time, timedelta, timezone
 
 from django.conf import settings
-from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import Case, Count, F, IntegerField, Max, Sum, When
 
 from apps.ingest.boards import ACTIVE_DAYS, BOARD_MIN_MATCHES, FORM_POINTS, board_ranks
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import (
     Game,
     Match,
@@ -243,7 +243,7 @@ def current_board_ranks(ratings, event=None):
     return ranks, ranks_g
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Compute per-(player, discipline) ratings from ingested matches."
 
     def add_arguments(self, parser):

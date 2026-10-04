@@ -24,9 +24,9 @@ import re
 import unicodedata
 from collections import defaultdict
 
-from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import MatchPlayer, Player
 
 BASE = 2_000_000_000
@@ -63,7 +63,7 @@ def letter_key(name: str) -> str:
     return "".join(sorted(re.sub(r"[^a-z]", "", _ascii(name).lower())))
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Merge Wikipedia player duplicates into their BWF counterparts."
 
     def add_arguments(self, p):

@@ -10,10 +10,10 @@ with --all or --min-matches.
 """
 from __future__ import annotations
 
-from django.core.management.base import BaseCommand
 
 from apps.ingest.api import endpoints
 from apps.ingest.api.client import BwfClient
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import Player, PlayerRating
 
 BASE = 2_000_000_000
@@ -30,7 +30,7 @@ def _int(v):
 HAND = {"1": "R", "2": "L", "R": "R", "L": "L", "r": "R", "l": "L"}
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Fill Player bio fields from BWF vue-player-bio."
 
     def add_arguments(self, p):

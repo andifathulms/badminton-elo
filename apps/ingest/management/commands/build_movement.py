@@ -16,17 +16,17 @@ Ranks are also computed within gender (the split XD boards). Deterministic.
 from collections import defaultdict
 from datetime import timedelta
 
-from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import Max
 
 from apps.ingest.boards import ACTIVE_DAYS, BOARD_MIN_MATCHES as MIN_MATCHES, board_ranks
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import PlayerRating, RatingHistory
 
 MOVEMENT_DAYS = 28
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Compute current and 4-weeks-ago board ranks for rank-movement arrows."
 
     def handle(self, *args, **opts):

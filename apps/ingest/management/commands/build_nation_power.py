@@ -12,9 +12,9 @@ import bisect
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
-from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import NationYear, Player, RatingHistory
 
 EVENTS = ("MS", "WS", "MD", "WD", "XD")
@@ -22,7 +22,7 @@ TOP = 3            # players summed per country
 MIN_PLAYERS = 2    # need at least this many to rank (avoids single-star noise)
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Reconstruct per-year national strength per discipline from RatingHistory."
 
     def handle(self, *args, **opts):

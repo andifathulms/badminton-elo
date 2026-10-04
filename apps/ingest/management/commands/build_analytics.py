@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 
-from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import Match, MatchPlayer, RatingHistory, TournamentPerformance
 
 DOUBLES = ("MD", "WD", "XD")
@@ -48,7 +48,7 @@ def _perf_rating(results: list[tuple[float, bool]]) -> float | None:
     return round((lo + hi) / 2.0, 1)
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Precompute per-tournament performance analytics from RatingHistory."
 
     def _match_data(self):

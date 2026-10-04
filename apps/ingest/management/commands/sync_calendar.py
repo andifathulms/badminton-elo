@@ -16,11 +16,12 @@ from __future__ import annotations
 import logging
 from datetime import timedelta
 
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import CommandError
 from django.utils import timezone
 
 from apps.ingest.api import endpoints
 from apps.ingest.api.client import BwfClient
+from apps.ingest.management.base import DataCommand
 from apps.ingest.normalize import (
     normalize_day_matches,
     upsert_tournament_from_calendar,
@@ -36,7 +37,7 @@ def _is_senior(category: str) -> bool:
     return "junior" not in label and "para" not in label
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Enumerate a season via the calendar and collect each tournament."
 
     def add_arguments(self, parser):

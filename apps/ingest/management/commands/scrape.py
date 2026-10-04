@@ -22,11 +22,12 @@ from __future__ import annotations
 import logging
 
 from django.conf import settings
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import CommandError
 from django.utils import timezone
 
 from apps.ingest.api import endpoints
 from apps.ingest.api.client import BwfClient
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import Draw, Tournament
 from apps.ingest.normalize import (
     normalize_day_matches,
@@ -38,7 +39,7 @@ from apps.ingest.schemas import DayMatches, DrawData, DrawInfo, TournamentDetail
 logger = logging.getLogger(__name__)
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Scrape a tournament's draws/draw-data (detail -> draws -> draw-data)."
 
     def add_arguments(self, parser):

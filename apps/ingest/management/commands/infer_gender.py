@@ -14,9 +14,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from django.core.management.base import BaseCommand
 from django.db.models import Q
 
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import MatchPlayer, Player
 
 # Any singles/doubles event of that gender, including masters (MS45) and youth
@@ -40,7 +40,7 @@ def _xd_partner_pairs() -> set[frozenset]:
     return pairs
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Infer player gender (M/F) from discipline + XD-partner propagation."
 
     def handle(self, *args, **opts):

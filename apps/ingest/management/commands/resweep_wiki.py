@@ -16,9 +16,9 @@ tables reflect the corrected results.
 """
 from __future__ import annotations
 
-from django.core.management.base import BaseCommand
 from django.db import connection, transaction
 
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import Match, Player, Tournament
 from apps.ingest.wiki_client import WikiClient
 
@@ -28,7 +28,7 @@ CUP_HINTS = (("thomas cup", "thomas"), ("uber cup", "uber"),
              ("sudirman cup", "sudirman"))
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Re-ingest all cached Wikipedia tournaments with the current parser."
 
     def add_arguments(self, p):

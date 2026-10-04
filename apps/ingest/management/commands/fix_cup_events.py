@@ -14,10 +14,10 @@ from __future__ import annotations
 
 from collections import Counter
 
-from django.core.management.base import BaseCommand
 from django.db.models import Q
 
 from apps.ingest.cup_events import rubber_discipline
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import Match, Tournament
 
 # Same detection as the API's team_cup_kind, kept here so ingest has no api dep.
@@ -31,7 +31,7 @@ def team_cup_tournaments():
     return Tournament.objects.filter(q)
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Fix mislabelled disciplines on team-cup rubbers (from the lineup)."
 
     def add_arguments(self, p):

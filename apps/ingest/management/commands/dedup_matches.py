@@ -22,14 +22,14 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import Count
 
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import Game, Match, MatchPlayer
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Delete duplicate matches (same contest under different match_ids)."
 
     def add_arguments(self, parser):

@@ -11,14 +11,14 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from rating.predict import team_rating, win_probability
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import CalibrationBin, Match, MatchPlayer, RatingHistory
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Precompute rating reliability (predicted vs actual) from RatingHistory."
 
     def handle(self, *args, **opts):

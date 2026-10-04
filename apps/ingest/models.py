@@ -467,6 +467,25 @@ class NationYear(models.Model):
         return f"{self.event} {self.country} {self.year}: {self.power:.0f}"
 
 
+class DataVersion(models.Model):
+    """Singleton (pk=1): stamps the current state of the served data.
+
+    Every command or request that changes served data bumps `version`
+    (apps.ingest.dataversion.bump). The API response cache keys on it and sends
+    it as the ETag, so one bump invalidates every cached response at once.
+    `active_cutoff` is the "retired" line for current boards (latest match −
+    ACTIVE_DAYS), computed once per bump instead of per request.
+    """
+
+    version = models.CharField(max_length=32)
+    updated_utc = models.DateTimeField()
+    latest_match_utc = models.DateTimeField(null=True, blank=True)
+    active_cutoff = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self) -> str:
+        return f"data v{self.version} @ {self.updated_utc:%Y-%m-%d %H:%M}"
+
+
 class RawCache(models.Model):
     """Read-through cache of every raw API response (PRD §5, domain rule 9).
 

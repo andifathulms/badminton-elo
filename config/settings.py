@@ -55,6 +55,9 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Last: serves public GET /api/* from a cache keyed on the DataVersion and
+    # answers 304 when the browser already has it (apps/api/cache.py).
+    "apps.api.cache.ApiCacheMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -139,6 +142,28 @@ USE_TZ = True
 STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# --- Caches -----------------------------------------------------------------
+# "api" holds rendered API responses keyed by DataVersion (apps/api/cache.py).
+# In-process memory by default (bounded); set REDIS_URL to share one cache
+# across gunicorn workers / containers.
+if os.environ.get("REDIS_URL"):
+    _api_cache = {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": os.environ["REDIS_URL"],
+        "TIMEOUT": 7 * 24 * 3600,
+    }
+else:
+    _api_cache = {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "api-responses",
+        "TIMEOUT": 7 * 24 * 3600,
+        "OPTIONS": {"MAX_ENTRIES": 3000},
+    }
+CACHES = {
+    "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
+    "api": _api_cache,
+}
 
 # --- DRF (Phase 3 read API) -------------------------------------------------
 REST_FRAMEWORK = {

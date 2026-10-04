@@ -15,16 +15,16 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from apps.ingest.management.base import DataCommand
 from apps.ingest.management.commands.build_analytics import _perf_rating
 from apps.ingest.models import MatchPlayer, Partnership, RatingHistory
 
 DOUBLES = ("MD", "WD", "XD")
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Compute partnership performance rating + synergy vs combined rating."
 
     def handle(self, *args, **opts):

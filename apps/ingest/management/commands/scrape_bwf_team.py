@@ -17,13 +17,13 @@ from __future__ import annotations
 import re
 from datetime import date as _date
 
-from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from collections import defaultdict
 
 from apps.ingest.api import endpoints
 from apps.ingest.api.client import BwfClient
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import Match, RawCache, Tournament
 from apps.ingest.normalize import (
     canonical_event,
@@ -106,7 +106,7 @@ def _gender_of(text: str) -> str:
     return "W" if ("women" in low or "female" in low or "ladies" in low) else "M"
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Ingest BWF team championships (tmtIds) as gendered tournaments."
 
     def add_arguments(self, p):

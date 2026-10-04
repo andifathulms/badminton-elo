@@ -12,9 +12,9 @@ import bisect
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
-from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import CupPowerHistory, Player, RatingHistory
 
 # Individual-based team composition (2 players per doubles pair-slot).
@@ -25,7 +25,7 @@ CUP_SPECS = {
 }
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Reconstruct per-year national team power per cup from RatingHistory."
 
     def handle(self, *args, **opts):

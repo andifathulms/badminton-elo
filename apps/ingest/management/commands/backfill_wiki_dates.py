@@ -12,14 +12,14 @@ from __future__ import annotations
 import re
 from datetime import date, datetime, time as dt_time, timedelta, timezone as dt_tz
 
-from django.core.management.base import BaseCommand
 
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import Match, Tournament
 
 YEAR = re.compile(r"(\d{4})")
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Backfill start_date + match_time_utc for Wikipedia-sourced data."
 
     def handle(self, *args, **opts):

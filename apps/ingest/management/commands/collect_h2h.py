@@ -16,12 +16,12 @@ from __future__ import annotations
 
 import logging
 
-from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from apps.ingest.api import endpoints
 from apps.ingest.api.client import BwfClient
 from apps.ingest.h2h import fetch_and_store_stats
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import (
     Match,
     MatchPlayer,
@@ -46,7 +46,7 @@ def _date(v):
     return str(v).split(" ")[0][:10] or None
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Enrich matches with h2h rally stats, point progression, bio, ranks."
 
     def add_arguments(self, parser):

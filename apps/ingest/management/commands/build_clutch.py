@@ -11,15 +11,15 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 
-from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import ClutchStat, Game, Match, MatchPlayer
 
 EVENTS = ("MS", "WS", "MD", "WD", "XD")
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Precompute deciding-game (clutch) records per player from match data."
 
     def handle(self, *args, **opts):

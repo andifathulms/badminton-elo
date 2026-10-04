@@ -21,10 +21,11 @@ import logging
 from datetime import date, timedelta
 
 from django.conf import settings
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import CommandError
 
 from apps.ingest.api import endpoints
 from apps.ingest.api.client import BwfClient
+from apps.ingest.management.base import DataCommand
 from apps.ingest.normalize import (
     normalize_day_matches,
     upsert_tournament_from_code,
@@ -38,7 +39,7 @@ def _parse_date(s: str) -> date:
     return date.fromisoformat(s)
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Collect a tournament's matches by iterating the day-matches endpoint."
 
     def add_arguments(self, parser):

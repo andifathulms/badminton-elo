@@ -11,13 +11,13 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 
-from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import PlayerRating, RatingHistory
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Compute per-player rating-delta volatility onto PlayerRating."
 
     def handle(self, *args, **opts):

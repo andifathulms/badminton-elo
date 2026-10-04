@@ -4,13 +4,13 @@ Idempotent — recomputes the biggest-deficit-overcome for every stats row that
 has a rally-by-rally progression. New rows get it at fetch time (h2h.py); this
 covers rows captured before the field existed.
 """
-from django.core.management.base import BaseCommand
 
 from apps.ingest.h2h import max_comeback
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import MatchStatistics
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Compute max_comeback for MatchStatistics rows with point_progression."
 
     def handle(self, *args, **opts):

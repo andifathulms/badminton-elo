@@ -10,15 +10,15 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 
-from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import MatchPlayer, Partnership, Player, PlayerRating
 
 DOUBLES = ("MD", "WD", "XD")
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Aggregate doubles/mixed partnerships and their combined strength."
 
     def add_arguments(self, parser):

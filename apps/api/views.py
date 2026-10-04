@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date, timedelta
 
-from django.db.models import Avg, Count, DateTimeField, F, FloatField, Max
+from django.db.models import Avg, Count, DateTimeField, F, FloatField
 from django.db.models.functions import Cast, Coalesce, Round
 from django.utils import timezone
 from rest_framework import generics, viewsets
@@ -143,10 +143,14 @@ def prestige_group(category: str) -> str:
 def active_cutoff():
     """Anything last active before this is 'retired' — excluded from CURRENT
     rankings (still counted in all-time/peak). Measured from the latest match in
-    the data (data-relative), so the rule holds even if collection pauses."""
-    latest = PlayerRating.objects.aggregate(m=Max("last_match_utc"))["m"]
-    ref = latest or timezone.now()
-    return ref - timedelta(days=ACTIVE_DAYS)
+    the data (data-relative), so the rule holds even if collection pauses.
+    Stored on the DataVersion at each bump, so it costs a PK lookup."""
+    from apps.ingest.dataversion import current
+
+    dv = current()
+    if dv is not None and dv.active_cutoff is not None:
+        return dv.active_cutoff
+    return timezone.now() - timedelta(days=ACTIVE_DAYS)
 
 
 def _is_default_board(qp) -> bool:

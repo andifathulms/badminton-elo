@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import re
 
-from django.core.management.base import BaseCommand
 from django.db.models import Count
 
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import Tournament
 
 BASE = 2_000_000_000
@@ -20,7 +20,7 @@ CUP_KW = {"Thomas Cup": "Thomas Cup", "Uber Cup": "Uber Cup",
           "Sudirman Cup": "Sudirman Cup"}
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Merge BWF-calendar cup duplicates into the Wikipedia cups."
 
     def add_arguments(self, p):

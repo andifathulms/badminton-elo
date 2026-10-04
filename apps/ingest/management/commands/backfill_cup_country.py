@@ -15,8 +15,8 @@ from __future__ import annotations
 
 from collections import Counter
 
-from django.core.management.base import BaseCommand
 
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import Match, Player
 
 from .fix_cup_events import team_cup_tournaments
@@ -27,7 +27,7 @@ def _side_country(players):
     return c.most_common(1)[0][0] if c else None
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Fill missing player country_code from team-cup ties."
 
     def add_arguments(self, p):

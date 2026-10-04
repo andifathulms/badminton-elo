@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import json
 
-from django.core.management.base import BaseCommand
 
+from apps.ingest.management.base import DataCommand
 from apps.ingest.models import RawCache, Tournament
 
 
@@ -25,7 +25,7 @@ def _walk(obj, out):
             _walk(v, out)
 
 
-class Command(BaseCommand):
+class Command(DataCommand):
     help = "Fill Tournament.logo_url from cached calendar payloads."
 
     def handle(self, *args, **opts):
