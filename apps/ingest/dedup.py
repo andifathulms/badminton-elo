@@ -19,6 +19,9 @@ from .wiki_parse import is_bye
 
 WINDOW = timedelta(days=10)
 MIN_SHARE = 0.8  # of the wiki copy's matches that must duplicate the API copy
+# For a wiki SUPERSET only exact duplicates are deleted, so this only guards
+# against coincidental overlap (unplayed/unparsed rubbers lower the share).
+CONTAIN_SHARE = 0.5
 
 
 def norm_name(name: str) -> str:
@@ -104,4 +107,26 @@ def find_pairs():
                     best = (w, a, plan)
         if best:
             out.append(best)
+            continue
+        # The wiki copy may be a SUPERSET: a Games article holds the individual
+        # draws AND the team rubbers, while the API has only the team events
+        # (2022 Asian Games). Drop just the rubbers of any API tournament the
+        # wiki copy contains (>= CONTAIN_SHARE of it), and keep the rest.
+        dropped: set[int] = set()
+        for a in apis:
+            a_recs = match_signatures([a.tournament_id])
+            if not a_recs:
+                continue
+            w_by_score = {r["score"]: mid for mid, r in wrecs.items() if r["score"]}
+            w_by_name = {r["names"]: mid for mid, r in wrecs.items()}
+            hits = set()
+            for r in a_recs.values():
+                mid = w_by_score.get(r["score"]) if r["score"] else None
+                mid = mid or w_by_name.get(r["names"])
+                if mid:
+                    hits.add(mid)
+            if len(hits) / len(a_recs) >= CONTAIN_SHARE:
+                dropped |= hits
+        if dropped:
+            out.append((w, None, {"dup": sorted(dropped), "bye": [], "move": [], "drop": []}))
     return out

@@ -131,3 +131,19 @@ def test_tournament_youth(name, suffix):
     from apps.ingest.management.commands.normalize_events import tournament_youth
 
     assert tournament_youth(name) == suffix
+
+
+@pytest.mark.django_db
+def test_wiki_superset_drops_only_the_api_rubbers_it_contains():
+    api = _t(20, "Asian Games 2022 (Team Event) – Men's team")
+    wiki = _t(2_000_000_950, "Badminton at the 2022 Asian Games",
+              code="wiki:Badminton at the 2022 Asian Games")
+    ps = [Player.objects.create(player_id=i, name_display=f"Player {chr(65 + i)}") for i in range(1, 9)]
+    for i in range(4):  # 4 team rubbers in both
+        _m(500 + i, api, ps[0], ps[1], [(21, 10 + i), (21, 9)])
+        _m(2_000_000_500 + i, wiki, ps[0], ps[1], [(21, 10 + i), (21, 9)])
+    for i in range(10):  # 10 individual matches only on Wikipedia
+        _m(2_000_000_600 + i, wiki, ps[2 + i % 3], ps[5 + i % 3], [(21, 3 + i), (21, 4)])
+    call_command("dedup_tournaments", "--apply", verbosity=0)
+    assert Match.objects.filter(tournament=wiki).count() == 10
+    assert Match.objects.filter(tournament=api).count() == 4
