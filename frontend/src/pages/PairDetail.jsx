@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import Pager from '../components/Pager.jsx'
@@ -7,13 +7,16 @@ import Avatar from '../components/Avatar.jsx'
 import StyleCard from '../components/StyleCard.jsx'
 import { ErrorState } from '../components/Empty.jsx'
 import { flag } from '../flags.js'
+import Icon from '../components/Icon.jsx'
+import CourtLines from '../components/CourtLines.jsx'
+import { Ev, ScoreChips, WL } from '../components/Chips.jsx'
+import { fmtDay } from '../dates.js'
 
 const names = (players) => players.map((p) => p.name_display).join(' / ') || '—'
 const PAGE = 20
 
 export default function PairDetail() {
   const { event, p1, p2 } = useParams()
-  const navigate = useNavigate()
   const [page, setPage] = useState(0)
   useEffect(() => setPage(0), [event, p1, p2])
   const { data, error, loading, reload } = useAsync(
@@ -21,103 +24,89 @@ export default function PairDetail() {
     [event, p1, p2],
   )
 
-  if (loading) return <p className="muted">Loading…</p>
+  if (loading) return <div className="sk-hero" style={{ height: 170 }} />
   if (error) return <ErrorState error={error} onRetry={reload} what="this pair" />
 
   const pair = data.pair
-  const winPct = data.matches_together
-    ? Math.round((100 * data.wins) / data.matches_together)
-    : 0
+  const winPct = data.matches_together ? Math.round((100 * data.wins) / data.matches_together) : 0
+  const both = [data.player1, data.player2]
 
   return (
-    <div>
-      <Link to="/rankings" className="back">← Rankings</Link>
-      <header className="profile">
-        <span className="pair-av">
-          <Avatar player={data.player1} size="lg" />
-          <Avatar player={data.player2} size="lg" />
-        </span>
-        <div className="pinfo">
+    <div className="player-page">
+      <div className="crumb">
+        <Link to={`/rankings?event=${event}&view=pairs`}>Rankings</Link><span className="sep">/</span>
+        <span>{event} pairs</span><span className="sep">/</span><span>{names(both)}</span>
+      </div>
+      <section className="pl-hero arena pair-hero">
+        <CourtLines />
+        <span className="pair-av">{both.map((p) => <Avatar key={p.player_id} player={p} size={76} onDeep />)}</span>
+        <div className="pl-id">
           <h1>
             <Link to={`/players/${data.player1.player_id}`}>{data.player1.name_display}</Link>
-            {' / '}
+            <span className="amp"> / </span>
             <Link to={`/players/${data.player2.player_id}`}>{data.player2.name_display}</Link>
-            <span className="country-badge">{event}</span>
           </h1>
-          <div className="meta">
-            <span>{flag(data.player1.country_code)} {data.player1.country_code}</span>
-            <span>{flag(data.player2.country_code)} {data.player2.country_code}</span>
+          <div className="pl-meta">
+            <span><Ev code={event} /></span>
+            {both.map((p) => <span key={p.player_id}>{flag(p.country_code)} <b>{p.country_code}</b></span>)}
+            <span>Together <b>{data.matches_together} matches</b></span>
+          </div>
+          <div className="pl-acts">
+            <Link className="btn primary" to={`/h2h?event=${event}&s1=${data.player1.player_id},${data.player2.player_id}`}>
+              <Icon name="swords" size={15} /> Compare head-to-head
+            </Link>
           </div>
         </div>
-      </header>
-      <div className="records">
         {pair && (
-          <span className="record-pill">
-            <b>Rating</b> {pair.rating.toFixed(1)}
-            {pair.peak_rating != null && (
-              <span className="muted small"> · peak {pair.peak_rating.toFixed(0)}</span>
-            )}
-          </span>
+          <div className="pl-rating">
+            <span className="pl-rank">Pair rating · {event}</span>
+            <span className="num-display">{Math.round(pair.rating).toLocaleString()}</span>
+            {pair.peak_rating != null && <span className="pl-sk">peak {Math.round(pair.peak_rating).toLocaleString()}</span>}
+          </div>
         )}
-        <span className="record-pill">
-          <b>Together</b> {data.wins}–{data.losses}
-          <span className="muted small"> {winPct}%</span>
-        </span>
-        <span className="record-pill">
-          <b>{data.matches_together}</b> matches
-        </span>
+      </section>
+
+      <div className="kpis card">
+        <div className="kpi"><span className="k">Record together</span><span className="v num-display">{data.wins}–{data.losses}</span><span className="s">{winPct}% wins</span></div>
+        <div className="kpi"><span className="k">Matches</span><span className="v num-display">{data.matches_together}</span><span className="s">as a pair in {event}</span></div>
+        {pair?.peak_rating != null && <div className="kpi"><span className="k">Peak</span><span className="v num-display">{Math.round(pair.peak_rating).toLocaleString()}</span><span className="s">combined rating</span></div>}
+        {pair && <div className="kpi"><span className="k">Now</span><span className="v num-display">{Math.round(pair.rating).toLocaleString()}</span><span className="s">mean of the two players</span></div>}
       </div>
 
-      <StyleCard playerId={data.player1.player_id} partner={data.player2.player_id}
-                 title="This pair's style" />
-
-      <h2>Matches together</h2>
+      <div className="sec-head"><h2>Matches together</h2></div>
       {data.matches.length === 0 ? (
         <p className="muted">No matches found.</p>
       ) : (
         <>
-        <table className="board compact matchlist">
-          <tbody>
+          <div className="mh card">
             {data.matches.slice(page * PAGE, page * PAGE + PAGE).map((m) => {
-              const ourSide = m.side1.some(
-                (p) => String(p.player_id) === String(data.player1.player_id),
-              )
-                ? 1
-                : 2
+              const ourSide = m.side1.some((p) => String(p.player_id) === String(data.player1.player_id)) ? 1 : 2
               const won = m.winner_side === ourSide
               const opp = ourSide === 1 ? m.side2 : m.side1
-              // Orient the scoreline to the pair (side 1 of the row is "us").
+              // Orient the scoreline to the pair (first number is "us").
               const score = ourSide === 2 ? m.score.map(([a, b]) => [b, a]) : m.score
               return (
-                <tr
-                  key={m.match_id}
-                  className="clickable"
-                  onClick={() => navigate(`/matches/${m.match_id}`)}
-                >
-                  <td>
-                    <span className={`wl ${won ? 'w' : 'l'}`}>{won ? 'W' : 'L'}</span>
-                  </td>
-                  <td className="link">
-                    <span className="fl">{flag(opp[0]?.country_code)}</span> {names(opp)}
-                  </td>
-                  <td className="score-cell">
-                    {score.map((g, i) => (
-                      <span key={i} className={g[0] > g[1] ? 'hi' : ''}>{g[0]}-{g[1]} </span>
-                    ))}
-                  </td>
-                  <td className="muted small">{m.round_name}</td>
-                  <td className="num muted small">
-                    {m.match_time_utc ? m.match_time_utc.slice(0, 10) : '—'}
-                  </td>
-                </tr>
+                <Link key={m.match_id} to={`/matches/${m.match_id}`} className="mh-row">
+                  <WL won={won} />
+                  <span className="mh-ev">
+                    <b>{[m.round_name, m.tournament?.name].filter(Boolean).join(' · ') || 'Match'}</b>
+                    <span>{m.match_time_utc ? fmtDay(m.match_time_utc, true) : ''}</span>
+                  </span>
+                  <span className="mh-opp">
+                    <span className="pair-av">{opp.map((p) => <Avatar key={p.player_id} player={p} size="sm" />)}</span>
+                    <span className="mh-on"><span className="nm">{names(opp)}</span><span className="cc">{flag(opp[0]?.country_code)} {opp[0]?.country_code}</span></span>
+                  </span>
+                  <span className="mh-sc"><ScoreChips games={score} /></span>
+                  <span />
+                </Link>
               )
             })}
-          </tbody>
-        </table>
-        <Pager page={page} setPage={setPage} count={data.matches.length}
-               pageSize={PAGE} unit="matches" />
+          </div>
+          <Pager page={page} setPage={setPage} count={data.matches.length} pageSize={PAGE} unit="matches" />
         </>
       )}
+
+      <StyleCard playerId={data.player1.player_id} partner={data.player2.player_id} title="This pair’s style" />
     </div>
   )
 }

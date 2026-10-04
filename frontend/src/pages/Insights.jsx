@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { api, EVENTS } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import { flag } from '../flags.js'
@@ -12,13 +12,17 @@ import AgeCurveChart from '../components/AgeCurveChart.jsx'
 import DynastyTimeline from '../components/DynastyTimeline.jsx'
 import { SkeletonList } from '../components/Skeleton.jsx'
 import { EmptyState, ErrorState } from '../components/Empty.jsx'
+import Icon from '../components/Icon.jsx'
+import Avatar from '../components/Avatar.jsx'
+import { Skeleton } from '../components/Skeleton.jsx'
+import { Ev } from '../components/Chips.jsx'
 
 const PAGE = 10
 
 function Achievement({ label }) {
   if (!label) return null
   const cls = label === 'Champion' ? 'champ' : label === 'Runner-up' ? 'runner' : ''
-  return <span className={`ach ${cls}`}>{label === 'Champion' ? '🏆 ' : ''}{label}</span>
+  return <span className={`ach ${cls}`}>{label === 'Champion' && <Icon name="trophy" size={12} />}{label}</span>
 }
 
 function NameCell({ row }) {
@@ -608,43 +612,43 @@ function SynergySection({ event }) {
 
 // Groups organise the landing into scannable sections (see GROUPS below).
 const INSIGHTS = [
-  { key: 'breakouts', icon: '🚀', title: 'Biggest tournament breakouts', group: 'runs',
+  { key: 'breakouts', icon: 'rocket', title: 'Biggest tournament breakouts', group: 'runs',
     blurb: 'Most ELO gained by an established player across a single tournament — the standout runs.',
     sub: 'Most ELO gained by an established player across a single tournament. Start→End is the rating before and after; debut players are hidden by default since a first-timer\'s rating swings hugely.',
     toolbar: true },
-  { key: 'upsets', icon: '⚡', title: 'Biggest upsets', group: 'runs',
+  { key: 'upsets', icon: 'bolt', title: 'Biggest upsets', group: 'runs',
     blurb: "The single wins that moved a rating the most — beating someone you weren't supposed to.",
     sub: "The single wins that moved a rating the most — beating someone you weren't supposed to. Click a row to open the match.",
     toolbar: true },
-  { key: 'performances', icon: '🎯', title: 'Best tournament performances', group: 'runs',
+  { key: 'performances', icon: 'target', title: 'Best tournament performances', group: 'runs',
     blurb: 'The level a player/pair actually played at, based on the strength of the field they beat.',
     sub: 'Chess-style performance rating — the level a player/pair played AT across a tournament, based on the strength of the opponents they beat. Walkovers and retirements don\'t count — only contested wins vs a rated opponent (open a row to see the run).',
     toolbar: true },
-  { key: 'consistency', icon: '🧊', title: 'Consistency', group: 'players',
+  { key: 'consistency', icon: 'wave', title: 'Consistency', group: 'players',
     blurb: 'The steadiest performers vs the most volatile — measured by how much a rating swings match to match.',
     sub: 'Form volatility: the standard deviation of a player’s per-match rating change. Low means predictable (results match their level); high means erratic (big upsets and bad losses). Toggle steadiest vs most volatile; pick a discipline.',
     toolbar: 'event-req' },
-  { key: 'aging', icon: '📈', title: 'When players peak', group: 'players',
+  { key: 'aging', icon: 'chart', title: 'When players peak', group: 'players',
     blurb: 'The age players reach their career-best rating — and how peak level rises then fades with age.',
     sub: 'Each rated player’s career peak placed on an age axis. Bars show how many players peaked at each age; the line is the average peak rating reached. Most players peak young (they don’t last), but the highest ratings come later. Pick a discipline to compare.',
     toolbar: 'event' },
-  { key: 'synergy', icon: '🤝', title: 'Partnership synergy', group: 'teams',
+  { key: 'synergy', icon: 'link', title: 'Partnership synergy', group: 'teams',
     blurb: 'Which doubles pairs overperform the sum of their parts — real on-court chemistry, and the duos that never gelled.',
     sub: 'Synergy = a pair’s performance rating (from their own results) minus their combined individual rating. Positive means they’re better together than their solo levels predict. Toggle best chemistry vs underperformers; pick a doubles discipline.',
     toolbar: 'doubles' },
-  { key: 'dynasties', icon: '👑', title: 'Nation dynasties', group: 'teams',
+  { key: 'dynasties', icon: 'crown', title: 'Nation dynasties', group: 'teams',
     blurb: 'Which country ruled each discipline, and for how long — dominance eras from four decades of results.',
     sub: 'The #1 nation in a discipline each year (by summed top-3 player rating), and the reigns those years form. Pick a discipline to trace its dynasties.',
     toolbar: 'event-req' },
-  { key: 'clutch', icon: '🔥', title: 'Clutch: deciding games', group: 'matchplay',
+  { key: 'clutch', icon: 'clock', title: 'Clutch: deciding games', group: 'matchplay',
     blurb: 'Who wins the matches that go the distance — third-game win rate across a discipline.',
     sub: 'When a match reaches a deciding third game, who comes out on top? Ranked by third-game win rate (Normal matches only, minimum 15 deciders). Pick a discipline.',
     toolbar: 'event-req' },
-  { key: 'records', icon: '🏟️', title: 'Match records', group: 'matchplay',
+  { key: 'records', icon: 'medal', title: 'Match records', group: 'matchplay',
     blurb: 'Longest matches, most rallies, and biggest comebacks — from rally-by-rally stats.',
     sub: 'Extremes pulled from the rally-by-rally match statistics — only matches we\'ve collected point-by-point data for.',
     toolbar: false },
-  { key: 'accuracy', icon: '🎯', title: 'Rating accuracy', group: 'model',
+  { key: 'accuracy', icon: 'target', title: 'Rating accuracy', group: 'model',
     blurb: 'How often the higher-rated side actually wins — and whether the model’s confidence matches reality.',
     sub: 'A reliability check: every rated match bucketed by the favorite’s pre-match win probability, versus how often that favorite actually won. Points on the diagonal mean the rating is well-calibrated. Pick a discipline to filter.',
     toolbar: 'event' },
@@ -685,8 +689,114 @@ function Toolbar({ event, setEvent, includeNew, setIncludeNew, showDebut = true,
   )
 }
 
+const ALIAS = { calibration: 'accuracy' }
+
+// Landing feature cards: each shows its answer right on the card.
+function CalibMini({ bins }) {
+  const W = 200, H = 140, p = 22
+  const x = (v) => p + ((v - 0.5) / 0.5) * (W - p - 6)
+  const y = (v) => H - p - ((v - 0.5) / 0.5) * (H - p - 6)
+  const pts = (bins || []).filter((b) => b.predicted >= 0.5)
+  return (
+    <svg className="mini" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Predicted versus actual win rate">
+      <line className="ax" x1={p} y1={H - p} x2={W - 4} y2={H - p} /><line className="ax" x1={p} y1={4} x2={p} y2={H - p} />
+      <line className="diag" x1={x(0.5)} y1={y(0.5)} x2={x(1)} y2={y(1)} />
+      {pts.map((b) => <circle key={b.bucket} className="dot" cx={x(b.predicted)} cy={y(Math.max(0.5, b.actual))} r={3 + Math.sqrt(b.n) / 120} />)}
+      <text x={p} y={H - 8}>50%</text><text x={W - 4} y={H - 8} textAnchor="end">100%</text>
+      <text x={p + 4} y={12}>actual</text><text x={W - 4} y={H - p - 5} textAnchor="end">predicted</text>
+    </svg>
+  )
+}
+function AgeMini({ data }) {
+  const bins = (data?.bins || []).filter((b) => b.count >= 20)
+  if (bins.length < 2) return null
+  const W = 200, H = 140, p = 20
+  const a0 = bins[0].age, a1 = bins[bins.length - 1].age
+  const v0 = Math.min(...bins.map((b) => b.avg_peak)) - 40, v1 = Math.max(...bins.map((b) => b.avg_peak)) + 40
+  const x = (a) => p + ((a - a0) / (a1 - a0)) * (W - p - 6)
+  const y = (v) => H - p - ((v - v0) / (v1 - v0)) * (H - p - 8)
+  const d = bins.map((b, i) => `${i ? 'L' : 'M'}${x(b.age).toFixed(1)} ${y(b.avg_peak).toFixed(1)}`).join('')
+  return (
+    <svg className="mini" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Average peak rating by age">
+      <line className="ax" x1={p} y1={H - p} x2={W - 4} y2={H - p} />
+      <path className="ar" d={`${d}L${x(a1)} ${H - p}L${x(a0)} ${H - p}Z`} /><path className="ln" d={d} />
+      <line className="med" x1={x(data.median_peak_age)} x2={x(data.median_peak_age)} y1={8} y2={H - p} />
+      <text x={x(data.median_peak_age) + 4} y={14}>median {data.median_peak_age}</text>
+      <text x={p} y={H - 6}>{a0}</text><text x={W - 4} y={H - 6} textAnchor="end">{a1} yrs</text>
+    </svg>
+  )
+}
+
+function Featured({ open }) {
+  const cal = useAsync(() => api.calibration('ALL'), [])
+  const age = useAsync(() => api.aging('MS'), [])
+  const clutch = useAsync(() => api.clutch('MS', { min: 15 }), [])
+  const ups = useAsync(() => api.analytics('upsets', { minMatches: 3, limit: 1 }), [])
+  const u = ups.data?.results?.[0]
+  const sk = <Skeleton h={120} />
+  return (
+    <div className="in-feature">
+      <button className="in-card card" onClick={() => open('accuracy')}>
+        <span className="in-tx">
+          <span className="in-q">Accuracy</span>
+          <h3>Are the ratings right?</h3>
+          {cal.data ? <><span className="num-display in-big">{(cal.data.accuracy * 100).toFixed(1)}%</span>
+            <span className="in-p">of matches won by the higher-rated side. Predicted and actual win rates agree within {(cal.data.calibration_error * 100).toFixed(1)}%.</span></> : sk}
+          <span className="in-go">Reliability diagram <Icon name="arrowRight" size={13} /></span>
+        </span>
+        {cal.data && <CalibMini bins={cal.data.bins} />}
+      </button>
+      <button className="in-card card" onClick={() => open('aging')}>
+        <span className="in-tx">
+          <span className="in-q">Careers</span>
+          <h3>When do players peak?</h3>
+          {age.data ? <><span className="num-display in-big">{age.data.median_peak_age}</span>
+            <span className="in-p">is the median age a men’s singles player reaches their career-best rating.</span></> : sk}
+          <span className="in-go">Age curves <Icon name="arrowRight" size={13} /></span>
+        </span>
+        {age.data && <AgeMini data={age.data} />}
+      </button>
+      <button className="in-card card" onClick={() => open('clutch')}>
+        <span className="in-tx">
+          <span className="in-q">Pressure</span>
+          <h3>Who wins the deciders?</h3>
+          <span className="in-p">Best record in third games, minimum 15 played. Men’s singles.</span>
+          <span className="in-go">Clutch table <Icon name="arrowRight" size={13} /></span>
+        </span>
+        <span className="clist">
+          {clutch.data ? clutch.data.results.slice(0, 3).map((c) => (
+            <span key={c.player.player_id} className="cl-row">
+              <Avatar player={c.player} size={26} />
+              <span className="cl-who"><b>{c.player.name_display}</b><span>{c.deciders_won} of {c.deciders_played} deciders</span></span>
+              <span className="cl-pc">{Math.round(c.decider_pct)}%</span>
+            </span>
+          )) : sk}
+        </span>
+      </button>
+      <button className="in-card card" onClick={() => open('upsets')}>
+        <span className="in-tx">
+          <span className="in-q">Upsets</span>
+          <h3>The biggest giant-killing</h3>
+          {u ? <><span className="num-display in-big gold">+{Math.round(u.opponent_rating_before - u.winner_rating_before)}</span>
+            <span className="in-p">{u.player.name_display} {flag(u.player.country_code)} ({u.winner_rating_before}) beat {u.beat.map((b) => b.name_display).join(' / ')} ({u.opponent_rating_before}).</span></> : sk}
+          <span className="in-go">All upsets <Icon name="arrowRight" size={13} /></span>
+        </span>
+        {u && (
+          <span className="vs-bars">
+            <span className="vb"><span className="b"><i style={{ width: `${(u.winner_rating_before / u.opponent_rating_before) * 100}%` }}>Winner</i></span><span className="mono">{u.winner_rating_before}</span></span>
+            <span className="vb"><span className="b lo"><i style={{ width: '100%' }}>Favourite</i></span><span className="mono">{u.opponent_rating_before}</span></span>
+          </span>
+        )}
+      </button>
+    </div>
+  )
+}
+
 export default function Insights() {
-  const [view, setView] = useState(null)
+  const [params, setParams] = useSearchParams()
+  const lens = params.get('lens')
+  const view = INSIGHTS.some((i) => i.key === (ALIAS[lens] || lens)) ? (ALIAS[lens] || lens) : null
+  const setView = (k) => { setParams(k ? { lens: k } : {}); window.scrollTo(0, 0) }
   const [event, setEvent] = useState('')
   const [includeNew, setIncludeNew] = useState(false)
   const active = INSIGHTS.find((i) => i.key === view)
@@ -701,10 +811,12 @@ export default function Insights() {
     return (
       <div>
         <PageHeader
-          kicker="Analytics"
-          title="Insights"
-          subtitle="Standout runs and giant-killings, how accurate the ratings actually are, when players peak, and who wins the tight ones — across two decades of BWF results. Pick a lens to dig in."
+          kicker="Insights"
+          title="What the ratings reveal"
+          subtitle="Upsets, peaks, clutch players and how accurate the system is, across four decades of BWF results."
         />
+        <Featured open={setView} />
+        <div className="sec-head" style={{ marginTop: 26 }}><h2>Every lens</h2></div>
         {GROUPS.map((g) => {
           const cards = INSIGHTS.filter((i) => i.group === g.id)
           if (!cards.length) return null
@@ -717,10 +829,10 @@ export default function Insights() {
               <div className="insight-cards">
                 {cards.map((i) => (
                   <button key={i.key} className="insight-card" onClick={() => setView(i.key)}>
-                    <span className="insight-icon">{i.icon}</span>
+                    <span className="insight-icon"><Icon name={i.icon} size={18} /></span>
                     <span className="insight-title">{i.title}</span>
                     <span className="insight-desc">{i.blurb}</span>
-                    <span className="insight-go">Explore →</span>
+                    <span className="insight-go">Explore <Icon name="arrowRight" size={13} /></span>
                   </button>
                 ))}
               </div>
@@ -733,8 +845,8 @@ export default function Insights() {
 
   return (
     <div>
-      <button className="back" onClick={() => setView(null)}>← All insights</button>
-      <PageHeader kicker="Analytics" title={`${active.icon} ${active.title}`} subtitle={active.sub} />
+      <div className="crumb"><Link to="/insights">Insights</Link><span className="sep">/</span><span>{active.title}</span></div>
+      <PageHeader title={active.title} subtitle={active.sub} />
       {active.toolbar && (
         <Toolbar event={event} setEvent={setEvent}
                  includeNew={includeNew} setIncludeNew={setIncludeNew}

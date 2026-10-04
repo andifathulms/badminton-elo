@@ -33,7 +33,7 @@ function NationCard({ row, rank, maxPower }) {
           <span className="fl">{flag(row.country)}</span><b>{row.country}</b>
         </span>
         <span className="nat-power">
-          <b>{row.power.toLocaleString()}</b><small>power</small>
+          <b className="num-display">{row.power.toLocaleString()}</b><small>power</small>
         </span>
       </div>
       <div className="np-track" title="Bar length = power vs the leader">
@@ -72,31 +72,23 @@ export default function Cups() {
   return (
     <div>
       <PageHeader
-        kicker="National Team Power"
-        title="Cup Power"
-        subtitle={
-          <>Which country could field the strongest team <strong>right now</strong> —
-          summed rating of each nation's top active players/pairs. Retired players
-          (idle &gt; 1 year) don't count.</>
-        }
-      />
+        kicker="Team cups"
+        title={meta.label}
+        subtitle={<>Which nation could field the strongest team <strong>right now</strong>: the summed rating of each
+          country’s best active players and pairs ({meta.sub.toLowerCase()}). Players idle for over a year don’t count.</>}
+      >
+        <div className="segmented" role="tablist" aria-label="Cup">
+          {CUPS.map((c) => (
+            <button key={c.key} role="tab" aria-selected={c.key === cup}
+              className={`seg ${c.key === cup ? 'active' : ''}`} onClick={() => setCup(c.key)}>{c.label}</button>
+          ))}
+        </div>
+      </PageHeader>
 
-      <div className="tabs">
-        {CUPS.map((c) => (
-          <button key={c.key}
-            className={`tab ${c.key === cup ? 'active' : ''}`}
-            onClick={() => setCup(c.key)}>
-            {c.label.split(' ')[0]}
-            <span className="tab-label">{c.label.split(' ')[1]}</span>
-          </button>
-        ))}
-      </div>
-      <p className="muted small" style={{ marginTop: 8 }}>{meta.sub}</p>
-
-      <h2>📈 Dominance over time</h2>
+      <div className="sec-head"><h2>Dominance over time</h2></div>
       <CupTimeline cup={cup} />
 
-      <h2 style={{ marginTop: 24 }}>Current standings</h2>
+      <div className="sec-head" style={{ marginTop: 28 }}><h2>Current standings</h2></div>
       {loading && <SkeletonList rows={6} />}
       {error && <ErrorState error={error} onRetry={reload} what="the standings" />}
       {data && data.results.length > 0 && (

@@ -13,6 +13,7 @@ import { Skeleton, SkeletonList } from '../components/Skeleton.jsx'
 import CountUp from '../components/CountUp.jsx'
 import { flag } from '../flags.js'
 import { fmtRange, isLive, today } from '../dates.js'
+import { latestMajor } from '../featured.js'
 
 const DOUBLES = new Set(['MD', 'WD', 'XD'])
 const isDoubles = (e) => DOUBLES.has(e)
@@ -26,18 +27,6 @@ function SectionHead({ title, to, linkText, children }) {
       {to && <Link to={to} className="view-all">{linkText || 'View all'} <Icon name="arrowRight" size={13} /></Link>}
     </div>
   )
-}
-
-// Most recent completed major / Super 750+ event, with its champions.
-const MAJOR_TIERS = [
-  'Grade 1 – Individual Tournaments', 'HSBC BWF World Tour Finals',
-  'HSBC BWF World Tour Super 1000', 'HSBC BWF World Tour Super 750',
-]
-async function latestMajor() {
-  const lists = await Promise.all(MAJOR_TIERS.map((tier) => api.tournaments({ tier, limit: 3 })))
-  const done = lists.flatMap((l) => l.results).filter((t) => t.end_date && t.end_date <= today())
-  done.sort((a, b) => (a.end_date < b.end_date ? 1 : -1))
-  return done[0] ? api.tournament(done[0].tournament_id) : null
 }
 
 const ORDER = ['MS', 'WS', 'MD', 'WD', 'XD']
