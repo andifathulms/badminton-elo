@@ -1,0 +1,107 @@
+"""Find the same tournament ingested from two sources (Wikipedia + BWF API).
+
+Wikipedia filled the pre-2006 gap, but some articles also covered events the
+BWF API has (Sudirman Cups, 2005/2006 Worlds, Thomas & Uber 2008-2012, ...),
+so those contests were rated twice. The API copy is authoritative (real
+player ids, rounds, times); a Wikipedia match duplicates an API match when it
+has the same game scores in the same discipline, or the same players by name (case, accents and
+name order ignored — catches retirements and garbled Wikipedia scores).
+"""
+from __future__ import annotations
+
+import re
+import unicodedata
+from collections import defaultdict
+from datetime import timedelta
+
+from .models import Match, Tournament
+from .wiki_parse import is_bye
+
+WINDOW = timedelta(days=10)
+MIN_SHARE = 0.8  # of the wiki copy's matches that must duplicate the API copy
+
+
+def norm_name(name: str) -> str:
+    """A player's name as its sorted letters: robust to case, accents, word
+    order and spacing ("CHEN Yu Fei" == "Chen Yufei" == "Yufei CHEN")."""
+    s = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode().lower()
+    return "".join(sorted(re.findall(r"[a-z]", s)))
+
+
+def match_signatures(tournament_ids) -> dict[int, dict]:
+    """{match_id: {tid, score, names, bye, plausible}} for every match of the
+    given tournaments, from three bulk queries."""
+    from .models import Game, MatchPlayer
+
+    tids = list(tournament_ids)
+    out: dict[int, dict] = {}
+    for mid, tid, event in Match.objects.filter(tournament_id__in=tids).values_list(
+            "match_id", "tournament_id", "event").iterator():
+        out[mid] = {"tid": tid, "event": event, "games": [], "sides": defaultdict(list)}
+    for mid, no, a, b in Game.objects.filter(match__tournament_id__in=tids).values_list(
+            "match_id", "game_no", "side1_points", "side2_points").iterator():
+        out[mid]["games"].append((no, a, b))
+    for mid, side, name, wt in MatchPlayer.objects.filter(
+            match__tournament_id__in=tids).values_list(
+            "match_id", "side", "player__name_display", "player__wiki_title").iterator():
+        out[mid]["sides"][side].append((name, wt))
+    for rec in out.values():
+        games = sorted(rec.pop("games"))
+        sides = rec.pop("sides")
+        # Scores only identify a contest within one discipline (common lines
+        # like 21-15 21-12 recur across a big field).
+        rec["score"] = (rec["event"] + ":" + "|".join(f"{min(a, b)}-{max(a, b)}" for _, a, b in games)
+                        if games else "")
+        rec["names"] = frozenset(frozenset(norm_name(n) for n, _ in ps) for ps in sides.values())
+        rec["bye"] = any(is_bye(n) or is_bye(w) for ps in sides.values() for n, w in ps)
+        # No game where nobody reached 11 (Wikipedia sometimes holds set counts).
+        rec["plausible"] = all(max(a, b) >= 11 for _, a, b in games)
+    return out
+
+
+def find_pairs():
+    """[(wiki Tournament, api Tournament, plan)] where plan = {dup, bye, move,
+    drop} lists of match ids. A pair needs MIN_SHARE of the wiki copy to
+    duplicate the API copy."""
+    wikis = list(Tournament.objects.filter(code__startswith="wiki:", match_count__gt=0,
+                                           start_date__isnull=False))
+    api_sigs: dict[int, tuple[set, set]] = {}
+
+    def api_index(tid):
+        if tid not in api_sigs:
+            recs = match_signatures([tid]).values()
+            api_sigs[tid] = ({r["score"] for r in recs if r["score"]}, {r["names"] for r in recs})
+        return api_sigs[tid]
+
+    out = []
+    for w in wikis:
+        if (w.start_date.month, w.start_date.day) == (6, 1):
+            # No infobox date: scrape_wiki defaulted it to 1 June of the
+            # title's year, so look across that whole year.
+            near = {"start_date__year": w.start_date.year}
+        else:
+            near = {"start_date__gte": w.start_date - WINDOW,
+                    "start_date__lte": w.start_date + WINDOW}
+        apis = Tournament.objects.filter(match_count__gt=0, **near).exclude(
+            code__startswith="wiki:")
+        wrecs = match_signatures([w.tournament_id])
+        best = None
+        for a in apis:
+            scores, names = api_index(a.tournament_id)
+            plan = {"dup": [], "bye": [], "move": [], "drop": []}
+            for mid, r in wrecs.items():
+                if r["bye"]:
+                    plan["bye"].append(mid)
+                elif (r["score"] and r["score"] in scores) or r["names"] in names:
+                    plan["dup"].append(mid)
+                elif r["plausible"]:
+                    plan["move"].append(mid)
+                else:
+                    plan["drop"].append(mid)
+            real = len(wrecs) - len(plan["bye"])
+            if real and len(plan["dup"]) / real >= MIN_SHARE:
+                if best is None or len(plan["dup"]) > len(best[2]["dup"]):
+                    best = (w, a, plan)
+        if best:
+            out.append(best)
+    return out
