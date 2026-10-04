@@ -46,3 +46,16 @@ def test_backtest_respects_since_window():
     ms = [_m(i, 1, (1,), (2,), i) for i in range(1, 11)]
     assert backtest(ms, RatingConfig(), since=T0 + timedelta(days=100)).n == 0
     assert backtest(ms, RatingConfig()).n == 10
+
+
+def test_predictor_shares_engine_scale_and_formula():
+    # Read side and engine must agree on the Glicko-2 scale and g()/E shape:
+    # with the opponent's phi set to the combined phi, they coincide.
+    from rating import engine
+    from rating.predict import SCALE
+
+    assert SCALE == engine._SCALE
+    mu1, rd1, mu2, rd2 = 1720.0, 70.0, 1580.0, 110.0
+    phi_diff = math.sqrt(rd1**2 + rd2**2) / SCALE
+    e = engine._expected((mu1 - 1500) / SCALE, (mu2 - 1500) / SCALE, phi_diff)
+    assert math.isclose(win_probability(mu1, rd1, mu2, rd2), e, rel_tol=1e-12)

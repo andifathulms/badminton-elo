@@ -416,7 +416,7 @@ class H2HView(APIView):
     """
 
     def get(self, request):
-        from .predict import team_rating, win_probability
+        from rating.predict import team_rating, win_probability
 
         event = request.query_params.get("event")
         if event not in EVENTS:
@@ -600,14 +600,11 @@ class PerformancePathView(APIView):
 
 
 def _team_rating(members):
-    """Conservative side rating from members' (mu, rd): mean(mu) − 2·RMS(rd).
-    Mirrors how pair strength is combined elsewhere. None if no data."""
-    members = [(mu, rd) for mu, rd in members if mu is not None and rd is not None]
-    if not members:
-        return None
-    mean_mu = sum(mu for mu, _ in members) / len(members)
-    rms_rd = (sum(rd * rd for _, rd in members) / len(members)) ** 0.5
-    return round(mean_mu - 2.0 * rms_rd)
+    """Conservative side rating (mean mu − 2·RMS rd), rounded. None if no data."""
+    from rating.predict import conservative, team_rating
+
+    t = team_rating(members)
+    return round(conservative(*t)) if t else None
 
 
 def _match_card(m):

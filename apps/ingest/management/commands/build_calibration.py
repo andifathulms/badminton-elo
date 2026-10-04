@@ -14,7 +14,7 @@ from collections import defaultdict
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from apps.api.predict import team_rating, win_probability
+from rating.predict import team_rating, win_probability
 from apps.ingest.models import CalibrationBin, Match, MatchPlayer, RatingHistory
 
 
