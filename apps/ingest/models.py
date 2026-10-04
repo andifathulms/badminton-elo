@@ -449,13 +449,23 @@ class RawCache(models.Model):
     """Read-through cache of every raw API response (PRD §5, domain rule 9).
 
     The scraper reads from here before hitting the network; a matching row means
-    zero HTTP. Bodies are also mirrored to data/raw/ for offline inspection.
+    zero HTTP. The row is the index; the body lives on disk (apps.ingest.rawstore)
+    and `body` is empty. A non-empty `body` is a legacy inline row, still served,
+    until `manage.py offload_raw_cache` moves it to disk.
     """
 
     url = models.CharField(max_length=512, primary_key=True)
     fetched_utc = models.DateTimeField()
     status = models.IntegerField()
-    body = models.TextField()
+    body = models.TextField(blank=True, default="")
+
+    def get_body(self) -> str | None:
+        """The response body: inline if present, else from disk (None if lost)."""
+        if self.body:
+            return self.body
+        from .rawstore import read_body
+
+        return read_body(self.url)
 
     class Meta:
         ordering = ["-fetched_utc"]

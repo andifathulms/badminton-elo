@@ -145,4 +145,10 @@ class RatingHistoryAdmin(admin.ModelAdmin):
 class RawCacheAdmin(admin.ModelAdmin):
     list_display = ("url", "status", "fetched_utc")
     search_fields = ("url",)
-    readonly_fields = ("url", "fetched_utc", "status", "body")
+    readonly_fields = ("url", "fetched_utc", "status", "stored_body")
+    exclude = ("body",)
+
+    @admin.display(description="body")
+    def stored_body(self, obj):
+        body = obj.get_body()
+        return body[:20000] if body else "(missing on disk)"

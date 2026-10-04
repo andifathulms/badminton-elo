@@ -32,7 +32,7 @@ class Command(BaseCommand):
         code_logo: dict[str, str] = {}
         for r in RawCache.objects.filter(url__contains="vue-grouped-year"):
             try:
-                body = json.loads(r.body) if isinstance(r.body, str) else r.body
+                body = json.loads(r.get_body() or "")
             except Exception:
                 continue
             _walk(body, code_logo)
