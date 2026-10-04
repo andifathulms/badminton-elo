@@ -30,6 +30,8 @@ PY
   # Fold language/abbreviation event aliases (MIX->XD, HE->MS, "Ladies Singles"
   # ->WS, …) into canonical buckets; preserves masters (MS45) and youth (MSU19).
   .venv/bin/python manage.py normalize_events >/dev/null 2>&1
+  # Merge Wikipedia copies of events the BWF API also has (else rated twice).
+  .venv/bin/python manage.py dedup_tournaments --apply >/dev/null 2>&1
   # Correct team-cup rubber disciplines (scraper labels them by position) so
   # ratings land in the right bucket — self-heals future cup scrapes too.
   .venv/bin/python manage.py fix_cup_events >/dev/null 2>&1
