@@ -22,7 +22,7 @@ export default function MatchHistory({ playerId, event }) {
   if (loading) return <SkeletonList rows={8} />
   if (error) return <ErrorState error={error} onRetry={reload} what="matches" />
   if (!data.results.length) return (
-    <EmptyState icon="🏸" title="No matches" hint="No matches recorded for this discipline yet." />
+    <EmptyState icon="users" title="No matches" hint="No matches recorded for this discipline yet." />
   )
 
   return (

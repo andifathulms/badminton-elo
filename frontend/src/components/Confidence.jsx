@@ -1,15 +1,15 @@
-import { confidence } from '../confidence.js'
+import { confidence, uncertainty } from '../confidence.js'
 
-// A small confidence indicator driven by rating deviation (rd): a coloured dot
-// always, plus the label text when `showLabel` (or always for the provisional
-// end, so uncertain ratings are called out). Hover shows the exact rd.
+// Certainty meter: three bars (settled / firming up / provisional) driven by the
+// rating deviation. The label shows when asked, and always for provisional
+// ratings so uncertain numbers are called out. Hover gives the exact ±.
 export default function Confidence({ rd, showLabel = false }) {
   const c = confidence(rd)
   const label = showLabel || c.level === 'low'
   return (
     <span className={`conf conf-${c.level}`}
-          title={`${c.label} — rating deviation ±${Math.round(rd)} (${c.level} confidence)`}>
-      <span className="conf-dot" />
+          title={`${c.label} · rating is accurate to about ±${uncertainty(rd)}`}>
+      <span className="conf-bars" aria-hidden="true"><i /><i /><i /></span>
       {label && <span className="conf-label">{c.label}</span>}
     </span>
   )

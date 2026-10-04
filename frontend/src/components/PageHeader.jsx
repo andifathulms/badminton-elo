@@ -1,16 +1,15 @@
-// Shared page header: a court-green card with white text used at the top of
-// every page, so the whole app reads as one system. Optional `children` render
-// on the right (filters, controls).
+// Shared page header: a quiet title block (no banner) so content starts above
+// the fold. `kicker` is a breadcrumb-style eyebrow; `children` render on the
+// right (filters, controls).
 export default function PageHeader({ kicker, title, subtitle, children }) {
   return (
-    <header className="page-hero">
-      <span className="page-hero-bg" aria-hidden="true" />
-      <div className="page-hero-text">
+    <header className="phead">
+      <div className="phead-text">
         {kicker && <div className="kicker">{kicker}</div>}
         <h1>{title}</h1>
-        {subtitle && <p className="page-hero-sub">{subtitle}</p>}
+        {subtitle && <p className="phead-sub">{subtitle}</p>}
       </div>
-      {children && <div className="page-hero-aside">{children}</div>}
+      {children && <div className="phead-aside">{children}</div>}
     </header>
   )
 }

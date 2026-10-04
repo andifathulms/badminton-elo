@@ -278,7 +278,7 @@ function RecordsSection({ event }) {
         </table>
       )}
       {data && !data.results.length && (
-        <EmptyState icon="🏟️" title="No records yet"
+        <EmptyState icon="trophy" title="No records yet"
           hint="No matches with rally-by-rally stats for this filter yet." />
       )}
     </div>
@@ -291,7 +291,7 @@ function CalibrationSection({ event }) {
   if (loading) return <SkeletonList rows={8} />
   if (error) return <ErrorState error={error} onRetry={reload} />
   if (!data.n) return (
-    <EmptyState icon="🎯" title="No calibration data"
+    <EmptyState icon="target" title="No calibration data"
       hint="No rated matches for this discipline yet." />
   )
   return (
@@ -343,7 +343,7 @@ function AgingSection({ event }) {
   if (loading) return <SkeletonList rows={8} />
   if (error) return <ErrorState error={error} onRetry={reload} />
   if (!data.n) return (
-    <EmptyState icon="📈" title="No age data"
+    <EmptyState icon="chart" title="No age data"
       hint="Not enough players with a recorded date of birth for this filter." />
   )
   return (
@@ -397,7 +397,7 @@ function ClutchSection({ event }) {
   if (loading) return <SkeletonList rows={8} />
   if (error) return <ErrorState error={error} onRetry={reload} />
   if (!data.results.length) return (
-    <EmptyState icon="🔥" title="No clutch data"
+    <EmptyState icon="bolt" title="No clutch data"
       hint="No players reach the minimum deciding games for this discipline yet." />
   )
   return (
@@ -448,7 +448,7 @@ function DynastiesSection({ event }) {
   if (loading) return <SkeletonList rows={8} />
   if (error) return <ErrorState error={error} onRetry={reload} />
   if (!data.timeline.length) return (
-    <EmptyState icon="👑" title="No dynasty data"
+    <EmptyState icon="crown" title="No dynasty data"
       hint="Not enough rated players to rank nations in this discipline yet." />
   )
   const current = data.timeline[data.timeline.length - 1]
@@ -506,7 +506,7 @@ function ConsistencySection({ event }) {
   if (loading) return <SkeletonList rows={8} />
   if (error) return <ErrorState error={error} onRetry={reload} />
   if (!data.results.length) return (
-    <EmptyState icon="🧊" title="No consistency data"
+    <EmptyState icon="wave" title="No consistency data"
       hint="No players reach the minimum matches for this discipline yet." />
   )
   return (
@@ -558,7 +558,7 @@ function SynergySection({ event }) {
   if (loading) return <SkeletonList rows={8} />
   if (error) return <ErrorState error={error} onRetry={reload} />
   if (!data.results.length) return (
-    <EmptyState icon="🤝" title="No synergy data"
+    <EmptyState icon="link" title="No synergy data"
       hint="No partnerships reach the minimum matches together for this discipline yet." />
   )
   return (

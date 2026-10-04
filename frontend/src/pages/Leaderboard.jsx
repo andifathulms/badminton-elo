@@ -223,7 +223,7 @@ function IndividualBoard({ event, ranking, order, setOrder, gender }) {
       )}
       {data && data.results.length > 0 && <Pager page={page} setPage={setPage} count={data.count} />}
       {data && data.results.length === 0 && (
-        <EmptyState icon="🏸" title="No players yet"
+        <EmptyState icon="users" title="No players yet"
           hint="No rated players match this filter. Try a different discipline or lower the minimum." />
       )}
     </>
@@ -295,7 +295,7 @@ function PairsBoard({ event, ranking }) {
       </div>
       {data.results.length > 0
         ? <Pager page={page} setPage={setPage} count={data.count} />
-        : <EmptyState icon="🤝" title="No pairs yet"
+        : <EmptyState icon="link" title="No pairs yet"
             hint="No partnerships match this filter — they may not have played enough together." />}
     </>
   )

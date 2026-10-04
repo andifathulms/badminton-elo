@@ -115,7 +115,7 @@ export default function Cups() {
         </>
       )}
       {data && data.results.length === 0 && (
-        <EmptyState icon="🏳️" title="No full teams"
+        <EmptyState icon="flag" title="No full teams"
           hint="No country currently has enough active players/pairs to field a complete team." />
       )}
     </div>

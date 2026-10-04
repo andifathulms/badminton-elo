@@ -59,7 +59,7 @@ function MasterView({ year }) {
   if (loading) return <SkeletonList rows={8} />
   if (error) return <ErrorState error={error} onRetry={reload} what="tournaments" />
   if (!data?.results?.length) return (
-    <EmptyState icon="🗓" title={`No tournaments for ${year}`}
+    <EmptyState icon="calendar" title={`No tournaments for ${year}`}
       hint="Nothing has been ingested for this year yet." />
   )
 
@@ -143,7 +143,7 @@ function FlatList({ year, tier }) {
       </div>
       {data.results.length > 0
         ? <Pager page={page} setPage={setPage} count={data.count} pageSize={PAGE} unit="tournaments" />
-        : <EmptyState icon="🗓" title="No tournaments match"
+        : <EmptyState icon="calendar" title="No tournaments match"
             hint="Try a different year or tier filter." />}
     </>
   )
