@@ -35,14 +35,28 @@ badminton-elo/
       management/commands/
         scrape.py           # detail -> draws -> draw-data -> normalize
         ingest_status.py
-        rate.py             # bridges DB <-> rating/ package (Phase 2)
+        rate.py             # bridges DB <-> rating/ package (incremental; --rebuild = reference)
+        rate_history.py     # smoothed all-time ratings (after rate)
+        backtest.py         # grade an engine/setting change before shipping it
         leaderboard.py      # export a discipline ranking (Phase 2)
-    api/                     # DRF viewsets/serializers (Phase 3)
+      base.py               # DataCommand: bumps DataVersion (API cache) on success
+    incremental.py          # replay only changed tournaments (undo logs)
+    engine_config.py        # settings.RATING -> RatingConfig + matching predictor
+    rawstore.py             # raw API bodies live in data/raw/, RawCache is the index
+  api/                       # DRF (Phase 3)
+    views/                  # one module per area (rankings, players, tournaments, …)
+    cache.py                # versioned response cache + ETag (keyed on DataVersion)
+    ties.py                 # team-cup ties service (precomputed by build_ties)
   rating/                    # PURE package — no Django
-    engine.py               # Glicko-2-with-pairs update (PRD §7)
-    dominance.py            # format-normalized margin (PRD §7.3)
-    seeding.py              # flat now; rank-based later
-    run.py                  # chronological driver over plain match records
+    run.py                  # chronological driver; resume (initial=) + undo logs
+    points.py               # LIVE engine: rally-level likelihood (settings ENGINE)
+    engine.py               # Glicko-2-with-pairs update (alternative engine)
+    dominance.py            # format-normalized margin (glicko engine, PRD §7.3)
+    seeding.py              # rank seed (only if known at debut) + cross-discipline prior
+    predict.py              # read-side win probability per engine
+    peaks.py                # all-time peak (settled ratings only)
+    history.py              # TrueSkill Through Time smoothing (all-time board)
+    backtest.py             # log-loss/Brier/ECE harness
   frontend/                 # Vite + React (Phase 3)
   docker-compose.yml        # db + web (frontend + worker later)
   data/                     # sqlite db + cached raw json (gitignored)
@@ -57,8 +71,10 @@ python manage.py migrate
 python manage.py scrape --code <TOURNAMENT_GUID>   # cached, idempotent
 python manage.py scrape --all                      # settings.TOURNAMENT_CODES
 python manage.py ingest_status
-python manage.py rate            # Phase 2 incremental
-python manage.py rate --rebuild  # Phase 2 deterministic recompute
+python manage.py rate            # incremental: replays only changed tournaments
+python manage.py rate --rebuild  # deterministic recompute (the reference)
+python manage.py rate_history    # smoothed all-time ratings (after rate)
+python manage.py backtest [--set KEY=VALUE] [--since/--until]   # before changing RATING
 python manage.py leaderboard --event XD
 pytest
 
@@ -95,7 +111,17 @@ docker compose run --rm web python manage.py scrape --all
 > Query-param names for draws/draw-data/players/statistics need one confirmation pass vs the network tab. `endpoints.py` centralizes them — a rename is one line. Start from `tests/fixtures/`.
 
 ## Rating engine (Phase 2, `rating/`)
-Pure module. Glicko-2 per `(player,event)`; team rating = mean of members, combined RD = RMS; expected score with `g(RD)` damping; binary `S` for direction; magnitude × `M` (dominance) × `W_tier`; each player moves scaled by own RD; shrink RD after, inflate for inactivity. Retirement path: `K_RETIRE`, no dominance. Constants from Django settings, passed **in** to the engine (engine never reads settings itself).
+Pure module. Ratings per `(player,event)`; team rating = mean of members, combined RD = RMS; each tournament is a rating period rated against start-of-period ratings; each player moves scaled by own RD (Glicko Newton step); RD shrinks after, inflates for inactivity. Constants from Django settings, passed **in** to the engine (engine never reads settings itself; `apps/ingest/engine_config.py` is the bridge).
+- **Live engine = `points`** (`settings.RATING["ENGINE"]`): the rating gap sets the chance of winning a rally; game/match odds follow from the scoring rules; updates use rallies won (`RALLY_WEIGHT` per rally). Side-out-era/retired/scoreless matches update on the result through the same model. `glicko` (binary result × dominance `M` × `W_tier`) remains selectable.
+- Seeds: a BWF rank seeds a debut only if observed by then; otherwise the cross-discipline prior, else flat.
+- **Change engine settings only through `manage.py backtest`** (held-out log-loss; confirm on a second window). Current: points 0.5135 vs glicko 0.5210 (2023+).
+- `rate` is incremental and must equal `rate --rebuild` exactly (tests enforce it). Settings/seed changes force a full rebuild automatically.
+- All-time board = `rate_history` (TrueSkill Through Time, smoothed, calibrated to the live scale). Never used for live ratings.
+
+## Serving (Phase 3)
+- Every data-writing command subclasses `DataCommand`; a successful run bumps `DataVersion`, which invalidates the API cache (`apps/api/cache.py`) and is the ETag. Don't write served data outside a DataCommand or an unsafe `/api/` request.
+- Per-request aggregates belong in a build step (precompute), not in views. Add new heavy reads to `build_*`/`rate`.
+- The refresh pipeline runs everything after collection in ONE transaction (autocommit off; no nested `atomic()` savepoints around big rewrites — they make SQLite ~3x slower).
 
 ## Do / Don't
 - DO validate every raw payload through a pydantic model before ORM writes; log + skip a malformed match rather than crashing the draw.
@@ -107,6 +133,7 @@ Pure module. Glicko-2 per `(player,event)`; team rating = mean of members, combi
 - DON'T reorder sides, dedupe players by name, or hit the network when the cache has the response.
 - DON'T scaffold React or docker-compose during Phase 1. SQLite + admin + `scrape` first.
 - DON'T start Phase 2 before the M1 acceptance test passes.
+- DON'T put raw response bodies back in the DB (`RawCache.body` stays empty; `rawstore`).
 
 ## M1 acceptance (Phase 1 done)
 Ingest the Malaysia Masters 2026 XD draw fixture and assert: 31 main-draw matches; winners correct including retired `344` (winner side 2 despite trailing 5-11); players deduped by id; Game rows match scorelines; a second `scrape` produces zero changes.
