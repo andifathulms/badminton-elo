@@ -12,6 +12,10 @@ rating DIFFERENCE, sqrt(rd₁² + rd₂²). Both share the same scale and blend.
 
 A side (singles or doubles) is blended like everywhere else: mu = mean of the
 members, rd = RMS of the members (PRD §7.2).
+
+`win_probability` is the Glicko-2 engine's; `predictor_for(config)` returns
+the one matching the configured engine (the points engine maps a rating gap
+to a rally, then a game, then a match).
 """
 from __future__ import annotations
 
@@ -43,3 +47,12 @@ def win_probability(mu1: float, rd1: float, mu2: float, rd2: float) -> float:
     phi_diff = math.sqrt(rd1 * rd1 + rd2 * rd2) / SCALE
     g = 1.0 / math.sqrt(1.0 + 3.0 * phi_diff * phi_diff / (math.pi * math.pi))
     return 1.0 / (1.0 + math.exp(-g * (mu1 - mu2) / SCALE))
+
+
+def predictor_for(config):
+    """P(side 1 wins) as a function of (mu1, rd1, mu2, rd2) for config.engine."""
+    if getattr(config, "engine", "glicko") == "points":
+        from .points import make_predictor
+
+        return make_predictor(config.rally_beta)
+    return win_probability

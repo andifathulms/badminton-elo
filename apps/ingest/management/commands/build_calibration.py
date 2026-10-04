@@ -13,15 +13,17 @@ from collections import defaultdict
 
 from django.db import transaction
 
-from rating.predict import team_rating, win_probability
+from apps.ingest.engine_config import win_predictor
 from apps.ingest.management.base import DataCommand
 from apps.ingest.models import CalibrationBin, Match, MatchPlayer, RatingHistory
+from rating.predict import team_rating
 
 
 class Command(DataCommand):
     help = "Precompute rating reliability (predicted vs actual) from RatingHistory."
 
     def handle(self, *args, **opts):
+        win_probability = win_predictor()
         # sides per match, from the lineup.
         sides = defaultdict(lambda: {1: [], 2: []})
         for mid, side, pid in MatchPlayer.objects.values_list(

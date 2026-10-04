@@ -80,6 +80,17 @@ def _usable_rank(seed, period_start: datetime | None) -> int | None:
     return rank if observed <= period_start.date() else None
 
 
+def period_update(config: RatingConfig):
+    """The per-period update for `config.engine`."""
+    if config.engine == "points":
+        from .points import make_update
+
+        return make_update(config.rally_beta, config.rally_weight)
+    if config.engine != "glicko":
+        raise ValueError(f"unknown rating engine {config.engine!r}")
+    return update_period
+
+
 def period_sort_key(period: list[MatchRecord]):
     """A rating period's place in time: its earliest match's sort key."""
     return min(match_sort_key(x) for x in period)
@@ -104,6 +115,7 @@ def run(
     seed_ranks: dict[tuple[int, str], SeedRank] | None = None,
     initial: dict[tuple[int, str], Rating] | None = None,
     undo_since: datetime | None = None,
+    update=None,
 ) -> RunResult:
     """Process tournaments (rating periods) chronologically (PRD §7.7).
 
@@ -124,6 +136,10 @@ def run(
     already include. The inputs are copied, never mutated, and the result is
     identical to a full run over all periods.
 
+    `update` is the per-period rating update; by default the one
+    `config.engine` names (see `period_update`). Candidates plug in here and
+    share seeding, inactivity and period handling.
+
     `undo_since` records, for every period starting on/after it, each touched
     rating's state before the period (`RunResult.undo`) — what a later run
     needs to roll those periods back and replay them (see `rollback`).
@@ -131,6 +147,7 @@ def run(
     result = RunResult()
     ratings = result.ratings
     seed_ranks = seed_ranks or {}
+    update = update or period_update(config)
 
     events_of: dict[int, list[str]] = defaultdict(list)  # player -> rated events
     for (pid, event), r in (initial or {}).items():
@@ -179,7 +196,7 @@ def run(
                     rating_for(pid, m.event, period_start), period_start, config
                 )
 
-        result.history.extend(update_period(period, ratings, config))
+        result.history.extend(update(period, ratings, config))
 
     return result
 

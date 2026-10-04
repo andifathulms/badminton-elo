@@ -25,6 +25,7 @@ from django.db.models import Case, Count, F, IntegerField, Max, Sum, When
 
 from apps.ingest import incremental
 from apps.ingest.boards import ACTIVE_DAYS, BOARD_MIN_MATCHES, FORM_POINTS, board_ranks
+from apps.ingest.engine_config import rating_config as _config
 from apps.ingest.management.base import DataCommand
 from apps.ingest.models import (
     Game,
@@ -34,7 +35,7 @@ from apps.ingest.models import (
     PlayerRating,
     RatingHistory,
 )
-from rating import GameRecord, MatchRecord, RatingConfig, group_periods, rollback, run
+from rating import GameRecord, MatchRecord, group_periods, rollback, run
 from rating.peaks import peak_ratings
 from rating.types import RatingDelta
 
@@ -87,31 +88,6 @@ def _effective_ts(match) -> datetime | None:
     if start is not None:
         return datetime.combine(start, time.min, tzinfo=timezone.utc)
     return None
-
-
-def _config(overrides: dict | None = None) -> RatingConfig:
-    """settings.RATING -> RatingConfig. `overrides` (same keys) win, for backtests."""
-    r = {**settings.RATING, **(overrides or {})}
-    return RatingConfig(
-        mu_init=r["MU_INIT"],
-        rd_init=r["RD_INIT"],
-        sigma_init=r["SIGMA_INIT"],
-        tau=r["TAU"],
-        pair_blend=r["PAIR_BLEND"],
-        lambda_=r["LAMBDA"],
-        m_min=r["M_MIN"],
-        m_max=r["M_MAX"],
-        d_floor=r["D_FLOOR"],
-        k_retire=r["K_RETIRE"],
-        rd_inflate_c=r["RD_INFLATE_C"],
-        tier_weights=r["TIER_WEIGHTS"],
-        seed_rank_top_mu=r["SEED_RANK_TOP_MU"],
-        seed_rank_base=r["SEED_RANK_BASE"],
-        seed_rd=r["SEED_RD"],
-        cross_prior_weight=r.get("CROSS_PRIOR_WEIGHT", 0.0),
-        cross_prior_rd=r.get("CROSS_PRIOR_RD", 250.0),
-        cross_prior_min_matches=r.get("CROSS_PRIOR_MIN_MATCHES", 5),
-    )
 
 
 def load_seed_ranks(event=None) -> dict[tuple[int, str], tuple[int, object]]:

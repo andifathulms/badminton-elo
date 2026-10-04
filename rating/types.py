@@ -89,6 +89,13 @@ class RatingConfig:
     cross_prior_weight: float = 0.0
     cross_prior_rd: float = 250.0
     cross_prior_min_matches: int = 5
+    # Which likelihood rates a period: "glicko" (binary result × margin
+    # multiplier, engine.update_period) or "points" (rally-level model,
+    # rating.points; rally_beta = rally-level slope, rally_weight = weight
+    # per rally since rallies aren't independent).
+    engine: str = "glicko"
+    rally_beta: float = 0.13
+    rally_weight: float = 0.35
 
 
 @dataclass(frozen=True)

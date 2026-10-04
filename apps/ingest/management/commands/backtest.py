@@ -8,6 +8,7 @@ only if it improves held-out log-loss.
     python manage.py backtest                         # current settings
     python manage.py backtest --set LAMBDA=1.0 --set D_FLOOR=0
     python manage.py backtest --no-seeds --since 2024-01-01
+    python manage.py backtest --set ENGINE="'glicko'"   # compare engines
 """
 from __future__ import annotations
 
@@ -17,11 +18,8 @@ from datetime import datetime, timezone
 
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.ingest.management.commands.rate import (
-    _config,
-    load_records,
-    load_seed_ranks,
-)
+from apps.ingest.engine_config import rating_config as _config
+from apps.ingest.management.commands.rate import load_records, load_seed_ranks
 from rating.backtest import backtest
 
 
@@ -49,6 +47,7 @@ class Command(BaseCommand):
         parser.add_argument("--no-seeds", action="store_true",
                             help="Ignore BWF ranking seeds (flat cold start).")
 
+
     def handle(self, *args, **opts):
         def _date(raw):
             return datetime.strptime(raw, "%Y-%m-%d").replace(tzinfo=timezone.utc)
@@ -66,6 +65,7 @@ class Command(BaseCommand):
         t0 = time.monotonic()
         res = backtest(records, config, seed_ranks=seeds, since=since, until=until)
         label = ", ".join(f"{k}={v}" for k, v in overrides.items()) or "current settings"
+        label = f"[{config.engine}] {label}"
         if opts["no_seeds"]:
             label += " (no seeds)"
         self.stdout.write(res.row(label) + f"  ({time.monotonic() - t0:.0f}s)")

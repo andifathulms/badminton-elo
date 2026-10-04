@@ -198,7 +198,10 @@ class H2HView(APIView):
     """
 
     def get(self, request):
-        from rating.predict import team_rating, win_probability
+        from apps.ingest.engine_config import win_predictor
+        from rating.predict import team_rating
+
+        win_probability = win_predictor()
 
         event = request.query_params.get("event")
         if event not in EVENTS:

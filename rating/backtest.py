@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Callable
 
-from .predict import team_rating, win_probability
+from .predict import predictor_for, team_rating, win_probability
 from .run import RunResult, run
 from .types import MatchRecord, RatingConfig
 
@@ -58,9 +58,11 @@ def score(
     result: RunResult,
     since: datetime | None = None,
     until: datetime | None = None,
+    predictor=win_probability,
 ) -> BacktestResult:
     """Grade the pre-match predictions in `result.history` for matches in
-    [since, until)."""
+    [since, until). `predictor(mu1, rd1, mu2, rd2)` is the engine's own match
+    win probability (rating.predict for Glicko-2)."""
     pre: dict[int, dict[int, tuple[float, float]]] = {}
     for d in result.history:
         pre.setdefault(d.match_id, {})[d.player_id] = (d.mu_before, d.rd_before)
@@ -81,7 +83,7 @@ def score(
         t2 = team_rating([players[p] for p in m.side2_player_ids if p in players])
         if not t1 or not t2:
             continue
-        p = win_probability(t1[0], t1[1], t2[0], t2[1])
+        p = predictor(t1[0], t1[1], t2[0], t2[1])
         p = min(max(p, _EPS), 1.0 - _EPS)
         y = 1.0 if m.winner_side == 1 else 0.0
         ll -= y * math.log(p) + (1.0 - y) * math.log(1.0 - p)
@@ -109,7 +111,10 @@ def backtest(
     since: datetime | None = None,
     until: datetime | None = None,
     engine: Engine = run,
+    predictor=None,
 ) -> BacktestResult:
-    """Run `engine` over `matches` and score predictions in [since, until)."""
+    """Run `engine` over `matches` and score predictions in [since, until),
+    with the predictor that matches `config.engine` unless one is given."""
     result = engine(matches, config, seed_ranks=seed_ranks)
-    return score(matches, result, since=since, until=until)
+    return score(matches, result, since=since, until=until,
+                 predictor=predictor or predictor_for(config))

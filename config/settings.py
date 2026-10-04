@@ -233,7 +233,17 @@ RATING = {
     "SIGMA_INIT": 0.06,
     "TAU": 0.5,
     "PAIR_BLEND": "mean",
-    # Margin (PRD §7.3): M = 1 + LAMBDA·(2d − 1), clamped to [M_MIN, M_MAX].
+    # Likelihood that rates each tournament (rating/run.period_update):
+    # "points" — rally-level model (rating/points.py): the rating gap sets the
+    #   chance of winning a rally; game/match odds follow from the scoring;
+    #   updates use the rallies actually won (weight RALLY_WEIGHT each).
+    #   Backtest vs "glicko": logloss 0.5209 -> 0.5135 (2023+), 0.5206 ->
+    #   0.5145 (unseen 2016-2019), calibration error ~0.4%.
+    # "glicko" — binary result × the margin multiplier below.
+    "ENGINE": "points",
+    "RALLY_BETA": 0.13,
+    "RALLY_WEIGHT": 0.35,
+    # Margin (PRD §7.3, glicko engine): M = 1 + LAMBDA·(2d − 1), in [M_MIN, M_MAX].
     # D_FLOOR = 0 lets a narrow win count for LESS than a plain win (M < 1), not
     # only blowouts for more. Tuned with `manage.py backtest`: logloss 0.5350 ->
     # 0.5250 on 2023+, confirmed 0.5340 -> 0.5240 on unseen 2016-2019.
