@@ -10,6 +10,7 @@ import { EmptyState, ErrorState } from '../components/Empty.jsx'
 import Tier from '../components/Tier.jsx'
 import Icon from '../components/Icon.jsx'
 import { fmtRange, isLive } from '../dates.js'
+import { usePageFor } from '../hooks.js'
 
 const YEARS = Array.from({ length: 45 }, (_, i) => 2026 - i)
 const YEAR_OPTS = [{ value: '', label: 'All years' }, ...YEARS.map((y) => ({ value: y, label: String(y) }))]
@@ -107,8 +108,7 @@ function MasterView({ year }) {
 }
 
 function FlatList({ year, tier, q }) {
-  const [page, setPage] = useState(0)
-  useEffect(() => setPage(0), [year, tier, q])
+  const [page, setPage] = usePageFor([year, tier, q])
   const { data, error, loading, reload } = useAsync(
     () => api.tournaments({ year, tier, q, limit: PAGE, offset: page * PAGE }),
     [year, tier, q, page])

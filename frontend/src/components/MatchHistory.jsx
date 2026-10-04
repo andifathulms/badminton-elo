@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
@@ -9,6 +8,7 @@ import { SkeletonList } from './Skeleton.jsx'
 import { EmptyState, ErrorState } from './Empty.jsx'
 import { flag } from '../flags.js'
 import { fmtDay } from '../dates.js'
+import { usePageFor } from '../hooks.js'
 
 const names = (players) => players.map((p) => p.name_display).join(' / ') || '—'
 const PAGE = 20
@@ -16,8 +16,7 @@ const PAGE = 20
 // A player's matches as a timeline: result, round · event, opponent, games,
 // rating change. Each row opens the match.
 export default function MatchHistory({ playerId, event }) {
-  const [page, setPage] = useState(0)
-  useEffect(() => setPage(0), [playerId, event])
+  const [page, setPage] = usePageFor([playerId, event])
   const { data, error, loading, reload } = useAsync(
     () => api.playerMatches(playerId, { event, limit: PAGE, offset: page * PAGE }),
     [playerId, event, page],

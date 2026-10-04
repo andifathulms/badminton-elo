@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
@@ -11,14 +10,14 @@ import Icon from '../components/Icon.jsx'
 import CourtLines from '../components/CourtLines.jsx'
 import { Ev, ScoreChips, WL } from '../components/Chips.jsx'
 import { fmtDay } from '../dates.js'
+import { usePageFor } from '../hooks.js'
 
 const names = (players) => players.map((p) => p.name_display).join(' / ') || '—'
 const PAGE = 20
 
 export default function PairDetail() {
   const { event, p1, p2 } = useParams()
-  const [page, setPage] = useState(0)
-  useEffect(() => setPage(0), [event, p1, p2])
+  const [page, setPage] = usePageFor([event, p1, p2])
   const { data, error, loading, reload } = useAsync(
     () => api.pairDetail(event, p1, p2),
     [event, p1, p2],

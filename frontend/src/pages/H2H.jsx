@@ -12,6 +12,7 @@ import { ErrorState } from '../components/Empty.jsx'
 import { confidence, uncertainty } from '../confidence.js'
 import { fmtDay } from '../dates.js'
 import { latestMajor } from '../featured.js'
+import { usePlayerSearch } from '../hooks.js'
 
 const DOUBLES = new Set(['MD', 'WD', 'XD'])
 const capFor = (event) => (DOUBLES.has(event) ? 2 : 1)
@@ -21,26 +22,19 @@ const fmt = (n) => Math.round(n).toLocaleString()
 // Search box that calls onPick(player) when a result is chosen.
 function SearchPicker({ label, onPick }) {
   const [q, setQ] = useState('')
-  const [results, setResults] = useState([])
+  const [open, setOpen] = useState(false)
+  const found = usePlayerSearch(q)
+  const results = open ? found : []
   const box = useRef(null)
-  const seq = useRef(0)
 
-  async function onChange(e) {
-    const v = e.target.value
-    setQ(v)
-    if (v.trim().length < 2) { seq.current++; return setResults([]) }
-    const mine = ++seq.current
-    try {
-      const r = (await api.searchPlayers(v.trim())).results
-      if (mine === seq.current) setResults(r)
-    } catch {
-      if (mine === seq.current) setResults([])
-    }
+  function onChange(e) {
+    setQ(e.target.value)
+    setOpen(true)
   }
 
   useEffect(() => {
     function away(e) {
-      if (box.current && !box.current.contains(e.target)) setResults([])
+      if (box.current && !box.current.contains(e.target)) setOpen(false)
     }
     document.addEventListener('click', away)
     return () => document.removeEventListener('click', away)
@@ -54,7 +48,7 @@ function SearchPicker({ label, onPick }) {
         <ul className="search-results">
           {results.map((p) => (
             <li key={p.player_id}>
-              <button onClick={() => { onPick(p); setQ(''); setResults([]) }}>
+              <button onClick={() => { onPick(p); setQ(''); setOpen(false) }}>
                 <Avatar player={p} size="sm" />
                 <span className="pmeta">
                   <span className="pname">{p.name_display}</span>

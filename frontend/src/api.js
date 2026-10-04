@@ -2,8 +2,23 @@
 // Django); set VITE_API_BASE at build time for Docker/prod.
 const BASE = import.meta.env.VITE_API_BASE || '/api'
 
+// The AbortSignal of the query currently being started (see withSignal). Read
+// synchronously when a request begins, so a page that unmounts or changes its
+// filters cancels its in-flight requests without every api.* taking a signal.
+let currentSignal = null
+
+export function withSignal(signal, fn) {
+  const prev = currentSignal
+  currentSignal = signal
+  try {
+    return fn()
+  } finally {
+    currentSignal = prev
+  }
+}
+
 async function get(path) {
-  const res = await fetch(`${BASE}${path}`, { credentials: 'same-origin' })
+  const res = await fetch(`${BASE}${path}`, { credentials: 'same-origin', signal: currentSignal })
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
   return res.json()
 }

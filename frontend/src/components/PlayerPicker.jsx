@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { api } from '../api.js'
+import { useState } from 'react'
+import { usePlayerSearch } from '../hooks.js'
 import { flag } from '../flags.js'
 import Avatar from './Avatar.jsx'
 
@@ -8,27 +8,15 @@ import Avatar from './Avatar.jsx'
 // player editor and the match editor's side pickers.
 export default function PlayerPicker({ onPick, placeholder = 'Search players…', autoFocus }) {
   const [q, setQ] = useState('')
-  const [results, setResults] = useState([])
-  const seq = useRef(0)
+  const results = usePlayerSearch(q)
 
-  async function onChange(e) {
-    const v = e.target.value
-    setQ(v)
-    const query = v.trim()
-    if (query.length < 2) { seq.current++; return setResults([]) }
-    const mine = ++seq.current
-    try {
-      const data = await api.searchPlayers(query)
-      if (mine === seq.current) setResults(data.results)
-    } catch {
-      if (mine === seq.current) setResults([])
-    }
+  function onChange(e) {
+    setQ(e.target.value)
   }
 
   function pick(p) {
     onPick(p)
     setQ('')
-    setResults([])
   }
 
   return (

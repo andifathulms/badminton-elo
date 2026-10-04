@@ -1,18 +1,11 @@
 import { api } from './api.js'
+import { queryClient } from './queryClient.js'
 
 // /api/home holds everything Home shows plus the most recent completed major
 // (detail payload with its finals) — the default "story" for Home and
-// Head-to-Head. One request, shared by both pages for a few minutes.
-const TTL_MS = 5 * 60 * 1000
-let cache = null
-let at = 0
-
+// Head-to-Head. One cached query, shared by both pages.
 export function homeData() {
-  if (!cache || Date.now() - at > TTL_MS) {
-    at = Date.now()
-    cache = api.home().catch((e) => { cache = null; throw e })
-  }
-  return cache
+  return queryClient.fetchQuery({ queryKey: ['home'], queryFn: api.home, staleTime: 5 * 60 * 1000 })
 }
 
 export function latestMajor() {

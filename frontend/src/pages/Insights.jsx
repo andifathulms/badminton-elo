@@ -16,6 +16,7 @@ import Icon from '../components/Icon.jsx'
 import Avatar from '../components/Avatar.jsx'
 import { Skeleton } from '../components/Skeleton.jsx'
 import { Ev } from '../components/Chips.jsx'
+import { usePageFor } from '../hooks.js'
 
 const PAGE = 10
 
@@ -82,9 +83,9 @@ function PathDetail({ row }) {
 }
 
 function GainsTable({ kind, event, includeNew }) {
-  const [page, setPage] = useState(0)
+  const [page, setPage] = usePageFor([kind, event, includeNew])
   const [open, setOpen] = useState(null)
-  useEffect(() => { setPage(0); setOpen(null) }, [kind, event, includeNew])
+  useEffect(() => { setOpen(null) }, [kind, event, includeNew])
   const { data, error, loading, reload } = useAsync(
     () => api.analytics(kind, { event, minMatches: 3, limit: PAGE, offset: page * PAGE, includeNew }),
     [kind, event, includeNew, page],
@@ -182,8 +183,7 @@ function GainsTable({ kind, event, includeNew }) {
 // Biggest upsets — same table as the dashboard, paginated. Each row links to
 // its match.
 function UpsetsSection({ event, includeNew }) {
-  const [page, setPage] = useState(0)
-  useEffect(() => { setPage(0) }, [event, includeNew])
+  const [page, setPage] = usePageFor([event, includeNew])
   const { data, error, loading, reload } = useAsync(
     () => api.analytics('upsets', { event, minMatches: 3, limit: PAGE, offset: page * PAGE, includeNew }),
     [event, includeNew, page],

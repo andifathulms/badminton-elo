@@ -142,9 +142,10 @@ function WorldNo1s({ home }) {
 function MiniBoard({ initial }) {
   const [event, setEvent] = useState('MS')
   const doubles = isDoubles(event)
-  // The MS board arrives with the home payload; other tabs load on demand.
-  const { data, loading } = useAsync(
-    () => (event === 'MS' && initial ? Promise.resolve(initial)
+  // The MS board arrives with the home payload (null until it lands); other
+  // tabs load on demand.
+  const { data } = useAsync(
+    () => (event === 'MS' ? Promise.resolve(initial ?? null)
       : doubles ? api.pairs(event, { limit: 6, minMatches: 5 }) : api.leaderboard(event, { limit: 6, minMatches: 5 })),
     [event, initial],
   )
@@ -159,7 +160,7 @@ function MiniBoard({ initial }) {
           ))}
         </div>
       </SectionHead>
-      {loading && !data && <SkeletonList rows={6} />}
+      {!data && <SkeletonList rows={6} />}
       {data && (
         <ol className="rank-rows">
           {data.results.map((row, i) => {

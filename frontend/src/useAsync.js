@@ -1,21 +1,26 @@
-import { useEffect, useState } from 'react'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { withSignal } from './api.js'
 
-// Tiny async-data hook: returns { data, error, loading, reload }. `deps` re-runs
-// it; `reload()` re-runs on demand (for retry buttons).
+// Async-data hook: returns { data, error, loading, fetching, reload }.
+//
+// Backed by TanStack Query, so every page gets caching across navigation,
+// de-duplication of identical in-flight requests, cancellation on unmount, and
+// the previous data kept on screen while a filter/page change loads (instead
+// of blanking the view). The cache key is the fetcher's source plus `deps`:
+// the same contract as before — `deps` must list everything `fn` reads.
+// `reload()` refetches on demand (retry buttons).
 export function useAsync(fn, deps) {
-  const [nonce, setNonce] = useState(0)
-  const [state, setState] = useState({ data: null, error: null, loading: true })
-  useEffect(() => {
-    let alive = true
-    setState({ data: null, error: null, loading: true })
-    Promise.resolve()
-      .then(fn)
-      .then((data) => alive && setState({ data, error: null, loading: false }))
-      .catch((error) => alive && setState({ data: null, error, loading: false }))
-    return () => {
-      alive = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [...deps, nonce])
-  return { ...state, reload: () => setNonce((n) => n + 1) }
+  const q = useQuery({
+    queryKey: ['useAsync', fn.toString(), ...deps],
+    // TanStack rejects `undefined` results; old fetchers sometimes return it.
+    queryFn: ({ signal }) => Promise.resolve(withSignal(signal, fn)).then((d) => d ?? null),
+    placeholderData: keepPreviousData,
+  })
+  return {
+    data: q.data ?? null,
+    error: q.error ?? null,
+    loading: q.isPending,
+    fetching: q.isFetching,
+    reload: () => q.refetch(),
+  }
 }
