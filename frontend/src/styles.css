@@ -1975,3 +1975,10 @@ html { scroll-behavior: smooth; }
 .data-card .btn-primary { justify-self: start; margin-top: 4px; }
 .data-progress { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
   box-shadow: var(--sh-sm); padding: 16px; display: grid; gap: 8px; max-width: 460px; }
+
+/* --- Reduced motion: no pulses, lifts or count-ups for visitors who opt out. */
+@media (prefers-reduced-motion: reduce) {
+  .live::before { animation: none; }
+  .no1:hover, .pod:hover, .champ:hover, .upc:hover, .in-card:hover, .insight-card:hover { transform: none; }
+  .cmdk, .cmdk-backdrop, .more-sheet.open, .search-results { animation: none; }
+}
