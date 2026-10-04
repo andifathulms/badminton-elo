@@ -239,3 +239,35 @@ def test_tennismatch_rubbers_parse_like_badmintonmatch():
     assert [r["event"] for r in rubbers] == ["MS", "MD"]
     assert rubbers[0]["games"] == [(7, 0), (7, 2), (7, 2)]
     assert rubbers[0]["winner_side"] == 1
+
+
+def test_invoke_team_bracket_module_is_parsed():
+    from apps.ingest.wiki_parse import parse_bracket
+
+    text = """{{#invoke: Team bracket | main
+| rounds   = 1
+| sets     = 3
+| RD1      = Final
+| RD1-team1='''{{flagIOC2athlete|[[Shi Yuqi|S Yuqi]]|CHN|2026 Asian Games}}'''
+| RD1-score1-1='''21'''
+| RD1-score1-2='''21'''
+| RD1-team2={{flagIOC2athlete|[[Kunlavut Vitidsarn|K Vitidsarn]]|THA|2026 Asian Games}}
+| RD1-score2-1=17
+| RD1-score2-2=19
+}}"""
+    (m,) = parse_bracket(text, "MS")
+    assert m["side1"]["country"] == "CHN" and m["side2"]["country"] == "THA"
+    assert m["games"] == [(21, 17), (21, 19)] and m["winner_side"] == 1
+
+
+def test_infobox_dates_ignore_maintenance_tags_and_honour_postponement():
+    from apps.ingest.management.commands.scrape_wiki import infobox_meta
+
+    text = """{{Use dmy dates|date=May 2026}}
+{{Infobox sports competition event
+| games       = 2022 Asian Games
+| dates       = 28 September – 7 October 2023
+}}
+== Schedule ==
+A schedule row: {{Start date|2026|5|1}}."""
+    assert str(infobox_meta(text, 2022)["start"]) == "2023-09-28"

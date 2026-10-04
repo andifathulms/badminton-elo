@@ -75,6 +75,14 @@ PARAM_RE = re.compile(
     r"^[ \t]*\|[ \t]*(RD\d+(?:-team\d+|-score\d+-\d+)?)[ \t]*=[ \t]*(.*?)[ \t]*$", re.M
 )
 BRACKET_RE = re.compile(r"\{\{\s*(\d+)TeamBracket[^\n}|]*", re.I)
+# The Lua module most current articles use: {{#invoke: Team bracket | main |
+# rounds = 4 | ... }} — same RDn-teamNN / RDn-scoreNN-g parameters; its size is
+# 2**rounds.
+INVOKE_BRACKET_RE = re.compile(r"\{\{\s*#invoke:\s*Team[ _]bracket\b", re.I)
+ROUNDS_RE = re.compile(r"^[ \t]*\|[ \t]*rounds[ \t]*=[ \t]*(\d+)", re.M)
+# {{flagIOC2athlete|[[Lin Dan]]|CHN|2026 Asian Games}}: the country is the
+# first bare 3-letter code parameter.
+ATHLETE_FLAG_RE = re.compile(r"\{\{\s*flag\w*athlete\b[^{}]*?\|\s*([A-Z]{3})\s*(?:\||\}\})")
 SEED_RE = re.compile(r"\(\s*(\d+)\s*\)")
 RETIRE_RE = re.compile(r"\b(ret\.?|retired|w/?o|walkover|def\.?|conceded)\b", re.I)
 
@@ -105,8 +113,11 @@ def parse_team(raw: str) -> dict | None:
     if not raw or raw in {"-", "—", "bye", "Bye", "BYE"}:
         return None
     country = None
+    am = ATHLETE_FLAG_RE.search(raw)
     m = FLAG_RE.search(raw)
-    if m:
+    if am:
+        country = am.group(1)
+    elif m:
         country = _country(m.group(1))
     players = []
     for lm in LINK_RE.finditer(raw):
@@ -216,6 +227,11 @@ def parse_bracket(text: str, event: str) -> list[dict]:
         size = int(bm.group(1))
         body = _template_body(text, bm.start())
         matches.extend(_parse_one(body, size, event))
+    for bm in INVOKE_BRACKET_RE.finditer(text):
+        body = _template_body(text, bm.start())
+        rm = ROUNDS_RE.search(body)
+        if rm:
+            matches.extend(_parse_one(body, 2 ** int(rm.group(1)), event))
     return _dedupe(matches)
 
 

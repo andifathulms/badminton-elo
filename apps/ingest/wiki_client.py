@@ -6,7 +6,9 @@ request fetches a whole article's wikitext (parsed locally by wiki_parse)."""
 from __future__ import annotations
 
 import json
+import re
 import time
+from datetime import date
 from pathlib import Path
 
 import httpx
@@ -14,6 +16,7 @@ import httpx
 API = "https://en.wikipedia.org/w/api.php"
 UA = "badminton-elo-research/1.0 (personal rating project; app.dkb@gmail.com)"
 CACHE_DIR = Path("data/wiki_cache")
+RECENT_TTL_S = 3 * 24 * 3600  # re-fetch recent-event articles after 3 days
 RATE_S = 1.0  # seconds between live requests
 
 
@@ -55,10 +58,20 @@ class WikiClient:
                 time.sleep(2 ** attempt)  # 1, 2, 4, 8s backoff
         raise last
 
+    def _fresh(self, title: str, cp: Path) -> bool:
+        """A cached article is reused forever — unless it is about a recent
+        event (a year >= last year in the title) and older than RECENT_TTL:
+        those pages fill in during and after the event, and a stub cached
+        before it (e.g. the 2026 Asian Games in July) must not stick."""
+        years = [int(y) for y in re.findall(r"\b(19\d\d|20\d\d)\b", title)]
+        if not years or max(years) < date.today().year - 1:
+            return True
+        return time.time() - cp.stat().st_mtime < RECENT_TTL_S
+
     def wikitext(self, title: str) -> str | None:
         """Full article wikitext, cache-first. None if the page doesn't exist."""
         cp = self._cache_path(title)
-        if cp.exists():
+        if cp.exists() and self._fresh(title, cp):
             data = json.loads(cp.read_text())
             return data.get("wikitext")
 

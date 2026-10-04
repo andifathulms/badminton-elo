@@ -11,7 +11,7 @@ keyed by their stable [[wiki title]]; reconcile to real BWF ids later by name.
 from __future__ import annotations
 
 import re
-from datetime import datetime, time as dt_time, timedelta, timezone as dt_tz
+from datetime import date, datetime, time as dt_time, timedelta, timezone as dt_tz
 
 from django.db import transaction
 from django.utils.dateparse import parse_date
@@ -147,8 +147,9 @@ MONTHS = {m.lower(): i for i, m in enumerate(
 def _text_date(s: str, year: int | None):
     """Extract the start month/day from a free-text `|dates=` value ('24–30
     June', 'April 2022', '9 September 2022'). The YEAR always comes from the
-    article title ('{year} Event') — never from the text, so trailing reference
-    access-dates (e.g. 'accessed July 2026') can't poison it."""
+    article title ('{year} Event'), unless the dates value itself states a year
+    within one of it (postponed editions); reference access-dates elsewhere
+    can't poison it."""
     if not year:
         return None
     s = re.sub(r"\{\{[^}]*\}\}|\[\[|\]\]", " ", s.split("|")[0])
@@ -156,7 +157,11 @@ def _text_date(s: str, year: int | None):
     # first "DD Month" (start of a range like "24–30 June")
     m = re.search(rf"(\d{{1,2}})\s*(?:[–-]\s*\d{{1,2}})?\s+({mo_alt})", s, re.I)
     if m:
-        return parse_date(f"{year}-{MONTHS[m.group(2).lower()]:02d}-{int(m.group(1)):02d}")
+        # A year written in the range itself wins over the title's: postponed
+        # editions ('2022 Asian Games', '28 September – 7 October 2023').
+        ym = re.search(r"\b(19\d\d|20\d\d)\b", s[m.end():])
+        y = int(ym.group(1)) if ym and abs(int(ym.group(1)) - year) <= 1 else year
+        return parse_date(f"{y}-{MONTHS[m.group(2).lower()]:02d}-{int(m.group(1)):02d}")
     # bare "Month"
     m = re.search(rf"\b({mo_alt})\b", s, re.I)
     if m:
@@ -179,7 +184,9 @@ def infobox_meta(text: str, year: int | None = None) -> dict:
         # the caller falls back to the clean article title.
         if nm and "{" not in nm and "}" not in nm and nm.lower() != "main page":
             meta["name"] = nm
-    dates = re.findall(r"\{\{(?:Start|End) date\|(\d{4})\|(\d{1,2})\|(\d{1,2})", text)
+    # Lead only: a {{Start date}} further down (a schedule row, a reference)
+    # put the 2026 Asian Games in May instead of 20 September.
+    dates = re.findall(r"\{\{(?:Start|End) date\|(\d{4})\|(\d{1,2})\|(\d{1,2})", lead, re.I)
     if dates:
         y, mo, d = dates[0]
         meta["start"] = parse_date(f"{y}-{int(mo):02d}-{int(d):02d}")
@@ -187,7 +194,9 @@ def infobox_meta(text: str, year: int | None = None) -> dict:
         meta["end"] = parse_date(f"{y2}-{int(mo2):02d}-{int(d2):02d}")
     else:
         # fall back to the free-text |dates= field
-        dm = re.search(r"\|\s*dates?\s*=\s*(.+)", text)
+        # An infobox line ('| dates = 20 – 29 September 2026'), not an inline
+        # '{{Use dmy dates|date=May 2026}}' maintenance tag.
+        dm = re.search(r"^[ \t]*\|[ \t]*dates?[ \t]*=[ \t]*(.+)", lead, re.M)
         if dm:
             meta["start"] = _text_date(dm.group(1), year)
     return meta
@@ -272,7 +281,9 @@ class Command(DataCommand):
 
         if o["games"]:
             # multi-sport events aren't in BWF data at any year -> pull all
-            gyf, gyt = (yf, yt) if (yf, yt) != (1983, 2006) else (1948, 2024)
+            # Default: every edition up to this year (a fixed 2024 cap silently
+            # skipped the 2026 Asian Games).
+            gyf, gyt = (yf, yt) if (yf, yt) != (1983, 2006) else (1948, date.today().year)
             def game_year_ok(t):
                 m = YEAR_RE.match(re.sub(r"^Badminton at the ", "", t))
                 return bool(m) and gyf <= int(m.group(0)) <= gyt
