@@ -28,7 +28,15 @@ def team_cup_tournaments():
     q = Q()
     for term in CUP_TERMS:
         q |= Q(name__icontains=term) | Q(category_name__icontains=term)
+    # Wikipedia multi-sport games: their team-event rubbers ("– Mixed team")
+    # are merged into the games tournament with position-based labels too.
+    q |= Q(code__startswith="wiki:Badminton at the")
     return Tournament.objects.filter(q)
+
+
+# Only open-age discipline labels are re-derived; masters/youth (MS35, WDU19)
+# keep theirs — the lineup can't tell an age group.
+RELABELABLE = {"MS", "WS", "MD", "WD", "XD", "S", "D", ""}
 
 
 class Command(DataCommand):
@@ -77,6 +85,8 @@ class Command(DataCommand):
             ):
                 s1 = [l.player for l in m.lineup.all() if l.side == 1]
                 s2 = [l.player for l in m.lineup.all() if l.side == 2]
+                if m.event not in RELABELABLE:
+                    continue
                 disc = rubber_discipline(s1, s2, allow_xd=allow_xd)
                 if disc is None:
                     undetermined += 1

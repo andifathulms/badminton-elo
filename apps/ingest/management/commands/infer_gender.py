@@ -5,6 +5,10 @@ appears in MS or MD is male, and WS or WD is female — an unambiguous signal fr
 the discipline itself (PRD keeps ratings keyed by discipline, not sex; this is
 only to split the XD board and label pairs).
 
+Labels are noisy (team-cup rubbers are labelled by position), so a player's
+gender is the side holding at least 2/3 of their gendered appearances; a closer
+split stays blank.
+
 An XD-ONLY player (never in a gendered singles/doubles event) still resolves:
 in mixed doubles each SIDE is one man + one woman, so a player is the opposite
 gender of their XD partner. We propagate the discipline-derived genders across
@@ -23,6 +27,7 @@ from apps.ingest.models import MatchPlayer, Player
 # (MSU19) suffixes — match on the prefix so those aren't left blank.
 MALE_Q = Q(match__event__startswith="MS") | Q(match__event__startswith="MD")
 FEMALE_Q = Q(match__event__startswith="WS") | Q(match__event__startswith="WD")
+MAJORITY = 2  # appearances on one side must be >= 2x the other to decide
 
 
 def _xd_partner_pairs() -> set[frozenset]:
@@ -44,21 +49,18 @@ class Command(DataCommand):
     help = "Infer player gender (M/F) from discipline + XD-partner propagation."
 
     def handle(self, *args, **opts):
-        males = set(
-            MatchPlayer.objects.filter(MALE_Q)
-            .values_list("player_id", flat=True)
-            .distinct()
-        )
-        females = set(
-            MatchPlayer.objects.filter(FEMALE_Q)
-            .values_list("player_id", flat=True)
-            .distinct()
-        )
-        # A handful of ids may appear in both (data noise); trust the majority
-        # discipline by leaving conflicts blank.
-        conflict = males & females
-        males -= conflict
-        females -= conflict
+        # Majority vote over gendered appearances. A strict "seen in both ->
+        # blank" rule let a few mislabelled rubbers (team cups list rubbers by
+        # position; one Uber Cup bug stored women as MS/MD) blank a player, and
+        # XD-partner propagation then filled the blank wrongly: 18k matches had
+        # a gender that contradicted their event. 2:1 settles almost all of it.
+        counts: dict = defaultdict(lambda: [0, 0])  # player -> [male, female]
+        for pid in MatchPlayer.objects.filter(MALE_Q).values_list("player_id", flat=True).iterator():
+            counts[pid][0] += 1
+        for pid in MatchPlayer.objects.filter(FEMALE_Q).values_list("player_id", flat=True).iterator():
+            counts[pid][1] += 1
+        males = {p for p, (m, f) in counts.items() if m and m >= MAJORITY * f}
+        females = {p for p, (m, f) in counts.items() if f and f >= MAJORITY * m}
 
         gender: dict[int, str] = {p: "M" for p in males}
         gender.update({p: "F" for p in females})

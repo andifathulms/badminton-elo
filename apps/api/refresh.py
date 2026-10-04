@@ -83,6 +83,8 @@ def _steps(year, mode="full"):
         ("Normalizing events", cmd("normalize_events")),
         ("Fixing cup disciplines", cmd("fix_cup_events")),
         ("Backfilling countries", cmd("backfill_cup_country")),
+        # Before rate: it splits the XD board by gender.
+        ("Inferring genders", cmd("infer_gender")),
         # Incremental: replays only changed tournaments, rebuilds when it must.
         ("Recomputing ratings", cmd("rate")),
         ("Building analytics", run_builds),

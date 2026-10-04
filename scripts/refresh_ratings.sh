@@ -35,6 +35,8 @@ PY
   .venv/bin/python manage.py fix_cup_events >/dev/null 2>&1
   # Recover missing player country_code from team-cup tie context (flags).
   .venv/bin/python manage.py backfill_cup_country >/dev/null 2>&1
+  # Gender (from disciplines + XD partners) — rate splits the XD board by it.
+  .venv/bin/python manage.py infer_gender >/dev/null 2>&1
   # Incremental: replays only the tournaments that changed; out-of-order
   # historical periods (Wikipedia 1983-2006 backfill) make it rebuild fully.
   .venv/bin/python manage.py rate >/dev/null 2>&1 || { unset SQLITE_PATH; return 1; }
