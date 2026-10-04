@@ -44,6 +44,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    # First, so it compresses last: JSON shrinks 5-8x (a 197 KB rating history
+    # goes out as ~30 KB). Only applied when the client sends Accept-Encoding.
+    "django.middleware.gzip.GZipMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -97,8 +100,27 @@ else:
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": _sqlite_name,
+            "OPTIONS": {
+                # WAL: readers never block on a writer (a rebuild runs while the
+                # site serves) and see a consistent snapshot. NORMAL is safe
+                # under WAL. mmap + a 64 MB page cache keep hot tables in memory.
+                "init_command": (
+                    "PRAGMA journal_mode=WAL;"
+                    "PRAGMA synchronous=NORMAL;"
+                    "PRAGMA mmap_size=1073741824;"
+                    "PRAGMA cache_size=-65536;"
+                    "PRAGMA temp_store=MEMORY;"
+                ),
+                "timeout": 30,  # seconds to wait on a locked database
+                "transaction_mode": "IMMEDIATE",  # no mid-transaction lock upgrades
+            },
         }
     }
+
+# Reuse connections across requests (with a liveness check) instead of
+# reconnecting — and re-running the PRAGMAs above — on every request.
+DATABASES["default"]["CONN_MAX_AGE"] = int(os.environ.get("DB_CONN_MAX_AGE", "60"))
+DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},

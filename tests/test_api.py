@@ -449,3 +449,17 @@ def test_events_endpoint(api):
     rows = {row["event"]: row["rated_players"] for row in r.json()}
     assert rows["XD"] > 0
     assert rows["MS"] == 0  # only XD was ingested
+
+
+@pytest.mark.django_db
+def test_json_responses_are_gzipped_when_accepted(client):
+    from apps.ingest.models import Player, PlayerRating
+
+    for i in range(60):
+        p = Player.objects.create(player_id=9000 + i, name_display=f"Player {i}")
+        PlayerRating.objects.create(player=p, event="MS", mu=1500 + i, rd=60,
+                                    sigma=0.06, matches_played=10)
+    r = client.get("/api/leaderboard?event=MS&include_inactive=1",
+                   HTTP_ACCEPT_ENCODING="gzip")
+    assert r.status_code == 200
+    assert r["Content-Encoding"] == "gzip"
