@@ -182,3 +182,21 @@ def test_tier_weight_amplifies_movement():
     base = run([_match(1, 1, (1,), (2,), tier_weight=1.0)], CFG)
     heavy = run([_match(1, 1, (3,), (4,), tier_weight=1.1)], CFG)
     assert (heavy.ratings[(3, "XD")].mu - 1500) > (base.ratings[(1, "XD")].mu - 1500)
+
+
+def test_seed_rank_used_only_if_known_at_debut():
+    from datetime import date
+
+    m = _match(1, 1, (101,), (102,))  # T0 = 2026-01-01
+    before = run([m], CFG, seed_ranks={(101, "XD"): (1, date(2025, 6, 1))})
+    after = run([m], CFG, seed_ranks={(101, "XD"): (1, date(2027, 6, 1))})
+    undated = run([m], CFG, seed_ranks={(101, "XD"): (1, None)})
+    # Known before the debut -> seeded high; observed later (or undated) -> flat.
+    assert before.history[0].mu_before == pytest.approx(CFG.seed_rank_top_mu)
+    assert after.history[0].mu_before == pytest.approx(CFG.mu_init)
+    assert undated.history[0].mu_before == pytest.approx(CFG.mu_init)
+
+
+def test_bare_int_seed_rank_still_supported():
+    res = run([_match(1, 1, (101,), (102,))], CFG, seed_ranks={(101, "XD"): 1})
+    assert res.history[0].mu_before == pytest.approx(CFG.seed_rank_top_mu)

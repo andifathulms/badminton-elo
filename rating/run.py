@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from collections import defaultdict
 
@@ -55,10 +55,31 @@ def _inflate_for_inactivity(
     r.rd = min(inflated, config.rd_init)
 
 
+SeedRank = int | tuple[int, date | None]
+
+
+def _usable_rank(seed, period_start: datetime | None) -> int | None:
+    """The seed rank if it was KNOWN by `period_start`, else None.
+
+    A bare int is trusted as-is (callers that already filtered). A
+    (rank, observed_date) pair is used only when observed on/before the period
+    start — a ranking earned years after a player's debut must not seed it
+    (that leaks the future into history and inflates backtests).
+    """
+    if seed is None:
+        return None
+    if isinstance(seed, int):
+        return seed
+    rank, observed = seed
+    if observed is None or period_start is None:
+        return None
+    return rank if observed <= period_start.date() else None
+
+
 def run(
     matches: list[MatchRecord],
     config: RatingConfig,
-    seed_ranks: dict[tuple[int, str], int] | None = None,
+    seed_ranks: dict[tuple[int, str], SeedRank] | None = None,
 ) -> RunResult:
     """Process tournaments (rating periods) chronologically (PRD §7.7).
 
@@ -69,18 +90,20 @@ def run(
     tournament-locked model — meeting an opponent uses both sides' start-of-
     tournament strength, not a figure inflated by earlier-round wins.
 
-    `seed_ranks` maps (player_id, event) -> BWF World Ranking; a new key with a
-    rank is seeded from it (PRD §7.6), else flat.
+    `seed_ranks` maps (player_id, event) -> BWF World Ranking, either a bare
+    rank or (rank, observed_date). A new key is seeded from a rank only if it
+    was observed by the start of the player's first period (PRD §7.6), else
+    flat.
     """
     result = RunResult()
     ratings = result.ratings
     seed_ranks = seed_ranks or {}
 
-    def rating_for(player_id: int, event: str) -> Rating:
+    def rating_for(player_id: int, event: str, period_start) -> Rating:
         key = (player_id, event)
         r = ratings.get(key)
         if r is None:
-            rank = seed_ranks.get(key)
+            rank = _usable_rank(seed_ranks.get(key), period_start)
             r = rank_seed(rank, config) if rank else flat_seed(config)
             ratings[key] = r
         return r
@@ -112,7 +135,9 @@ def run(
                 if key in seen:
                     continue
                 seen.add(key)
-                _inflate_for_inactivity(rating_for(pid, m.event), period_start, config)
+                _inflate_for_inactivity(
+                    rating_for(pid, m.event, period_start), period_start, config
+                )
 
         result.history.extend(update_period(period, ratings, config))
 

@@ -76,16 +76,21 @@ def _config(overrides: dict | None = None) -> RatingConfig:
     )
 
 
-def load_seed_ranks(event=None) -> dict[tuple[int, str], int]:
+def load_seed_ranks(event=None) -> dict[tuple[int, str], tuple[int, object]]:
+    """(player_id, event) -> (rank, observed_date). The engine only uses a rank
+    observed by the player's first period, so a later ranking can't leak back."""
     from apps.ingest.models import PlayerSeedRank
 
     qs = PlayerSeedRank.objects.all()
     if event:
         qs = qs.filter(event=event)
     return {
-        (pid, ev): rank
-        for pid, ev, rank in qs.values_list("player_id", "event", "rank")
+        (pid, ev): (rank, observed)
+        for pid, ev, rank, observed in qs.values_list(
+            "player_id", "event", "rank", "observed_date"
+        )
     }
+
 
 def load_records(event=None, weights=None) -> list[MatchRecord]:
     """ORM rows -> engine MatchRecords (lineups/games grouped in 3 queries)."""
