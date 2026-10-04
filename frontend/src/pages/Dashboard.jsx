@@ -1,83 +1,153 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { api, EVENTS } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import Avatar from '../components/Avatar.jsx'
 import Entity from '../components/Entity.jsx'
-import UpsetsTable from '../components/UpsetsTable.jsx'
-import { SkeletonList, SkeletonCards } from '../components/Skeleton.jsx'
+import Sparkline from '../components/Sparkline.jsx'
+import Tier from '../components/Tier.jsx'
+import Icon from '../components/Icon.jsx'
+import CourtLines from '../components/CourtLines.jsx'
+import { Ev, Move } from '../components/Chips.jsx'
+import { Skeleton, SkeletonList } from '../components/Skeleton.jsx'
 import CountUp from '../components/CountUp.jsx'
 import { flag } from '../flags.js'
+import { fmtRange, isLive, today } from '../dates.js'
 
 const DOUBLES = new Set(['MD', 'WD', 'XD'])
 const isDoubles = (e) => DOUBLES.has(e)
+const names = (ps) => ps.map((p) => p.name_display).join(' / ')
 
-// Panel wrapper with a title and an optional "view all" link.
-function Panel({ title, to, linkText, wide, children }) {
+function SectionHead({ title, to, linkText, children }) {
   return (
-    <section className={`panel${wide ? ' panel-wide' : ''}`}>
-      <div className="panel-head">
-        <h2>{title}</h2>
-        {to && <Link to={to} className="view-all">{linkText || 'View all'} →</Link>}
-      </div>
+    <div className="sec-head">
+      <h2>{title}</h2>
       {children}
+      {to && <Link to={to} className="view-all">{linkText || 'View all'} <Icon name="arrowRight" size={13} /></Link>}
+    </div>
+  )
+}
+
+// Most recent completed major / Super 750+ event, with its champions.
+const MAJOR_TIERS = [
+  'Grade 1 – Individual Tournaments', 'HSBC BWF World Tour Finals',
+  'HSBC BWF World Tour Super 1000', 'HSBC BWF World Tour Super 750',
+]
+async function latestMajor() {
+  const lists = await Promise.all(MAJOR_TIERS.map((tier) => api.tournaments({ tier, limit: 3 })))
+  const done = lists.flatMap((l) => l.results).filter((t) => t.end_date && t.end_date <= today())
+  done.sort((a, b) => (a.end_date < b.end_date ? 1 : -1))
+  return done[0] ? api.tournament(done[0].tournament_id) : null
+}
+
+const ORDER = ['MS', 'WS', 'MD', 'WD', 'XD']
+
+function Hero({ events, tcount, calib }) {
+  const { data: major } = useAsync(latestMajor, [])
+  const totalRated = events ? events.reduce((a, e) => a + e.rated_players, 0) : null
+  const live = useAsync(() => api.tournaments({ limit: 12 }), [])
+  const liveCount = live.data ? live.data.results.filter(isLive).length : 0
+  const finals = major ? [...(major.finals || [])].sort((a, b) => ORDER.indexOf(a.event) - ORDER.indexOf(b.event)) : []
+  return (
+    <section className="home-hero arena">
+      <CourtLines />
+      <div className="hh-copy">
+        <div className="hh-kick">
+          {liveCount > 0 && <span className="live">LIVE</span>}
+          <span>{liveCount > 0 ? `${liveCount} events in progress` : 'Ratings from every BWF result'}</span>
+        </div>
+        <h1>Every rally,<br />quantified.</h1>
+        <p>
+          Skill ratings for every BWF player, built from {calib?.n ? calib.n.toLocaleString() : 'hundreds of thousands of'} matches.
+          Ratings move on who you beat, not on points earned.
+        </p>
+        <div className="hh-stats">
+          <div><b>{totalRated ? <CountUp value={totalRated} /> : '—'}</b><span>rated players</span></div>
+          <div><b>{tcount ? <CountUp value={tcount.count} /> : '—'}</b><span>tournaments</span></div>
+          {calib?.accuracy != null && (
+            <Link to="/insights?lens=calibration" title="How often the higher-rated side wins">
+              <b><CountUp value={calib.accuracy * 100} format={(n) => `${n.toFixed(1)}%`} /></b>
+              <span>results called right</span>
+            </Link>
+          )}
+          <div><b>5</b><span>disciplines</span></div>
+        </div>
+      </div>
+      <div className="hh-feature glass">
+        {major ? (
+          <>
+            <Link to={`/tournaments/${major.tournament_id}`} className="gt">
+              <b>{major.name.replace(/^(HSBC |BWF |TotalEnergies )/, '')}</b>
+              <span>{major.venue_name ? `${major.venue_name.split(',')[0]} · ` : ''}{fmtRange(major.start_date, major.end_date)}</span>
+            </Link>
+            <div className="gt-sub">Champions</div>
+            {finals.map((f) => (
+              <Link key={f.event} to={`/matches/${f.match_id}`} className="crow">
+                <Ev code={f.event} />
+                <span className="pair-av">{f.champions.map((p) => <Avatar key={p.player_id} player={p} size={26} onDeep />)}</span>
+                <span className="nm">{names(f.champions)} <span className="fl">{flag(f.champions[0].country_code)}</span></span>
+              </Link>
+            ))}
+          </>
+        ) : (
+          <div className="hh-sk">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} h={i ? 26 : 18} w={i ? '100%' : '60%'} style={{ background: 'rgba(255,255,255,.08)' }} />)}</div>
+        )}
+      </div>
     </section>
   )
 }
 
-// Reigning #1 for one discipline: a single player (singles) or a pair (doubles).
-function champOf(event) {
-  if (isDoubles(event.code)) {
-    return api.pairs(event.code, { limit: 1, minMatches: 5 }).then((d) => {
-      const p = d.results[0]
-      if (!p) return { event, players: null, rating: null }
-      return {
-        event,
-        players: [p.player1, p.player2],
-        rating: p.rating,
-        to: `/pairs/${event.code}/${p.player1.player_id}/${p.player2.player_id}`,
-      }
-    })
-  }
-  return api.leaderboard(event.code, { limit: 1, minMatches: 5 }).then((d) => {
-    const row = d.results[0]
-    if (!row) return { event, players: null, rating: null }
+// Reigning No. 1 + the gap to No. 2, per discipline.
+function no1Of(event) {
+  const q = isDoubles(event.code)
+    ? api.pairs(event.code, { limit: 2, minMatches: 5 })
+    : api.leaderboard(event.code, { limit: 2, minMatches: 5 })
+  return q.then((d) => {
+    const [a, b] = d.results
+    if (!a) return { event, players: null }
+    const pair = !!a.player1
     return {
       event,
-      players: [row.player],
-      rating: row.rating,
-      to: `/players/${row.player.player_id}`,
+      players: pair ? [a.player1, a.player2] : [a.player],
+      rating: a.rating,
+      lead: b ? a.rating - b.rating : null,
+      form: a.form,
+      together: a.matches_together,
+      to: pair ? `/pairs/${event.code}/${a.player1.player_id}/${a.player2.player_id}` : `/players/${a.player.player_id}`,
     }
   })
 }
 
-function ReigningChamps() {
-  const { data } = useAsync(() => Promise.all(EVENTS.map(champOf)), [])
-  if (!data) return <SkeletonCards count={5} />
+function WorldNo1s() {
+  const { data } = useAsync(() => Promise.all(EVENTS.map(no1Of)), [])
+  if (!data) {
+    return <div className="no1-grid">{EVENTS.map((e) => <div key={e.code} className="no1 card"><Skeleton h={150} /></div>)}</div>
+  }
+  const maxLead = Math.max(1, ...data.map((d) => d.lead || 0))
   return (
-    <div className="champ-grid">
-      {data.filter((d) => d.players).map(({ event, players, rating, to }) => {
-        const pair = players.length > 1
-        const cc = players[0].country_code
-        return (
-          <Link key={event.code} to={to} className="champ-card">
-            <div className="champ-badge">{event.code}</div>
-            <span className={pair ? 'champ-av pair-av' : 'champ-av'}>
-              {players.map((p) => <Avatar key={p.player_id} player={p} size="lg" />)}
-            </span>
-            <div className="champ-name">
-              {pair
-                ? players.map((p) => p.name_display).join(' / ')
-                : players[0].name_display}
+    <div className="no1-grid">
+      {data.filter((d) => d.players).map((d) => (
+        <Link key={d.event.code} to={d.to} className="no1 card">
+          <div className="no1-hd"><Ev code={d.event.code} /><span>{d.event.label}</span></div>
+          <span className="pair-av">{d.players.map((p) => <Avatar key={p.player_id} player={p} size={42} />)}</span>
+          <div className="no1-nm">
+            {names(d.players)}
+            <span className="no1-cc">{flag(d.players[0].country_code)} {d.players[0].country_code}</span>
+          </div>
+          <div className="no1-rt">
+            <span className="num-display">{Math.round(d.rating).toLocaleString()}</span>
+            {d.form?.length > 1
+              ? <Sparkline values={d.form} width={64} height={26} />
+              : d.together ? <span className="no1-tog">{d.together} matches<br />together</span> : null}
+          </div>
+          {d.lead != null && (
+            <div className="lead" title="Rating gap to the No. 2">
+              <span><b>+{Math.round(d.lead)}</b> ahead of No. 2</span>
+              <span className="lead-bar"><i style={{ width: `${Math.max(4, (d.lead / maxLead) * 100)}%` }} /></span>
             </div>
-            <div className="champ-sub">
-              <span className="fl">{flag(cc)}</span>{cc}
-            </div>
-            <div className="champ-rating">{rating.toFixed(0)}</div>
-            <div className="champ-label">{event.label}</div>
-          </Link>
-        )
-      })}
+          )}
+        </Link>
+      ))}
     </div>
   )
 }
@@ -86,79 +156,96 @@ function MiniBoard() {
   const [event, setEvent] = useState('MS')
   const doubles = isDoubles(event)
   const { data, loading } = useAsync(
-    () =>
-      doubles
-        ? api.pairs(event, { limit: 5, minMatches: 5 })
-        : api.leaderboard(event, { limit: 5, minMatches: 5 }),
+    () => (doubles ? api.pairs(event, { limit: 6, minMatches: 5 }) : api.leaderboard(event, { limit: 6, minMatches: 5 })),
     [event],
   )
+  const label = EVENTS.find((e) => e.code === event)?.label
   return (
-    <Panel title="Top of the table" to="/rankings" linkText="Full rankings">
-      <div className="mini-tabs">
-        {EVENTS.map((e) => (
-          <button key={e.code}
-            className={`mini-tab ${e.code === event ? 'active' : ''}`}
-            onClick={() => setEvent(e.code)}>{e.code}</button>
-        ))}
-      </div>
-      {loading && <SkeletonList rows={5} />}
+    <section className="panel">
+      <SectionHead title={label} to={`/rankings?event=${event}`} linkText="Full rankings">
+        <div className="segmented sm" role="tablist" aria-label="Discipline">
+          {EVENTS.map((e) => (
+            <button key={e.code} role="tab" aria-selected={e.code === event}
+              className={`seg ${e.code === event ? 'active' : ''}`} onClick={() => setEvent(e.code)}>{e.code}</button>
+          ))}
+        </div>
+      </SectionHead>
+      {loading && !data && <SkeletonList rows={6} />}
       {data && (
-        <ol className="mini-list">
+        <ol className="rank-rows">
           {data.results.map((row, i) => {
-            // Derive the shape from the row, not the selected event: while a
-            // tab switch is loading, `data` still holds the previous event's
-            // rows for one render, so trusting `doubles` here would crash.
+            // Derive the shape from the row: while a tab switch loads, `data`
+            // still holds the previous event's rows for one render.
             const players = row.player1 ? [row.player1, row.player2] : [row.player]
-            const key = players.map((p) => p.player_id).join('-')
             return (
-              <li key={key}>
+              <li key={players.map((p) => p.player_id).join('-')}>
                 <span className={`medal sm ${i < 3 ? `m${i + 1}` : ''}`}>{i + 1}</span>
-                <Entity players={players} event={event} />
-                <span className="mini-rating">{row.rating.toFixed(0)}</span>
+                <Entity players={players} event={event} sub={row.win_pct != null ? `${Math.round(row.win_pct)}% wins` : null} />
+                {row.form ? <Sparkline values={row.form} width={92} height={26} className="hide-sm" /> : <span />}
+                <span className="rr-rating num-display">{Math.round(row.rating).toLocaleString()}</span>
               </li>
             )
           })}
         </ol>
       )}
-      {data && data.results.length === 0 && <p className="muted small">No entries yet.</p>}
-    </Panel>
+    </section>
   )
 }
 
-function RecentTournaments() {
-  const { data, loading } = useAsync(() => api.tournaments({ limit: 6 }), [])
+function ThisWeek() {
+  const { data, loading } = useAsync(() => api.tournaments({ limit: 7 }), [])
   return (
-    <Panel title="Recent tournaments" to="/tournaments">
-      {loading && <SkeletonList rows={5} />}
+    <section className="panel">
+      <SectionHead title="This week" to="/tournaments" linkText="Calendar" />
+      {loading && <SkeletonList rows={6} />}
       {data && (
-        <ul className="recent-list">
-          {data.results.map((t) => (
-            <li key={t.tournament_id}>
-              <Link to={`/tournaments/${t.tournament_id}`}>
-                <span className="rt-name">{t.name}</span>
-                <span className="rt-meta">
-                  {(t.category_name || '').replace('HSBC BWF World Tour ', '')}
-                  {' · '}{t.start_date}
-                </span>
-              </Link>
-            </li>
-          ))}
+        <ul className="week-rows">
+          {data.results.slice(0, 7).map((t) => {
+            const live = isLive(t)
+            return (
+              <li key={t.tournament_id}>
+                <Link to={`/tournaments/${t.tournament_id}`}>
+                  <span className="wk-name">{t.name}</span>
+                  <span className="wk-when">{live ? <span className="live">LIVE</span> : fmtRange(t.start_date, t.end_date)}</span>
+                  <span className="wk-meta"><Tier category={t.category_name} />
+                    <span>{live && t.end_date === today() ? 'Finals today · ' : ''}{t.match_count} matches</span></span>
+                </Link>
+              </li>
+            )
+          })}
         </ul>
       )}
-    </Panel>
+    </section>
   )
 }
 
-function BiggestUpsets() {
-  const { data, loading } = useAsync(
-    () => api.analytics('upsets', { minMatches: 3, limit: 8 }),
-    [],
-  )
+function Upsets() {
+  const navigate = useNavigate()
+  const { data } = useAsync(() => api.analytics('upsets', { minMatches: 3, limit: 3 }), [])
   return (
-    <Panel title="⚡ Biggest upsets" to="/insights" linkText="More insights" wide>
-      {loading && <SkeletonList rows={6} />}
-      {data && <UpsetsTable rows={data.results} />}
-    </Panel>
+    <section>
+      <SectionHead title="Giant-killings" to="/insights?lens=upsets" linkText="All upsets" />
+      <div className="upset-cards">
+        {!data && Array.from({ length: 3 }).map((_, i) => <div key={i} className="card upc"><Skeleton h={120} /></div>)}
+        {data?.results.map((u) => {
+          const w = [u.player, u.partner].filter(Boolean)
+          const gap = u.opponent_rating_before - u.winner_rating_before
+          const mx = Math.max(u.opponent_rating_before, u.winner_rating_before)
+          return (
+            <button key={`${u.player.player_id}-${u.best_match}`} className="card upc"
+              onClick={() => u.best_match && navigate(`/matches/${u.best_match}`)}>
+              <div className="upc-top"><Ev code={u.event} /><span className="upc-gap num-display">+{Math.round(gap)}</span></div>
+              <div className="upc-who"><b>{names(w)}</b> {flag(w[0].country_code)} beat <b>{names(u.beat)}</b> {flag(u.beat[0]?.country_code)}</div>
+              <div className="vs-bars">
+                <div><span className="b"><i style={{ width: `${(u.winner_rating_before / mx) * 100}%` }}>Winner</i></span><span className="mono">{u.winner_rating_before}</span></div>
+                <div><span className="b lo"><i style={{ width: `${(u.opponent_rating_before / mx) * 100}%` }}>Favourite</i></span><span className="mono">{u.opponent_rating_before}</span></div>
+              </div>
+              <div className="upc-foot">{u.tournament.name} · {u.best_round}{u.best_score ? ` · ${u.best_score.map((g) => g.join('–')).join(', ')}` : ''}</div>
+            </button>
+          )
+        })}
+      </div>
+    </section>
   )
 }
 
@@ -166,45 +253,18 @@ export default function Dashboard() {
   const { data: events } = useAsync(() => api.events(), [])
   const { data: tcount } = useAsync(() => api.tournaments({ limit: 1 }), [])
   const { data: calib } = useAsync(() => api.calibration('ALL'), [])
-  const totalRated = events ? events.reduce((a, e) => a + e.rated_players, 0) : null
-
   return (
     <div className="dashboard">
-      <section className="dash-hero">
-        <div className="kicker">Badminton Elo · BWF</div>
-        <h1>Every rally, quantified.</h1>
-        <p className="page-sub">
-          A skill-rating system built from two decades of BWF results. Ratings
-          move on who you beat — not points earned — using Glicko-2 with paired
-          doubles strength.
-        </p>
-        <div className="stat-chips">
-          <span className="chip">
-            <b>{totalRated ? <CountUp value={totalRated} /> : '—'}</b> rated players
-          </span>
-          <span className="chip">
-            <b>{tcount ? <CountUp value={tcount.count} /> : '—'}</b> tournaments
-          </span>
-          <span className="chip"><b>5</b> disciplines</span>
-          {calib?.accuracy != null && (
-            <Link to="/insights" className="chip chip-link"
-                  title={`The higher-rated side wins ${(calib.accuracy * 100).toFixed(1)}% of the time; predicted vs actual agree within ${(calib.calibration_error * 100).toFixed(1)}%. See the reliability diagram.`}>
-              <b><CountUp value={calib.accuracy * 100} format={(n) => `${Math.round(n)}%`} /></b> predictions correct ✓
-            </Link>
-          )}
-        </div>
+      <Hero events={events} tcount={tcount} calib={calib} />
+      <section>
+        <SectionHead title="World No. 1s" to="/rankings" linkText="All rankings" />
+        <WorldNo1s />
       </section>
-
-      <Panel title="Reigning world #1s">
-        <ReigningChamps />
-      </Panel>
-
       <div className="dash-grid">
         <MiniBoard />
-        <RecentTournaments />
+        <ThisWeek />
       </div>
-
-      <BiggestUpsets />
+      <Upsets />
     </div>
   )
 }

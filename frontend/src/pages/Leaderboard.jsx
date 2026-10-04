@@ -1,302 +1,309 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { api, EVENTS } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import Avatar from '../components/Avatar.jsx'
-import Select from '../components/Select.jsx'
-import PageHeader from '../components/PageHeader.jsx'
+import Sparkline from '../components/Sparkline.jsx'
 import Confidence from '../components/Confidence.jsx'
-import { SkeletonList } from '../components/Skeleton.jsx'
+import Icon from '../components/Icon.jsx'
+import { Move } from '../components/Chips.jsx'
+import { Skeleton, SkeletonList } from '../components/Skeleton.jsx'
 import { EmptyState, ErrorState } from '../components/Empty.jsx'
+import { uncertainty } from '../confidence.js'
 import { flag } from '../flags.js'
-
-function Legend({ showConf = true }) {
-  return (
-    <div className="legend">
-      <span><b>Rating</b> conservative skill (mu − 2·rd)</span>
-      <span><b>mu</b> estimated skill</span>
-      <span><b>rd</b> rating deviation — how uncertain that estimate is (lower = more settled)</span>
-      {showConf && (
-        <span>
-          <span className="conf conf-high"><span className="conf-dot" /></span>{' '}settled ·{' '}
-          <span className="conf conf-medium"><span className="conf-dot" /></span>{' '}firming ·{' '}
-          <span className="conf conf-low"><span className="conf-dot" /></span>{' '}provisional
-        </span>
-      )}
-    </div>
-  )
-}
+import { fmtMonth } from '../dates.js'
 
 const isDoubles = (e) => e === 'MD' || e === 'WD' || e === 'XD'
-const PAGE = 20
-const CAP = 200
+const PAGE = 25
+const CAP = 250
+const eventLabel = (code) => EVENTS.find((e) => e.code === code)?.label || code
+const fmt = (n) => Math.round(n).toLocaleString()
 
 function Medal({ n }) {
   return <span className={`medal ${n <= 3 ? `m${n}` : ''}`}>{n}</span>
 }
 
-const eventLabel = (code) => EVENTS.find((e) => e.code === code)?.label || code
+function HowRatingsWork() {
+  return (
+    <details className="how">
+      <summary><Icon name="info" size={15} /> How ratings work</summary>
+      <div className="how-body">
+        <p><b>Rating</b> is the number players are ranked by. It's a cautious estimate: the engine's best guess of a player's skill, minus twice its uncertainty, so a player can't top the table on a lucky handful of results.</p>
+        <p><b>Skill ± certainty</b> shows that best guess and how sure it is. Three green bars mean settled; amber means still firming up; one grey bar means provisional (new or long inactive).</p>
+        <p><b>Arrows</b> show rank movement over the last 4 weeks. Ratings change on who you beat, not on points or rounds reached. The maths is Glicko-2, with doubles rated through each partner.</p>
+      </div>
+    </details>
+  )
+}
 
 function Pager({ page, setPage, count }) {
-  const shown = Math.min((page + 1) * PAGE, CAP)
-  const maxPage = Math.min(Math.ceil(count / PAGE), CAP / PAGE) - 1
-  if (maxPage <= 0) return null
+  const pages = Math.min(Math.ceil(count / PAGE), CAP / PAGE)
+  if (pages <= 1) return null
   return (
     <div className="pager">
-      <button className="pgbtn" disabled={page <= 0} onClick={() => setPage(page - 1)}>
-        ← Prev
-      </button>
-      <span className="muted small">Top {shown} · page {page + 1} / {maxPage + 1}</span>
-      <button className="pgbtn" disabled={page >= maxPage} onClick={() => setPage(page + 1)}>
-        Next →
-      </button>
+      <button className="pgbtn" disabled={page <= 0} onClick={() => setPage(page - 1)}><Icon name="arrowLeft" size={14} /> Prev</button>
+      <span className="muted small">Ranks {page * PAGE + 1}–{Math.min((page + 1) * PAGE, count)} of {count.toLocaleString()}</span>
+      <button className="pgbtn" disabled={page >= pages - 1} onClick={() => setPage(page + 1)}>Next <Icon name="arrowRight" size={14} /></button>
     </div>
   )
 }
 
 export default function Leaderboard() {
-  const [event, setEvent] = useState('MS')
-  const [mode, setMode] = useState('individual') // individual | pairs
-  const [order, setOrder] = useState('rating')
-  const [ranking, setRanking] = useState('current') // current | peak
-  const [gender, setGender] = useState('') // '' | M | F  (XD only)
-
+  const [params, setParams] = useSearchParams()
+  const event = EVENTS.some((e) => e.code === params.get('event')) ? params.get('event') : 'MS'
+  const ranking = params.get('ranking') === 'peak' ? 'peak' : 'current'
   const doubles = isDoubles(event)
-  const showPairs = doubles && mode === 'pairs'
+  const mode = doubles && params.get('view') === 'pairs' ? 'pairs' : 'individual'
+  const gender = event === 'XD' && mode === 'individual' && ['M', 'F'].includes(params.get('gender')) ? params.get('gender') : ''
+  const order = params.get('order') === 'mu' ? 'mu' : 'rating'
+  const page = Math.max(0, parseInt(params.get('page') || '0', 10) || 0)
+
+  // Keep everything in the URL so a board is shareable and Back works.
+  function set(next) {
+    const merged = { event, ranking, view: mode === 'pairs' ? 'pairs' : '', gender, order, page: 0, ...next }
+    const out = {}
+    if (merged.event !== 'MS') out.event = merged.event
+    if (merged.ranking === 'peak') out.ranking = 'peak'
+    if (merged.view === 'pairs') out.view = 'pairs'
+    if (merged.gender) out.gender = merged.gender
+    if (merged.order === 'mu') out.order = 'mu'
+    if (merged.page) out.page = String(merged.page)
+    setParams(out, { replace: false })
+  }
 
   return (
-    <div>
-      <PageHeader
-        kicker="BWF World Rankings · Elo"
-        title={eventLabel(event)}
-        subtitle="Skill ratings computed from head-to-head tournament results — not points earned. Players ranked by a conservative Glicko-2 score."
-      />
-
-      <div className="tabs">
-        {EVENTS.map((e) => (
-          <button
-            key={e.code}
-            className={`tab ${e.code === event ? 'active' : ''}`}
-            onClick={() => {
-              setEvent(e.code)
-              setMode('individual')
-              setGender('')
-            }}
-          >
-            {e.code}
-            <span className="tab-label">{e.label}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="toolbar wrap">
-        {doubles && (
-          <div className="segmented">
-            <button className={mode === 'individual' ? 'seg active' : 'seg'}
-                    onClick={() => setMode('individual')}>Individual</button>
-            <button className={mode === 'pairs' ? 'seg active' : 'seg'}
-                    onClick={() => setMode('pairs')}>Pairs</button>
-          </div>
-        )}
-
-        <div className="segmented">
-          <button className={ranking === 'current' ? 'seg active' : 'seg'}
-                  onClick={() => setRanking('current')}>Current</button>
-          <button className={ranking === 'peak' ? 'seg active' : 'seg'}
-                  onClick={() => setRanking('peak')}>All-time peak</button>
+    <div className="rankings">
+      <header className="phead">
+        <div className="phead-text">
+          <div className="crumb"><span>Rankings</span><span className="sep">/</span><span>{ranking === 'peak' ? 'All-time peak' : 'Current'}</span></div>
+          <h1>{eventLabel(event)}</h1>
         </div>
-
-        {event === 'XD' && mode === 'individual' && (
+        <div className="phead-aside">
+          <div className="tabs" role="tablist" aria-label="Discipline">
+            {EVENTS.map((e) => (
+              <button key={e.code} role="tab" aria-selected={e.code === event} title={e.label}
+                className={`tab ${e.code === event ? 'active' : ''}`}
+                onClick={() => set({ event: e.code, view: '', gender: '' })}>{e.code}</button>
+            ))}
+          </div>
           <div className="segmented">
-            <button className={gender === '' ? 'seg active' : 'seg'}
-                    onClick={() => setGender('')}>All</button>
-            <button className={gender === 'M' ? 'seg active' : 'seg'}
-                    onClick={() => setGender('M')}>Men</button>
-            <button className={gender === 'F' ? 'seg active' : 'seg'}
-                    onClick={() => setGender('F')}>Women</button>
+            <button className={`seg ${ranking === 'current' ? 'active' : ''}`} onClick={() => set({ ranking: 'current' })}>Current</button>
+            <button className={`seg ${ranking === 'peak' ? 'active' : ''}`} onClick={() => set({ ranking: 'peak' })}>All-time peak</button>
+          </div>
+        </div>
+      </header>
+
+      <div className="rk-sub">
+        {(doubles || event === 'XD') && (
+          <div className="rk-filters">
+            {doubles && (
+              <div className="segmented">
+                <button className={`seg ${mode === 'individual' ? 'active' : ''}`} onClick={() => set({ view: '' })}>Players</button>
+                <button className={`seg ${mode === 'pairs' ? 'active' : ''}`} onClick={() => set({ view: 'pairs', gender: '' })}>Pairs</button>
+              </div>
+            )}
+            {event === 'XD' && mode === 'individual' && (
+              <div className="segmented">
+                {[['', 'All'], ['M', 'Men'], ['F', 'Women']].map(([g, l]) => (
+                  <button key={g || 'all'} className={`seg ${gender === g ? 'active' : ''}`} onClick={() => set({ gender: g })}>{l}</button>
+                ))}
+              </div>
+            )}
           </div>
         )}
+        <HowRatingsWork />
       </div>
 
-      {showPairs ? (
-        <PairsBoard key={`${event}-${ranking}`} event={event} ranking={ranking} />
+      {mode === 'pairs' ? (
+        <PairsBoard key={`${event}-${ranking}-${page}`} event={event} ranking={ranking} page={page} setPage={(p) => set({ page: p })} />
       ) : (
-        <IndividualBoard
-          key={`${event}-${ranking}-${order}-${gender}`}
-          event={event}
-          ranking={ranking}
-          order={order}
-          setOrder={setOrder}
-          gender={gender}
-        />
+        <IndividualBoard key={`${event}-${ranking}-${order}-${gender}-${page}`} event={event} ranking={ranking}
+          order={order} gender={gender} page={page}
+          setOrder={(o) => set({ order: o })} setPage={(p) => set({ page: p })} />
       )}
     </div>
   )
 }
 
-function IndividualBoard({ event, ranking, order, setOrder, gender }) {
+function Podium({ rows, peak, pairs, event }) {
+  return (
+    <div className="podium">
+      {rows.slice(0, 3).map((row, i) => {
+        const players = pairs ? [row.player1, row.player2] : [row.player]
+        const to = pairs ? `/pairs/${event}/${row.player1.player_id}/${row.player2.player_id}` : `/players/${row.player.player_id}`
+        const value = peak ? (pairs ? row.peak_rating : row.peak_mu) : row.rating
+        return (
+          <Link key={players.map((p) => p.player_id).join('-')} to={to} className={`pod card ${i === 0 ? 'first' : ''}`}>
+            <Medal n={i + 1} />
+            <span className="pair-av">{players.map((p) => <Avatar key={p.player_id} player={p} size={i === 0 ? 52 : 44} />)}</span>
+            <span className="pod-info">
+              <span className="pod-nm">{players.map((p) => p.name_display).join(' / ')}</span>
+              <span className="pod-cc">{flag(players[0].country_code)} {players[0].country_code}
+                {!pairs && row.matches_played ? ` · ${row.matches_played} matches` : ''}
+                {pairs ? ` · ${row.matches_together} together` : ''}</span>
+            </span>
+            <span className="pod-big">
+              <span className="num-display">{value != null ? fmt(value) : '—'}</span>
+              {!peak && row.form?.length > 1 && <Sparkline values={row.form} width={110} height={34} />}
+            </span>
+            <span className="pod-meta">
+              {!pairs && !peak && <span>Skill <b>{fmt(row.mu)}</b> ±{uncertainty(row.rd)}</span>}
+              {peak && !pairs && row.peak_utc && <span>Peaked <b>{fmtMonth(row.peak_utc)}</b></span>}
+              {row.win_pct != null && <span>Wins <b>{Math.round(row.win_pct)}%</b></span>}
+              {!pairs && !peak && row.peak_mu != null && <span>Peak <b>{fmt(row.peak_mu)}</b></span>}
+            </span>
+          </Link>
+        )
+      })}
+    </div>
+  )
+}
+
+function SortHead({ label, active, onClick, title }) {
+  return (
+    <th className={`num sortable ${active ? 'sorted' : ''}`} title={title}>
+      <button onClick={onClick} aria-sort={active ? 'descending' : 'none'}>
+        {label}{active && <Icon name="arrowDown" size={11} stroke={2.4} />}
+      </button>
+    </th>
+  )
+}
+
+function IndividualBoard({ event, ranking, order, setOrder, gender, page, setPage }) {
   const isPeak = ranking === 'peak'
-  const [page, setPage] = useState(0)
   const { data, error, loading, reload } = useAsync(
-    () =>
-      api.leaderboard(event, {
-        order, ranking, gender, minMatches: 5, limit: PAGE, offset: page * PAGE,
-      }),
+    () => api.leaderboard(event, { order, ranking, gender, minMatches: 5, limit: PAGE, offset: page * PAGE }),
     [event, ranking, order, gender, page],
   )
-
+  if (loading) return <><div className="podium">{[0, 1, 2].map((i) => <div key={i} className="pod card"><Skeleton h={110} /></div>)}</div><SkeletonList rows={10} /></>
+  if (error) return <ErrorState error={error} onRetry={reload} what="the rankings" />
+  if (!data.results.length) {
+    return <EmptyState icon="users" title="No players yet" hint="No rated players match this filter. Try another discipline." />
+  }
+  const showMove = !isPeak && data.results.some((r) => 'rank_change' in r)
   return (
     <>
-      <div className="toolbar">
-        <Legend showConf={!isPeak} />
-        {!isPeak && (
-          <Select
-            label="Sort"
-            value={order}
-            onChange={setOrder}
-            options={[
-              { value: 'rating', label: 'Rating (mu − 2·rd)' },
-              { value: 'mu', label: 'Skill (mu)' },
-            ]}
-          />
-        )}
-      </div>
-      {loading && <SkeletonList rows={PAGE} />}
-      {error && <ErrorState error={error} onRetry={reload} what="the rankings" />}
-      {data && (
-        <div className="table-scroll">
-        <table className="board">
+      {page === 0 && <Podium rows={data.results} peak={isPeak} event={event} />}
+      <div className="table-scroll card">
+        <table className="board rank-table">
           <thead>
             <tr>
-              <th className="rank">#</th><th>Player</th>
-              <th className="num">{isPeak ? 'Peak' : 'Rating'}</th>
-              <th className="num" title="Career win rate in this discipline">Win%</th>
-              <th className="num" title="Estimated skill">{isPeak ? 'When' : 'mu'}</th>
-              <th className="num" title="Rating deviation — uncertainty">rd</th>
-              <th className="num">Matches</th>
+              <th className="rank">#</th>
+              <th>Player</th>
+              {isPeak ? <th className="num">Peak</th> : (
+                <SortHead label="Rating" active={order === 'rating'} onClick={() => setOrder('rating')}
+                  title="Ranked by the cautious rating (skill minus twice the uncertainty)" />
+              )}
+              {isPeak ? <th className="num">Peaked</th> : (
+                <SortHead label="Skill · certainty" active={order === 'mu'} onClick={() => setOrder('mu')}
+                  title="The engine's best estimate of skill, ± how sure it is" />
+              )}
+              <th className="num">Win rate</th>
+              <th className="num hide-md">Matches</th>
+              {!isPeak && <th className="hide-md">Form · last 20 events</th>}
             </tr>
           </thead>
           <tbody>
             {data.results.map((row, i) => {
               const rank = page * PAGE + i + 1
               return (
-              <tr key={row.player.player_id}>
-                <td className="rank"><Medal n={rank} /></td>
-                <td>
-                  <Link to={`/players/${row.player.player_id}`} className="pcell">
-                    <Avatar player={row.player} />
-                    <span className="pmeta">
-                      <span className="pname">{row.player.name_display}</span>
-                      <span className="psub">
-                        <span className="fl">{flag(row.player.country_code)}</span>
-                        {row.player.country_code}
+                <tr key={row.player.player_id}>
+                  <td className="rank">
+                    <span className="rank-cell"><Medal n={rank} />{showMove && <Move value={row.rank_change} />}</span>
+                  </td>
+                  <td>
+                    <Link to={`/players/${row.player.player_id}`} className="pcell">
+                      <Avatar player={row.player} />
+                      <span className="pmeta">
+                        <span className="pname">{row.player.name_display}</span>
+                        <span className="psub"><span className="fl">{flag(row.player.country_code)}</span>{row.player.country_code}</span>
                       </span>
-                    </span>
-                  </Link>
-                </td>
-                <td className="num">
-                  <span className="rating-cell">
-                    <span className="metric">
-                      {isPeak ? row.peak_mu.toFixed(0) : row.rating.toFixed(1)}
-                    </span>
-                    {/* Confidence is a property of the CURRENT estimate; a
-                        historical peak's rd doesn't mean "provisional". */}
-                    {!isPeak && <Confidence rd={row.rd} />}
-                  </span>
-                </td>
-                <td className="num">
-                  {row.win_pct != null
-                    ? <span className="winpct">{row.win_pct}%</span>
-                    : <span className="muted">—</span>}
-                </td>
-                <td className="num muted">
-                  {isPeak ? (row.peak_utc ? row.peak_utc.slice(0, 7) : '—') : row.mu.toFixed(0)}
-                </td>
-                <td className="num muted">{(isPeak ? row.peak_rd : row.rd).toFixed(0)}</td>
-                <td className="num muted">{row.matches_played}</td>
-              </tr>
+                    </Link>
+                  </td>
+                  <td className="num"><span className="metric">{isPeak ? fmt(row.peak_mu) : fmt(row.rating)}</span></td>
+                  <td className="num">
+                    {isPeak
+                      ? <span className="muted mono">{row.peak_utc ? fmtMonth(row.peak_utc) : '—'}</span>
+                      : <span className="skill-cell"><span className="mono">{fmt(row.mu)}</span><span className="pm">±{uncertainty(row.rd)}</span><Confidence rd={row.rd} /></span>}
+                  </td>
+                  <td className="num">
+                    {row.win_pct != null
+                      ? <span className="wbar"><span className="mono">{row.win_pct.toFixed(1)}%</span><span className="b"><i style={{ width: `${row.win_pct}%` }} /></span></span>
+                      : <span className="muted">—</span>}
+                  </td>
+                  <td className="num muted mono hide-md">{row.matches_played}</td>
+                  {!isPeak && <td className="hide-md"><Sparkline values={row.form} width={96} height={24} /></td>}
+                </tr>
               )
             })}
           </tbody>
         </table>
-        </div>
-      )}
-      {data && data.results.length > 0 && <Pager page={page} setPage={setPage} count={data.count} />}
-      {data && data.results.length === 0 && (
-        <EmptyState icon="users" title="No players yet"
-          hint="No rated players match this filter. Try a different discipline or lower the minimum." />
-      )}
+      </div>
+      <Pager page={page} setPage={setPage} count={data.count} />
     </>
   )
 }
 
-function PairsBoard({ event, ranking }) {
+function PairsBoard({ event, ranking, page, setPage }) {
   const isPeak = ranking === 'peak'
-  const [page, setPage] = useState(0)
   const { data, error, loading, reload } = useAsync(
     () => api.pairs(event, { minMatches: 5, ranking, limit: PAGE, offset: page * PAGE }),
     [event, ranking, page],
   )
-  if (loading) return <SkeletonList rows={PAGE} />
+  if (loading) return <SkeletonList rows={10} />
   if (error) return <ErrorState error={error} onRetry={reload} what="the pairs" />
+  if (!data.results.length) {
+    return <EmptyState icon="link" title="No pairs yet" hint="No partnerships match this filter. They may not have played enough together." />
+  }
   return (
     <>
-      <div className="table-scroll">
-      <table className="board">
-        <thead>
-          <tr>
-            <th className="rank">#</th><th>Pair</th>
-            <th className="num">{isPeak ? 'Peak' : 'Rating'}</th>
-            <th className="num">Together</th>
-            <th className="num">Win%</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.results.map((row, i) => {
-            const to = `/pairs/${event}/${row.player1.player_id}/${row.player2.player_id}`
-            const rank = page * PAGE + i + 1
-            return (
-              <tr key={`${row.player1.player_id}-${row.player2.player_id}`}>
-                <td className="rank"><Medal n={rank} /></td>
-                <td>
-                  <Link to={to} className="pcell">
-                    <span className="pair-av">
-                      <Avatar player={row.player1} size="sm" />
-                      <Avatar player={row.player2} size="sm" />
-                    </span>
-                    <span className="pmeta">
-                      <span className="pname">
-                        {row.player1.name_display} / {row.player2.name_display}
+      {page === 0 && <Podium rows={data.results} peak={isPeak} pairs event={event} />}
+      <div className="table-scroll card">
+        <table className="board rank-table">
+          <thead>
+            <tr>
+              <th className="rank">#</th><th>Pair</th>
+              <th className="num">{isPeak ? 'Peak' : 'Rating'}</th>
+              <th className="num">Together</th>
+              <th className="num">Win rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.results.map((row, i) => {
+              const to = `/pairs/${event}/${row.player1.player_id}/${row.player2.player_id}`
+              const rank = page * PAGE + i + 1
+              return (
+                <tr key={`${row.player1.player_id}-${row.player2.player_id}`}>
+                  <td className="rank"><Medal n={rank} /></td>
+                  <td>
+                    <Link to={to} className="pcell">
+                      <span className="pair-av"><Avatar player={row.player1} size="sm" /><Avatar player={row.player2} size="sm" /></span>
+                      <span className="pmeta">
+                        <span className="pname">{row.player1.name_display} / {row.player2.name_display}</span>
+                        <span className="psub">
+                          <span className="fl">{flag(row.player1.country_code)}</span>{row.player1.country_code}
+                          {row.player2.country_code !== row.player1.country_code
+                            ? <> <span className="fl">{flag(row.player2.country_code)}</span>{row.player2.country_code}</> : ''}
+                        </span>
                       </span>
-                      <span className="psub">
-                        <span className="fl">{flag(row.player1.country_code)}</span>
-                        {row.player1.country_code}
-                        {row.player2.country_code !== row.player1.country_code
-                          ? <> <span className="fl">{flag(row.player2.country_code)}</span>{row.player2.country_code}</>
-                          : ''}
-                      </span>
-                    </span>
-                  </Link>
-                </td>
-                <td className="num"><span className="metric">
-                  {isPeak
-                    ? row.peak_rating != null ? row.peak_rating.toFixed(0) : '—'
-                    : row.rating.toFixed(1)}
-                </span></td>
-                <td className="num muted">{row.matches_together}</td>
-                <td className="num strong">{row.win_pct != null ? `${row.win_pct}%` : '—'}</td>
-                <td className="num"><Link to={to} className="muted small">view →</Link></td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+                    </Link>
+                  </td>
+                  <td className="num"><span className="metric">
+                    {isPeak ? (row.peak_rating != null ? fmt(row.peak_rating) : '—') : fmt(row.rating)}
+                  </span></td>
+                  <td className="num muted mono">{row.matches_together}</td>
+                  <td className="num">
+                    {row.win_pct != null
+                      ? <span className="wbar"><span className="mono">{row.win_pct.toFixed(1)}%</span><span className="b"><i style={{ width: `${row.win_pct}%` }} /></span></span>
+                      : '—'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
-      {data.results.length > 0
-        ? <Pager page={page} setPage={setPage} count={data.count} />
-        : <EmptyState icon="link" title="No pairs yet"
-            hint="No partnerships match this filter — they may not have played enough together." />}
+      <Pager page={page} setPage={setPage} count={data.count} />
     </>
   )
 }

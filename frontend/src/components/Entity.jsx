@@ -5,7 +5,7 @@ import { flag } from '../flags.js'
 // A player or a pair, rendered as avatar(s) + name(s), linking to the right
 // detail page. `players` is a 1- or 2-element array of brief player objects.
 // `rating`, if given, is shown after the country (e.g. rating before a match).
-export default function Entity({ players, event, size = 'sm', rating }) {
+export default function Entity({ players, event, size = 'sm', rating, sub }) {
   const list = (players || []).filter(Boolean)
   if (list.length === 0) return <span className="muted">—</span>
   const pair = list.length > 1
@@ -25,6 +25,7 @@ export default function Entity({ players, event, size = 'sm', rating }) {
           {rating != null && (
             <span className="ent-rating" title="Rating before this match">· {rating}</span>
           )}
+          {sub && <span className="ent-extra">· {sub}</span>}
         </span>
       </span>
     </Link>
