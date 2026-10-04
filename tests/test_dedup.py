@@ -119,3 +119,15 @@ def test_fix_team_splits_moves_rubbers_to_the_right_gender():
     women = Tournament.objects.get(code="GUID-1:W")
     assert Match.objects.get(pk=400).tournament_id == women.tournament_id
     assert "Women's" in women.name
+
+
+@pytest.mark.parametrize("name,suffix", [
+    ("BWF World Junior Championships 2017", "U19"),
+    ("BABOLAT French U17 International 2019", "U17"),
+    ("Jakarta Open Junior International 2016 (U17 & U15)", "U17"),
+    ("YONEX All England Open 2026", ""),
+])
+def test_tournament_youth(name, suffix):
+    from apps.ingest.management.commands.normalize_events import tournament_youth
+
+    assert tournament_youth(name) == suffix

@@ -9,6 +9,8 @@ MSU19) untouched:
   2. Lineup pass — for labels no string rule can map (foreign abbreviations like
      the French SM/DM or Dutch HE/DD), infer the discipline from the actual
      lineup (player count + gender), carrying any age/youth suffix in the label.
+  3. Youth pass — plain open codes in a junior/U-age tournament get the
+     tournament's youth suffix (World Junior 'MS' -> MSU19).
 
 Run `rate` (and the build_* steps) afterwards. Fast: bulk update per raw value.
 """
@@ -19,7 +21,9 @@ from collections import Counter
 
 from apps.ingest.cup_events import rubber_discipline
 from apps.ingest.management.base import DataCommand
-from apps.ingest.models import Draw, Match
+from django.db.models import Q
+
+from apps.ingest.models import Draw, Match, Tournament
 from apps.ingest.normalize import _AGE, _YOUTH, canonical_event, is_final_event
 
 EXHIBITION_WORDS = ("exhibition", "farewell", "unified", "plate")
@@ -32,6 +36,22 @@ def _suffix(raw: str) -> str:
         return f"U{y.group(1)}"
     a = _AGE.search(raw)
     return a.group(1) if a else ""
+
+
+OPEN = ("MS", "WS", "MD", "WD", "XD")
+
+
+def tournament_youth(name: str) -> str:
+    """The youth bucket a whole tournament belongs to, from its name: the
+    oldest explicit U-age ('Jakarta Open Junior International (U17 & U15)' ->
+    U17), else U19 for 'Junior'/'Youth' events; '' for open events."""
+    low = (name or "").lower()
+    ages = [int(a) for a in _YOUTH.findall(low)]
+    if ages:
+        return f"U{max(ages)}"
+    if "junior" in low or "youth" in low:
+        return "U19"
+    return ""
 
 
 class Command(DataCommand):
@@ -92,6 +112,26 @@ class Command(DataCommand):
                 Match.objects.bulk_update(updates, ["event", "rating_excluded"],
                                           batch_size=1000)
 
+        # --- Pass 3: youth tournaments --------------------------------------
+        # Junior events often label disciplines plainly ('MS'), which put World
+        # Junior / U17 results into the open ratings. The tournament name says
+        # which youth bucket they belong to.
+        youth_changed = 0
+        for tid, name in Tournament.objects.filter(
+            Q(name__icontains="junior") | Q(name__icontains="youth") | Q(name__iregex=r"u[ -]?1[3-9]")
+        ).values_list("tournament_id", "name"):
+            suffix = tournament_youth(name)
+            if not suffix:
+                continue
+            for code in OPEN:
+                qs = Match.objects.filter(tournament_id=tid, event=code)
+                n = qs.count()
+                if n:
+                    moves[f"{code}->{code}{suffix} (youth tournament)"] += n
+                    youth_changed += n
+                    if not dry:
+                        qs.update(event=f"{code}{suffix}")
+
         # --- Draws: string pass only (no lineup) ------------------------------
         d_changed = 0
         for raw in Draw.objects.values_list("event", flat=True).order_by().distinct():
@@ -109,7 +149,8 @@ class Command(DataCommand):
             self.stdout.write(f"  {mv}  ({n})")
         verb = "would update" if dry else "updated"
         self.stdout.write(self.style.SUCCESS(
-            f"{verb} {m_changed} (string) + {lineup_changed} (lineup) matches, "
+            f"{verb} {m_changed} (string) + {lineup_changed} (lineup) + "
+            f"{youth_changed} (youth tournament) matches, "
             f"{d_changed} draws."))
         if not dry:
             self.stdout.write("Run `manage.py rate` + build_* to recompute.")
