@@ -93,7 +93,9 @@ CATEGORIES = {
     "Dutch Open (badminton)": "Grand Prix",
     "Canada Open (badminton)": "Grand Prix",
 }
-YEAR_RE = re.compile(r"^(19|20)(\d{2})\b")
+# Anywhere in the title: "1995 Japan Open" and "Badminton at the 1977 Southeast
+# Asian Games" both carry their year (anchoring at ^ left the Games undated).
+YEAR_RE = re.compile(r"\b(19|20)(\d{2})\b")
 
 DISCIPLINES = [
     ("Men's singles", "MS"), ("Women's singles", "WS"), ("Men's doubles", "MD"),
@@ -486,6 +488,10 @@ class Command(DataCommand):
 
         n = 0
         for m in parsed:
+            # A bye is not a contest: never store it (or a "Bye" player).
+            if any(wiki_parse.is_bye(pt) for side in ("side1", "side2")
+                   for pl in m[side]["players"] for pt in pl):
+                continue
             rname, rorder = normalize_round(
                 m["round_label"], m["round_index"], m["bracket_size"])
             # Team-cup rubbers share a constant round_index (50), so keying by it

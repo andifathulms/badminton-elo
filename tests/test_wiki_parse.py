@@ -223,3 +223,19 @@ def test_empty_score_cells_do_not_swallow_next_line():
     assert zx["games"] == [(21, 8), (21, 8)]
     assert zx["winner_side"] == 1
     assert _names(zx["side1"]) == ["Zhang Ning"]
+
+
+def test_tennismatch_rubbers_parse_like_badmintonmatch():
+    from apps.ingest.wiki_parse import parse_team_ties
+
+    text = """===Group A===
+{{Badmintonbox
+|team1=China
+|team2=Sweden
+|R1={{ TennisMatch |T1P1=[[Xia Xuanze]]|7|7|7|||T2P1=[[Rasmus Wengberg]]|0|2|2||}}
+|R2={{ TennisMatch  |T1P1=[[Zhang Jun (badminton)|Zhang Jun]]|T1P2=[[Zhang Wei]]|7|7|7|||T2P1=[[Joakim Andersson]]|T2P2=[[Johan Holm]]|3|3|1||}}
+}}"""
+    rubbers = parse_team_ties(text, "thomas")
+    assert [r["event"] for r in rubbers] == ["MS", "MD"]
+    assert rubbers[0]["games"] == [(7, 0), (7, 2), (7, 2)]
+    assert rubbers[0]["winner_side"] == 1

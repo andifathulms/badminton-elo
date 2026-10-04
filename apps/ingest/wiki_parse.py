@@ -85,6 +85,20 @@ def _clean(raw: str) -> str:
     return re.sub(r"\s+", " ", raw).strip()
 
 
+_BYE_WORDS = {"bye", "tbd"}
+
+
+def is_bye(text: str) -> bool:
+    """True for a bye/TBD placeholder in any of the spellings Wikipedia uses:
+    'Bye', "''Bye''", 'bye<br/>bye', 'bye bye', '[[Bye (sports)|Bye]]', ..."""
+    if not text:
+        return False
+    t = re.sub(r"\[\[(?:[^|\]]*\|)?([^\]]*)\]\]", r"\1", text)  # [[a|b]] -> b
+    t = re.sub(r"\([^)]*\)", " ", _clean(t))                      # "(sports)"
+    words = re.findall(r"[a-z]+", t.lower())
+    return bool(words) and all(w in _BYE_WORDS for w in words)
+
+
 def parse_team(raw: str) -> dict | None:
     """One team slot -> {country, players:[(title,display)], seed}. None if empty."""
     raw = raw.strip()
@@ -101,14 +115,14 @@ def parse_team(raw: str) -> dict | None:
         # skip file/category links and bye placeholders ([[Bye (sports)|Bye]])
         if title.lower().startswith(("file:", "image:", "category:")):
             continue
-        if title.lower().startswith("bye") or disp.lower() in {"bye", "tbd"}:
+        if is_bye(title) or is_bye(disp):
             continue
         players.append((title, disp))
     if not players:
         txt = re.sub(r"\{\{[^}]*\}\}", "", raw)          # drop templates (flag)
         txt = re.sub(r"\(\s*\d+\s*\)", "", txt)          # drop seed
         txt = _clean(txt)
-        if not txt or txt.lower() in {"bye", "tbd"}:
+        if not txt or is_bye(txt):
             return None
         players.append((txt, txt))
     seed = None
@@ -276,8 +290,14 @@ def _advances(team: dict, teams: dict, rd: int) -> bool:
 
 
 def _trim_clinched(games):
-    """Drop games after a side has clinched a best-of-3 (2 games won). Strips
-    the spurious trailing '(3,0)'-style cells some brackets leave behind."""
+    """Drop games after a side has clinched the match. Strips the spurious
+    trailing '(3,0)'-style cells some brackets leave behind.
+
+    Best of 3 (2 games) for 21/15/11-point games; best of 5 (3 games) when
+    every game tops out at 10 points or fewer — the 2002 to-7 scoring trial.
+    """
+    real = [max(pa, pb) for pa, pb in games if pa or pb]
+    need = 3 if real and max(real) <= 10 and len(real) >= 3 else 2
     w1 = w2 = 0
     out = []
     for pa, pb in games:
@@ -286,7 +306,7 @@ def _trim_clinched(games):
             w1 += 1
         elif pb > pa:
             w2 += 1
-        if w1 == 2 or w2 == 2:
+        if w1 == need or w2 == need:
             break
     return out
 
@@ -341,7 +361,7 @@ def _players_from(raw: str) -> list[tuple[str, str]]:
 
 
 def parse_badminton_match(rv: str):
-    """One {{BadmintonMatch}} rubber -> (team1 players, team2 players, games) or
+    """One {{BadmintonMatch}} (or same-shaped {{TennisMatch}}) rubber -> (team1 players, team2 players, games) or
     None if not played (np=). Params: T1P1/T1P2 then team1 game scores, then
     T2P1/T2P2 then team2 game scores (scores are positional)."""
     parts = _split_params(rv)[1:]
@@ -437,7 +457,9 @@ def parse_team_ties(text: str, cup: str) -> list[dict]:
             else:
                 break
         for ridx, rv in rubbers:
-            if "BadmintonMatch" not in rv:
+            # Older articles (e.g. 2002, the 5x7 trial) write rubbers as
+            # {{TennisMatch}} with the same T1Pn/scores/T2Pn/scores layout.
+            if "BadmintonMatch" not in rv and "TennisMatch" not in rv:
                 continue
             parsed = parse_badminton_match(rv)
             if parsed is None:
