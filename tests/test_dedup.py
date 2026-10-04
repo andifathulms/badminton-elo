@@ -139,11 +139,38 @@ def test_wiki_superset_drops_only_the_api_rubbers_it_contains():
     wiki = _t(2_000_000_950, "Badminton at the 2022 Asian Games",
               code="wiki:Badminton at the 2022 Asian Games")
     ps = [Player.objects.create(player_id=i, name_display=f"Player {chr(65 + i)}") for i in range(1, 9)]
-    for i in range(4):  # 4 team rubbers in both
-        _m(500 + i, api, ps[0], ps[1], [(21, 10 + i), (21, 9)])
-        _m(2_000_000_500 + i, wiki, ps[0], ps[1], [(21, 10 + i), (21, 9)])
+    for i in range(10):  # 10 team rubbers in both
+        _m(500 + i, api, ps[0], ps[1], [(21, 5 + i), (21, 9)])
+        _m(2_000_000_500 + i, wiki, ps[0], ps[1], [(21, 5 + i), (21, 9)])
     for i in range(10):  # 10 individual matches only on Wikipedia
         _m(2_000_000_600 + i, wiki, ps[2 + i % 3], ps[5 + i % 3], [(21, 3 + i), (21, 4)])
     call_command("dedup_tournaments", "--apply", verbosity=0)
     assert Match.objects.filter(tournament=wiki).count() == 10
-    assert Match.objects.filter(tournament=api).count() == 4
+    assert Match.objects.filter(tournament=api).count() == 10
+
+
+@pytest.mark.django_db
+def test_discover_registers_hidden_senior_events(monkeypatch):
+    from apps.ingest.management.commands import discover_tournaments as dt
+
+    Tournament.objects.create(tournament_id=100, name="Known", start_date=date(2026, 1, 1))
+    details = {
+        98: {"name": "20th Asian Games Aichi-Nagoya 2026 (Individual)", "code": "G-98",
+             "start_date": "2026-09-25", "end_date": "2026-10-04",
+             "categoryModel": {"name": "Multi-Sport Games"}},
+        99: {"name": "Danish Junior Cup 2026", "start_date": "2026-08-01",
+             "categoryModel": {"name": "Junior International Series"}},
+    }
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def get_json(self, url):
+            tid = int(url.split("tmtId=")[1])
+            return {"results": details.get(tid)}
+
+    monkeypatch.setattr(dt, "BwfClient", FakeClient)
+    call_command("discover_tournaments", "--below", "5", "--above", "0", "--no-collect", verbosity=0)
+    assert Tournament.objects.filter(pk=98, category_name="Multi-Sport Games").exists()
+    assert not Tournament.objects.filter(pk=99).exists()

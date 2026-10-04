@@ -18,16 +18,21 @@ from .models import Match, Tournament
 from .wiki_parse import is_bye
 
 WINDOW = timedelta(days=10)
+# Letters NFKD doesn't decompose (it would DROP them: 'Trần Đình' -> 'trn inh').
+_FOLD = str.maketrans({"đ": "d", "ø": "o", "æ": "ae", "ß": "ss", "ł": "l", "ð": "d",
+                       "þ": "th", "œ": "oe", "ı": "i"})
 MIN_SHARE = 0.8  # of the wiki copy's matches that must duplicate the API copy
 # For a wiki SUPERSET only exact duplicates are deleted, so this only guards
 # against coincidental overlap (unplayed/unparsed rubbers lower the share).
 CONTAIN_SHARE = 0.5
+UNION_SHARE = 0.6  # leftovers: share duplicating the window's API events
 
 
 def norm_name(name: str) -> str:
     """A player's name as its sorted letters: robust to case, accents, word
     order and spacing ("CHEN Yu Fei" == "Chen Yufei" == "Yufei CHEN")."""
-    s = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode().lower()
+    s = (name or "").lower().translate(_FOLD)
+    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
     return "".join(sorted(re.findall(r"[a-z]", s)))
 
 
@@ -115,18 +120,38 @@ def find_pairs():
         dropped: set[int] = set()
         for a in apis:
             a_recs = match_signatures([a.tournament_id])
-            if not a_recs:
+            if len(a_recs) < 10:
                 continue
-            w_by_score = {r["score"]: mid for mid, r in wrecs.items() if r["score"]}
-            w_by_name = {r["names"]: mid for mid, r in wrecs.items()}
+            year_wide = "start_date__gte" not in near
+            # Lists, not dicts: several wiki matches can share a scoreline,
+            # and each API match should claim exactly one wiki match.
+            w_by_score: dict = defaultdict(list)
+            w_by_name: dict = defaultdict(list)
+            for mid, r in wrecs.items():
+                if r["score"]:
+                    w_by_score[r["score"]].append(mid)
+                w_by_name[r["names"]].append(mid)
             hits = set()
             for r in a_recs.values():
-                mid = w_by_score.get(r["score"]) if r["score"] else None
-                mid = mid or w_by_name.get(r["names"])
+                # Over a whole year, scorelines alone coincide: names only.
+                pool = w_by_name.get(r["names"], []) + (
+                    w_by_score.get(r["score"], []) if r["score"] and not year_wide else [])
+                mid = next((m for m in pool if m not in hits and m not in dropped), None)
                 if mid:
                     hits.add(mid)
             if len(hits) / len(a_recs) >= CONTAIN_SHARE:
                 dropped |= hits
+        # Leftovers of an earlier merge: most of the wiki copy duplicates the
+        # UNION of the window's API tournaments (individual + team splits).
+        # Only for a real date (a 10-day window) and on NAMES only: across a
+        # whole year of events, common scorelines (21-15 21-12) coincide.
+        if not dropped and "start_date__gte" in near:
+            u_names = set()
+            for a in apis:
+                u_names |= api_index(a.tournament_id)[1]
+            union_dups = {mid for mid, r in wrecs.items() if r["names"] in u_names}
+            if wrecs and len(union_dups) / len(wrecs) >= UNION_SHARE:
+                dropped = union_dups
         if dropped:
             out.append((w, None, {"dup": sorted(dropped), "bye": [], "move": [], "drop": []}))
     return out
