@@ -23,6 +23,7 @@ from django.db import transaction
 
 from apps.ingest.models import Game, Match, MatchPlayer, PlayerRating, RatingHistory
 from rating import GameRecord, MatchRecord, RatingConfig, run
+from rating.peaks import peak_ratings
 
 # Prestige grade per tournament category (key into TIER_WEIGHTS). Every
 # category the data holds maps to one grade, so the World Championships or a
@@ -208,14 +209,9 @@ class Command(BaseCommand):
         rh.delete()
         ph.delete()
 
-        # Peak = highest mu_after ever reached per (player, event), with the
-        # rd/date at that moment. Built from the history stream.
-        peak: dict[tuple[int, str], tuple[float, float, object]] = {}
-        for d in result.history:
-            key = (d.player_id, d.event)
-            best = peak.get(key)
-            if best is None or d.mu_after > best[0]:
-                peak[key] = (d.mu_after, d.rd_after, d.applied_utc)
+        # Peak = highest settled mu (rd <= PEAK_MAX_RD) per (player, event), with
+        # the rd/date at that moment. See rating.peaks.
+        peak = peak_ratings(result.history, settings.RATING.get("PEAK_MAX_RD", 100.0))
 
         PlayerRating.objects.bulk_create(
             [
