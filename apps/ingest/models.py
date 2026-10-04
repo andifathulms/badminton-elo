@@ -508,6 +508,24 @@ class DataVersion(models.Model):
         return f"data v{self.version} @ {self.updated_utc:%Y-%m-%d %H:%M}"
 
 
+class RefreshJob(models.Model):
+    """Singleton (pk=1): the data-refresh pipeline's run state, shared by every
+    web process (apps.api.refresh). Written outside the pipeline's transaction,
+    so any worker can tell whether a refresh is running and how the last ended.
+    """
+
+    running = models.BooleanField(default=False)
+    mode = models.CharField(max_length=16, blank=True)
+    steps_total = models.IntegerField(default=0)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    ok = models.BooleanField(null=True)
+    message = models.CharField(max_length=300, blank=True)
+
+    def __str__(self) -> str:
+        return f"refresh {'running' if self.running else 'idle'} ({self.mode})"
+
+
 class RawCache(models.Model):
     """Read-through cache of every raw API response (PRD §5, domain rule 9).
 

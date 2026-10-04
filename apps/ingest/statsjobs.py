@@ -15,7 +15,7 @@ import logging
 import threading
 from datetime import timedelta
 
-from django.db import close_old_connections
+from django.db import OperationalError, close_old_connections
 from django.db.models import F
 from django.utils import timezone
 
@@ -86,6 +86,14 @@ def drain(max_jobs: int | None = None) -> int:
             try:
                 stats = fetch_and_store_stats(job.match, client=client)
                 status = DONE if stats is not None else FAILED
+            except OperationalError:
+                # The database is busy (e.g. a refresh holds the write lock):
+                # not this match's fault — put it back and stop for now.
+                logger.warning("database busy; requeueing stats job %s", job.match_id)
+                StatsFetchJob.objects.filter(pk=job.pk).update(
+                    status=PENDING, updated_utc=timezone.now()
+                )
+                break
             except Exception:  # noqa: BLE001 - a bad match must not stop the queue
                 logger.exception("stats fetch failed for match %s", job.match_id)
                 status = FAILED
