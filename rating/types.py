@@ -81,6 +81,14 @@ class RatingConfig:
     seed_rank_top_mu: float = 2300.0
     seed_rank_base: int = 400
     seed_rd: float = 300.0
+    # Cross-discipline prior (PRD §7.6): a new (player, event) with no usable
+    # rank seed starts from the player's strength in their OTHER disciplines,
+    # partially pooled toward mu_init: mu = mu_init + w·(mean_other − mu_init),
+    # rd = cross_prior_rd. Only ratings with >= cross_prior_min_matches count.
+    # w = 0 disables it (flat seed).
+    cross_prior_weight: float = 0.0
+    cross_prior_rd: float = 250.0
+    cross_prior_min_matches: int = 5
 
 
 @dataclass(frozen=True)

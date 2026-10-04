@@ -32,3 +32,24 @@ def rank_seed(current_rank: int | None, config: RatingConfig) -> Rating:
     mu = config.mu_init + max(0.0, slope * (math.log(base) - math.log(current_rank)))
     mu = min(mu, config.seed_rank_top_mu)
     return Rating(mu=mu, rd=config.seed_rd, sigma=config.sigma_init)
+
+
+def cross_discipline_seed(
+    others: list[Rating], config: RatingConfig
+) -> Rating | None:
+    """Seed from the player's other disciplines (partial pooling), or None.
+
+    `others` are the player's current ratings in other events. Each counts if
+    it has >= cross_prior_min_matches; they are averaged with 1/rd² weights
+    (settled ratings dominate) and shrunk toward mu_init by cross_prior_weight.
+    """
+    w = config.cross_prior_weight
+    if w <= 0:
+        return None
+    usable = [r for r in others if r.matches_played >= config.cross_prior_min_matches]
+    if not usable:
+        return None
+    weights = [1.0 / (r.rd * r.rd) for r in usable]
+    mean = sum(r.mu * wt for r, wt in zip(usable, weights)) / sum(weights)
+    mu = config.mu_init + w * (mean - config.mu_init)
+    return Rating(mu=mu, rd=config.cross_prior_rd, sigma=config.sigma_init)

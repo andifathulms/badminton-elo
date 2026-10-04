@@ -200,3 +200,30 @@ def test_seed_rank_used_only_if_known_at_debut():
 def test_bare_int_seed_rank_still_supported():
     res = run([_match(1, 1, (101,), (102,))], CFG, seed_ranks={(101, "XD"): 1})
     assert res.history[0].mu_before == pytest.approx(CFG.seed_rank_top_mu)
+
+
+def test_cross_discipline_prior_seeds_from_other_events():
+    from dataclasses import replace
+
+    cfg = replace(CFG, cross_prior_weight=0.7, cross_prior_rd=200.0,
+                  cross_prior_min_matches=3)
+    # Player 1 dominates MD for 6 weeks, then debuts in XD.
+    md = [_match(i, 1, (1, 2), (10 + i, 20 + i), event="MD",
+                 t=T0 + timedelta(days=7 * i)) for i in range(1, 7)]
+    xd = _match(99, 1, (1, 3), (4, 5), event="XD", t=T0 + timedelta(days=60))
+    res = run(md + [xd], cfg)
+    md_mu = res.ratings[(1, "MD")].mu
+    first_xd = next(d for d in res.history if d.match_id == 99 and d.player_id == 1)
+    assert first_xd.rd_before == pytest.approx(200.0)
+    assert first_xd.mu_before == pytest.approx(1500 + 0.7 * (md_mu - 1500), rel=1e-6)
+    # Partner 3 has no other discipline -> flat.
+    p3 = next(d for d in res.history if d.match_id == 99 and d.player_id == 3)
+    assert p3.mu_before == pytest.approx(1500.0)
+
+
+def test_cross_discipline_prior_off_by_default():
+    md = [_match(1, 1, (1, 2), (3, 4), event="MD")]
+    xd = _match(2, 1, (1, 5), (6, 7), event="XD", t=T0 + timedelta(days=7))
+    res = run(md + [xd], CFG)
+    first_xd = next(d for d in res.history if d.match_id == 2 and d.player_id == 1)
+    assert first_xd.mu_before == pytest.approx(1500.0)

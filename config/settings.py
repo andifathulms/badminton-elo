@@ -198,6 +198,13 @@ RATING = {
     "SEED_RANK_TOP_MU": 2300.0,
     "SEED_RANK_BASE": 400,
     "SEED_RD": 300.0,
+    # Cross-discipline prior (PRD §7.6): a player's first match in a new
+    # discipline starts from 70% of their edge elsewhere, rd 200 — instead of
+    # 1500 ± 350 as if they'd never played. Backtest: 0.5250 -> 0.5209 (2023+),
+    # 0.5240 -> 0.5204 (unseen 2016-2019).
+    "CROSS_PRIOR_WEIGHT": 0.7,
+    "CROSS_PRIOR_RD": 200.0,
+    "CROSS_PRIOR_MIN_MATCHES": 5,
     "TIER_WEIGHTS": {
         "Super1000": 1.1,
         "Super750": 1.05,

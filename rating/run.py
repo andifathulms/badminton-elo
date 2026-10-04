@@ -18,7 +18,7 @@ from datetime import date, datetime, timezone
 from collections import defaultdict
 
 from .engine import update_period
-from .seeding import flat_seed, rank_seed
+from .seeding import cross_discipline_seed, flat_seed, rank_seed
 from .types import MatchRecord, Rating, RatingConfig, RatingDelta
 
 # One "rating period" for inactivity inflation, in days (~a month of tour play).
@@ -99,13 +99,20 @@ def run(
     ratings = result.ratings
     seed_ranks = seed_ranks or {}
 
+    events_of: dict[int, list[str]] = defaultdict(list)  # player -> rated events
+
     def rating_for(player_id: int, event: str, period_start) -> Rating:
         key = (player_id, event)
         r = ratings.get(key)
         if r is None:
             rank = _usable_rank(seed_ranks.get(key), period_start)
-            r = rank_seed(rank, config) if rank else flat_seed(config)
+            if rank:
+                r = rank_seed(rank, config)
+            else:
+                others = [ratings[(player_id, e)] for e in events_of[player_id]]
+                r = cross_discipline_seed(others, config) or flat_seed(config)
             ratings[key] = r
+            events_of[player_id].append(event)
         return r
 
     # Group into rating periods (tournaments), ordered by their earliest match.

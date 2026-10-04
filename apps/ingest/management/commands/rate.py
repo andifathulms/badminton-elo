@@ -73,6 +73,9 @@ def _config(overrides: dict | None = None) -> RatingConfig:
         seed_rank_top_mu=r["SEED_RANK_TOP_MU"],
         seed_rank_base=r["SEED_RANK_BASE"],
         seed_rd=r["SEED_RD"],
+        cross_prior_weight=r.get("CROSS_PRIOR_WEIGHT", 0.0),
+        cross_prior_rd=r.get("CROSS_PRIOR_RD", 250.0),
+        cross_prior_min_matches=r.get("CROSS_PRIOR_MIN_MATCHES", 5),
     )
 
 
