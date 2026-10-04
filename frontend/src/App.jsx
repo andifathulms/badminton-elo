@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { api } from './api.js'
-import Avatar from './components/Avatar.jsx'
+import { useEffect, useState } from 'react'
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import CommandPalette from './components/CommandPalette.jsx'
+import Icon from './components/Icon.jsx'
 
 function ThemeToggle() {
   const [theme, setTheme] = useState(
@@ -10,139 +10,109 @@ function ThemeToggle() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
     try { localStorage.setItem('theme', theme) } catch { /* ignore */ }
+    const meta = document.querySelector('meta[name="theme-color"]')
+    if (meta) meta.setAttribute('content', theme === 'dark' ? '#0A110E' : '#F3F5F2')
   }, [theme])
 
   const dark = theme === 'dark'
   return (
     <button
-      className="theme-toggle"
+      className="icon-btn"
       onClick={() => setTheme(dark ? 'light' : 'dark')}
       aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
       title={dark ? 'Light mode' : 'Dark mode'}
     >
-      {dark ? (
-        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
-             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="4.5" />
-          <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-        </svg>
-      ) : (
-        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
-             strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
-        </svg>
-      )}
+      <Icon name={dark ? 'sun' : 'moon'} size={16} />
     </button>
   )
 }
 
-function Search() {
-  const [q, setQ] = useState('')
-  const [results, setResults] = useState([])
-  const navigate = useNavigate()
-  // Monotonic request id — only the latest query's response is applied, so a
-  // slow earlier response ("as") can't overwrite the current one ("asd").
-  const seq = useRef(0)
-
-  async function onChange(e) {
-    const v = e.target.value
-    setQ(v)
-    const query = v.trim()
-    if (query.length < 2) { seq.current++; return setResults([]) }
-    const mine = ++seq.current
-    try {
-      const data = await api.searchPlayers(query)
-      if (mine === seq.current) setResults(data.results)
-    } catch {
-      if (mine === seq.current) setResults([])
+// Header search trigger: a pill with the ⌘K hint (an icon on phones). Opens the
+// command palette; ⌘K / Ctrl+K / "/" open it from anywhere.
+function SearchTrigger() {
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    function onKey(e) {
+      const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable
+      if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) {
+        e.preventDefault()
+        setOpen(true)
+      }
     }
-  }
-
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+  const mac = typeof navigator !== 'undefined' && /Mac|iP(hone|ad)/.test(navigator.platform)
   return (
-    <div className="search">
-      <input
-        value={q}
-        onChange={onChange}
-        placeholder="Search players…"
-        aria-label="Search players"
-      />
-      {results.length > 0 && (
-        <ul className="search-results">
-          {results.map((p) => (
-            <li key={p.player_id}>
-              <button
-                onClick={() => {
-                  navigate(`/players/${p.player_id}`)
-                  setQ('')
-                  setResults([])
-                }}
-              >
-                <Avatar player={p} size="sm" />
-                <span className="pmeta">
-                  <span className="pname">{p.name_display}</span>{' '}
-                  <span className="flag">{p.country_code}</span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <>
+      <button className="search-trigger" onClick={() => setOpen(true)} aria-label="Search players and tournaments">
+        <Icon name="search" size={15} />
+        <span className="st-text">Search players, events</span>
+        <kbd>{mac ? '⌘K' : 'Ctrl K'}</kbd>
+      </button>
+      <CommandPalette open={open} onClose={() => setOpen(false)} />
+    </>
+  )
+}
+
+const NAV = [
+  { to: '/', label: 'Home', end: true },
+  { to: '/rankings', label: 'Rankings' },
+  { to: '/tournaments', label: 'Tournaments' },
+  { to: '/insights', label: 'Insights' },
+  { to: '/h2h', label: 'Head-to-Head' },
+  { to: '/cups', label: 'Cups' },
+]
+
+// Phone navigation: four primary tabs within thumb reach + a "More" sheet.
+function TabBar() {
+  const [more, setMore] = useState(false)
+  const { pathname } = useLocation()
+  useEffect(() => { setMore(false) }, [pathname])
+  const moreActive = ['/insights', '/cups', '/studio'].some((p) => pathname.startsWith(p))
+  return (
+    <>
+      <div className={`more-sheet ${more ? 'open' : ''}`} role="menu">
+        <NavLink to="/insights"><Icon name="chart" />Insights</NavLink>
+        <NavLink to="/cups"><Icon name="flag" />Team cups</NavLink>
+        <NavLink to="/studio"><Icon name="gear" />Studio</NavLink>
+      </div>
+      <nav className="tabbar" aria-label="Primary">
+        <NavLink to="/" end><Icon name="home" size={20} />Home</NavLink>
+        <NavLink to="/rankings"><Icon name="list" size={20} />Rankings</NavLink>
+        <NavLink to="/tournaments"><Icon name="trophy" size={20} />Events</NavLink>
+        <NavLink to="/h2h"><Icon name="swords" size={20} />H2H</NavLink>
+        <button className={more || moreActive ? 'active' : ''} aria-expanded={more}
+                onClick={() => setMore((m) => !m)}>
+          <Icon name="more" size={20} />More
+        </button>
+      </nav>
+    </>
   )
 }
 
 export default function App() {
-  const [menuOpen, setMenuOpen] = useState(false)
   const { pathname } = useLocation()
-  // Close the mobile menu whenever the route changes.
-  useEffect(() => { setMenuOpen(false) }, [pathname])
+  useEffect(() => { window.scrollTo(0, 0) }, [pathname])
 
   return (
     <div className="app">
       <a href="#main" className="skip-link">Skip to content</a>
       <header className="topbar">
-        <Link to="/" className="brand">
-          <span className="brand-mark">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 20l7-7" />
-              <path d="M11 13l6.5-6.5a2.1 2.1 0 0 0-3-3L8 10" />
-              <path d="M8 10l3 3" />
-              <circle cx="6" cy="18" r="2" />
-            </svg>
-          </span>
-          <span><b>Badminton</b> <span>Ratings</span></span>
+        <Link to="/" className="brand" aria-label="Badminton Ratings home">
+          <span className="brand-mark"><Icon name="logo" /></span>
+          <span>Badminton <b>Ratings</b></span>
         </Link>
-        <nav className={`nav ${menuOpen ? 'open' : ''}`}>
-          <NavLink to="/" end>Dashboard</NavLink>
-          <NavLink to="/rankings">Rankings</NavLink>
-          <NavLink to="/tournaments">Tournaments</NavLink>
-          <NavLink to="/insights">Insights</NavLink>
-          <NavLink to="/h2h">Head-to-Head</NavLink>
-          <NavLink to="/cups">Cups</NavLink>
+        <nav className="nav" aria-label="Primary">
+          {NAV.map((n) => <NavLink key={n.to} to={n.to} end={n.end}>{n.label}</NavLink>)}
         </nav>
-        <Search />
-        <NavLink to="/studio" className="studio-link" aria-label="Studio (admin)" title="Studio">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
-               strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-        </NavLink>
-        <ThemeToggle />
-        <button
-          className="nav-toggle"
-          onClick={() => setMenuOpen((o) => !o)}
-          aria-label="Menu"
-          aria-expanded={menuOpen}
-        >
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
-               strokeWidth="2.2" strokeLinecap="round">
-            {menuOpen
-              ? <><path d="M6 6l12 12" /><path d="M18 6L6 18" /></>
-              : <><path d="M3 6h18" /><path d="M3 12h18" /><path d="M3 18h18" /></>}
-          </svg>
-        </button>
+        <div className="topbar-tools">
+          <SearchTrigger />
+          <NavLink to="/studio" className="icon-btn studio-link" aria-label="Studio (admin)" title="Studio">
+            <Icon name="gear" size={16} />
+          </NavLink>
+          <ThemeToggle />
+        </div>
       </header>
       <main className="content" id="main" tabIndex={-1}>
         {/* Keyed by route so each page fades/rises in on navigation. */}
@@ -151,9 +121,10 @@ export default function App() {
         </div>
       </main>
       <footer className="footer">
-        Ratings are <strong>Glicko-2-with-pairs</strong> over BWF tournament data.
-        Conservative score = mu − 2·rd.
+        <span>Ratings use <strong>Glicko-2 with paired doubles strength</strong>, built from BWF tournament results.</span>
+        <span>Rating = skill − 2 × uncertainty</span>
       </footer>
+      <TabBar />
     </div>
   )
 }
