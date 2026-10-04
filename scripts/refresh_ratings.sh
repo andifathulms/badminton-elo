@@ -48,6 +48,7 @@ PY
   .venv/bin/python manage.py build_nation_power >/dev/null 2>&1
   .venv/bin/python manage.py build_consistency >/dev/null 2>&1
   .venv/bin/python manage.py build_synergy >/dev/null 2>&1   # after build_pairs
+  .venv/bin/python manage.py build_ties >/dev/null 2>&1      # team-cup ties (needs ratings)
   unset SQLITE_PATH
   mv -f data/serve_stage.sqlite3 data/serve.sqlite3
   $COMPOSE restart web >/dev/null 2>&1

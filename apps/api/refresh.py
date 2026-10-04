@@ -69,7 +69,7 @@ def _steps(year, mode="full"):
 
     builds = ("build_movement", "build_pairs", "build_analytics", "build_cup_history", "build_records",
               "build_calibration", "build_clutch", "build_nation_power",
-              "build_consistency", "build_synergy")
+              "build_consistency", "build_synergy", "build_ties")
 
     def run_builds():
         for b in builds:

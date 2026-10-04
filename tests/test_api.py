@@ -593,3 +593,19 @@ def test_player_detail_can_embed_history(api):
     assert d["history"] == api.get(
         f"/api/players/{pid}/history?event=XD&resolution=tournament").json()
     assert "history" not in api.get(f"/api/players/{pid}").json()
+
+
+def test_ties_served_live_or_precomputed(api):
+    from django.core.cache import caches
+
+    from apps.api.ties import build_ties
+    from apps.ingest.dataversion import bump
+    from apps.ingest.models import Tournament, TournamentTies
+
+    t = Tournament.objects.get(pk=5229)
+    live = api.get("/api/tournaments/5229/ties").json()
+    assert live == build_ties(t)  # no stored row -> computed live
+    TournamentTies.objects.create(tournament=t, payload={"stored": True})
+    bump()
+    caches["api"].clear()
+    assert api.get("/api/tournaments/5229/ties").json() == {"stored": True}
