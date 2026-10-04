@@ -220,6 +220,11 @@ USER_AGENT = os.environ.get(
     "USER_AGENT",
     "badminton-elo/0.1 (research; contact: officialandifathul@gmail.com)",
 )
+# History engine (rating/history.py, `rate_history`): TrueSkill Through Time
+# smoothing for the all-time board and yearly skill curves. Tuned on held-out
+# men's singles matches (logloss 0.4487 vs 0.5215 for the live engine).
+HISTORY_ENGINE = {"SIGMA": 1.6, "GAMMA": 0.05, "BETA": 1.0, "ITERATIONS": 6}
+
 # Where cached raw JSON responses are written alongside RawCache rows.
 RAW_CACHE_DIR = BASE_DIR / "data" / "raw"
 

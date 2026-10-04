@@ -125,13 +125,18 @@ export default function Leaderboard() {
   )
 }
 
+// All-time values: the smoothed history engine's best when present (it judges
+// a past peak with results from before AND after it), else the live peak.
+const bestMu = (row) => row.alltime_mu ?? row.peak_mu
+const bestWhen = (row) => row.alltime_date ?? row.peak_utc
+
 function Podium({ rows, peak, pairs, event }) {
   return (
     <div className="podium">
       {rows.slice(0, 3).map((row, i) => {
         const players = pairs ? [row.player1, row.player2] : [row.player]
         const to = pairs ? `/pairs/${event}/${row.player1.player_id}/${row.player2.player_id}` : `/players/${row.player.player_id}`
-        const value = peak ? (pairs ? row.peak_rating : row.peak_mu) : row.rating
+        const value = peak ? (pairs ? row.peak_rating : bestMu(row)) : row.rating
         return (
           <Link key={players.map((p) => p.player_id).join('-')} to={to} className={`pod card ${i === 0 ? 'first' : ''}`}>
             <Medal n={i + 1} />
@@ -148,7 +153,7 @@ function Podium({ rows, peak, pairs, event }) {
             </span>
             <span className="pod-meta">
               {!pairs && !peak && <span>Skill <b>{fmt(row.mu)}</b> ±{uncertainty(row.rd)}</span>}
-              {peak && !pairs && row.peak_utc && <span>Peaked <b>{fmtMonth(row.peak_utc)}</b></span>}
+              {peak && !pairs && bestWhen(row) && <span>Peaked <b>{fmtMonth(bestWhen(row))}</b></span>}
               {row.win_pct != null && <span>Wins <b>{Math.round(row.win_pct)}%</b></span>}
               {!pairs && !peak && row.peak_mu != null && <span>Peak <b>{fmt(row.peak_mu)}</b></span>}
             </span>
@@ -220,10 +225,10 @@ function IndividualBoard({ event, ranking, order, setOrder, gender, page, setPag
                       </span>
                     </Link>
                   </td>
-                  <td className="num"><span className="metric">{isPeak ? fmt(row.peak_mu) : fmt(row.rating)}</span></td>
+                  <td className="num"><span className="metric">{isPeak ? fmt(bestMu(row)) : fmt(row.rating)}</span></td>
                   <td className="num">
                     {isPeak
-                      ? <span className="muted mono">{row.peak_utc ? fmtMonth(row.peak_utc) : '—'}</span>
+                      ? <span className="muted mono">{bestWhen(row) ? fmtMonth(bestWhen(row)) : '—'}</span>
                       : <span className="skill-cell"><span className="mono">{fmt(row.mu)}</span><span className="pm">±{uncertainty(row.rd)}</span><Confidence rd={row.rd} /></span>}
                   </td>
                   <td className="num">

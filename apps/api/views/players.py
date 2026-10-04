@@ -10,7 +10,13 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
-from apps.ingest.models import MatchPlayer, MatchStatistics, Player, RatingHistory
+from apps.ingest.models import (
+    MatchPlayer,
+    MatchStatistics,
+    Player,
+    RatingHistory,
+    SmoothedRating,
+)
 
 from ..serializers import (
     PlayerBriefSerializer,
@@ -119,6 +125,19 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
             request.query_params.get("event"),
             request.query_params.get("resolution"),
         ))
+
+    @action(detail=True, methods=["get"])
+    def smoothed(self, request, player_id=None):
+        """Year-end smoothed skill (history engine) — [{event, year, mu, rd}],
+        optionally one ?event=. Uses results before AND after each year."""
+        qs = SmoothedRating.objects.filter(player_id=player_id).order_by("event", "year")
+        event = request.query_params.get("event")
+        if event:
+            qs = qs.filter(event=event)
+        return Response([
+            {"event": e, "year": y, "mu": round(mu, 1), "rd": round(rd, 1)}
+            for e, y, mu, rd in qs.values_list("event", "year", "mu", "rd")
+        ])
 
     @action(detail=True, methods=["get"])
     def style(self, request, player_id=None):

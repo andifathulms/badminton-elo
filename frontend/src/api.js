@@ -100,6 +100,8 @@ export const api = {
   player: (id, { include } = {}) => get(`/players/${id}?${qs({ include })}`),
   // Several players by id (brief rows, in the order asked).
   playersByIds: (ids) => get(`/players?${qs({ ids: ids.join(',') })}`),
+  // Year-end smoothed skill from the history engine.
+  playerSmoothed: (id, event) => get(`/players/${id}/smoothed?${qs({ event })}`),
   playerStyle: (id, partner) => get(`/players/${id}/style?${qs({ partner })}`),
   playerHistory: (id, event) => get(`/players/${id}/history?${qs({ event, resolution: 'tournament' })}`),
   playerMatches: (id, { event, limit = 25, offset = 0 } = {}) =>

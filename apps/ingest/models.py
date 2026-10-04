@@ -207,6 +207,15 @@ class PlayerRating(models.Model):
         expression=models.F("mu") - 2.0 * models.F("rd"),
         output_field=models.FloatField(), db_persist=True,
     )
+    # All-time best from the smoothed history engine (rating/history.py, set
+    # by `rate_history`): the smoothed skill where mu − 2·rd peaked, and when.
+    alltime_mu = models.FloatField(null=True, blank=True)
+    alltime_rd = models.FloatField(null=True, blank=True)
+    alltime_date = models.DateField(null=True, blank=True)
+    alltime_rating = models.GeneratedField(
+        expression=models.F("alltime_mu") - 2.0 * models.F("alltime_rd"),
+        output_field=models.FloatField(), db_persist=True,
+    )
 
     class Meta:
         unique_together = ("player", "event")
@@ -215,10 +224,30 @@ class PlayerRating(models.Model):
             models.Index(fields=["event", "rank"]),
             models.Index(fields=["event", "rank_gender"]),
             models.Index(fields=["event", "-rating"]),
+            models.Index(fields=["event", "-alltime_rating"]),
         ]
 
     def __str__(self) -> str:
         return f"{self.player_id}/{self.event}: mu={self.mu:.0f} rd={self.rd:.0f}"
+
+
+class SmoothedRating(models.Model):
+    """A player's smoothed skill at the end of each year they played
+    (rating/history.py — uses results before AND after, unlike the live
+    rating). Written by `rate_history`."""
+
+    player = models.ForeignKey(Player, on_delete=models.CASCADE, related_name="smoothed")
+    event = models.CharField(max_length=8)
+    year = models.IntegerField()
+    mu = models.FloatField()
+    rd = models.FloatField()
+
+    class Meta:
+        unique_together = ("player", "event", "year")
+        indexes = [models.Index(fields=["event", "year"])]
+
+    def __str__(self) -> str:
+        return f"{self.player_id}/{self.event} {self.year}: {self.mu:.0f}"
 
 
 class RatingHistory(models.Model):

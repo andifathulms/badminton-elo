@@ -36,9 +36,9 @@ class LeaderboardView(generics.ListAPIView):
     """Paginated ranking for one discipline.
 
     ?ranking=current (default) ranks live form by the conservative mu − 2·rd;
-    ?ranking=peak ranks by the all-time peak mu (best a player ever was), which
-    surfaces retired greats (Lin Dan, Lee Chong Wei) that the current board
-    understates. ?order=mu ranks current by raw skill instead.
+    ?ranking=peak ranks by the all-time best (best a player ever was) from the
+    smoothed history engine, which surfaces retired greats (Lin Dan, Lee Chong
+    Wei) that the current board understates. ?order=mu ranks current by raw skill instead.
     """
 
     serializer_class = LeaderboardEntrySerializer
@@ -64,6 +64,11 @@ class LeaderboardView(generics.ListAPIView):
             qs = qs.filter(player__gender=gender)
         ranking = self.request.query_params.get("ranking", "current")
         if ranking == "peak":
+            # All-time board: the smoothed history engine's best (mu − 2·rd at
+            # its peak; see rate_history), else the live engine's peak.
+            smoothed = qs.exclude(alltime_mu=None)
+            if smoothed.exists():
+                return smoothed.order_by("-alltime_rating")
             return qs.exclude(peak_mu=None).order_by("-peak_mu")
 
         qp = self.request.query_params
