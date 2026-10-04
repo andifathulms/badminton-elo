@@ -99,3 +99,23 @@ def test_fix_cup_events_keeps_age_group_labels():
     call_command("fix_cup_events", verbosity=0)
     assert Match.objects.get(pk=300).event == "MS45"
     assert Match.objects.get(pk=301).event == "MS"
+
+
+def test_european_acronym_draws_are_gendered():
+    from apps.ingest.management.commands.scrape_bwf_team import _gender_of
+
+    assert _gender_of("2018 EWTC - Group 1") == "W"
+    assert _gender_of("2018 EMTC - Group 1") == "M"
+
+
+@pytest.mark.django_db
+def test_fix_team_splits_moves_rubbers_to_the_right_gender():
+    men = Tournament.objects.create(tournament_id=11, name="Euro TC – Men's team",
+                                    code="GUID-1:M", start_date=date(2018, 2, 13))
+    a = Player.objects.create(player_id=1, name_display="A", gender="F")
+    b = Player.objects.create(player_id=2, name_display="B", gender="F")
+    _m(400, men, a, b, [(21, 10)], event="WS")
+    call_command("fix_team_splits", "--apply", verbosity=0)
+    women = Tournament.objects.get(code="GUID-1:W")
+    assert Match.objects.get(pk=400).tournament_id == women.tournament_id
+    assert "Women's" in women.name

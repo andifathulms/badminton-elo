@@ -82,6 +82,7 @@ def _steps(year, mode="full"):
     rebuild = [
         ("Normalizing events", cmd("normalize_events")),
         ("Fixing cup disciplines", cmd("fix_cup_events")),
+        ("Fixing team-event genders", cmd("fix_team_splits", apply=True)),
         ("Backfilling countries", cmd("backfill_cup_country")),
         # Before rate: it splits the XD board by gender.
         ("Inferring genders", cmd("infer_gender")),

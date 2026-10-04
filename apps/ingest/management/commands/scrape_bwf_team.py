@@ -106,7 +106,9 @@ def _gender_of(text: str) -> str:
     # The Uber Cup IS the women's competition; its draws are labelled just
     # "Uber Cup - Group A" (no "women"), which used to fall through to 'M'.
     women = ("women", "female", "ladies", "uber")
-    return "W" if any(w in low for w in women) else "M"
+    # European draws use acronyms: '2018 EWTC' (Women's Team Championships)
+    # vs '2018 EMTC'.
+    return "W" if any(w in low for w in women) or re.search(r"\b[a-z]*wtc\b", low) else "M"
 
 
 class Command(DataCommand):
