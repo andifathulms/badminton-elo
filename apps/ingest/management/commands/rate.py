@@ -54,8 +54,9 @@ def _effective_ts(match) -> datetime | None:
     return None
 
 
-def _config() -> RatingConfig:
-    r = settings.RATING
+def _config(overrides: dict | None = None) -> RatingConfig:
+    """settings.RATING -> RatingConfig. `overrides` (same keys) win, for backtests."""
+    r = {**settings.RATING, **(overrides or {})}
     return RatingConfig(
         mu_init=r["MU_INIT"],
         rd_init=r["RD_INIT"],
@@ -75,6 +76,69 @@ def _config() -> RatingConfig:
     )
 
 
+def load_seed_ranks(event=None) -> dict[tuple[int, str], int]:
+    from apps.ingest.models import PlayerSeedRank
+
+    qs = PlayerSeedRank.objects.all()
+    if event:
+        qs = qs.filter(event=event)
+    return {
+        (pid, ev): rank
+        for pid, ev, rank in qs.values_list("player_id", "event", "rank")
+    }
+
+def load_records(event=None, weights=None) -> list[MatchRecord]:
+    """ORM rows -> engine MatchRecords (lineups/games grouped in 3 queries)."""
+    if weights is None:
+        weights = settings.RATING["TIER_WEIGHTS"]
+    qs = Match.objects.filter(rating_excluded=False, winner_side__in=[1, 2])
+    if event:
+        qs = qs.filter(event=event)
+    qs = qs.select_related("tournament")
+
+    # Group lineups and games once to avoid per-match queries.
+    lineups: dict[int, dict[int, list[int]]] = {}
+    mp = MatchPlayer.objects.values_list("match_id", "side", "player_id")
+    if event:
+        mp = mp.filter(match__event=event)
+    for match_id, side, player_id in mp.iterator():
+        lineups.setdefault(match_id, {1: [], 2: []})[side].append(player_id)
+
+    games: dict[int, list[GameRecord]] = {}
+    gq = Game.objects.values_list(
+        "match_id", "game_no", "side1_points", "side2_points"
+    )
+    if event:
+        gq = gq.filter(match__event=event)
+    for match_id, game_no, s1, s2 in gq.iterator():
+        games.setdefault(match_id, []).append(GameRecord(game_no, s1, s2))
+
+    records = []
+    for m in qs.iterator():
+        line = lineups.get(m.match_id)
+        if not line or not line.get(1) or not line.get(2):
+            continue  # need both sides to rate
+        g = sorted(games.get(m.match_id, []), key=lambda x: x.game_no)
+        records.append(
+            MatchRecord(
+                match_id=m.match_id,
+                event=m.event,
+                match_time_utc=_effective_ts(m),
+                round_order=m.round_order,
+                winner_side=m.winner_side,
+                score_status=m.score_status,
+                scoring_format=m.scoring_format,
+                rating_excluded=m.rating_excluded,
+                side1_player_ids=tuple(sorted(line[1])),
+                side2_player_ids=tuple(sorted(line[2])),
+                games=tuple(g),
+                tier_weight=_tier_weight(m.tournament.category_name, weights),
+                tournament_id=m.tournament_id,
+            )
+        )
+    return records
+
+
 class Command(BaseCommand):
     help = "Compute per-(player, discipline) ratings from ingested matches."
 
@@ -91,8 +155,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **opts):
         weights = settings.RATING["TIER_WEIGHTS"]
-        records = self._load_matches(opts["event"], weights)
-        seed_ranks = self._seed_ranks(opts["event"])
+        records = load_records(opts["event"], weights)
+        seed_ranks = load_seed_ranks(opts["event"])
         self.stdout.write(
             f"Loaded {len(records)} rated matches, {len(seed_ranks)} seed ranks; "
             "running engine…"
@@ -105,66 +169,6 @@ class Command(BaseCommand):
         )
         self._write(result, opts["event"], opts["batch_size"])
         self.stdout.write(self.style.SUCCESS("rate complete."))
-
-    def _seed_ranks(self, event) -> dict[tuple[int, str], int]:
-        from apps.ingest.models import PlayerSeedRank
-
-        qs = PlayerSeedRank.objects.all()
-        if event:
-            qs = qs.filter(event=event)
-        return {
-            (pid, ev): rank
-            for pid, ev, rank in qs.values_list("player_id", "event", "rank")
-        }
-
-    # -- read ---------------------------------------------------------------
-    def _load_matches(self, event, weights) -> list[MatchRecord]:
-        qs = Match.objects.filter(rating_excluded=False, winner_side__in=[1, 2])
-        if event:
-            qs = qs.filter(event=event)
-        qs = qs.select_related("tournament")
-
-        # Group lineups and games once to avoid per-match queries.
-        lineups: dict[int, dict[int, list[int]]] = {}
-        mp = MatchPlayer.objects.values_list("match_id", "side", "player_id")
-        if event:
-            mp = mp.filter(match__event=event)
-        for match_id, side, player_id in mp.iterator():
-            lineups.setdefault(match_id, {1: [], 2: []})[side].append(player_id)
-
-        games: dict[int, list[GameRecord]] = {}
-        gq = Game.objects.values_list(
-            "match_id", "game_no", "side1_points", "side2_points"
-        )
-        if event:
-            gq = gq.filter(match__event=event)
-        for match_id, game_no, s1, s2 in gq.iterator():
-            games.setdefault(match_id, []).append(GameRecord(game_no, s1, s2))
-
-        records = []
-        for m in qs.iterator():
-            line = lineups.get(m.match_id)
-            if not line or not line.get(1) or not line.get(2):
-                continue  # need both sides to rate
-            g = sorted(games.get(m.match_id, []), key=lambda x: x.game_no)
-            records.append(
-                MatchRecord(
-                    match_id=m.match_id,
-                    event=m.event,
-                    match_time_utc=_effective_ts(m),
-                    round_order=m.round_order,
-                    winner_side=m.winner_side,
-                    score_status=m.score_status,
-                    scoring_format=m.scoring_format,
-                    rating_excluded=m.rating_excluded,
-                    side1_player_ids=tuple(sorted(line[1])),
-                    side2_player_ids=tuple(sorted(line[2])),
-                    games=tuple(g),
-                    tier_weight=_tier_weight(m.tournament.category_name, weights),
-                    tournament_id=m.tournament_id,
-                )
-            )
-        return records
 
     # -- write --------------------------------------------------------------
     @transaction.atomic
