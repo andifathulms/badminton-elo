@@ -463,3 +463,26 @@ def test_json_responses_are_gzipped_when_accepted(client):
                    HTTP_ACCEPT_ENCODING="gzip")
     assert r.status_code == 200
     assert r["Content-Encoding"] == "gzip"
+
+
+@pytest.mark.django_db
+def test_default_board_reads_stored_rank_record_and_form(client):
+    from datetime import datetime, timezone
+
+    from apps.ingest.models import Player, PlayerRating
+
+    t = datetime(2026, 5, 1, tzinfo=timezone.utc)
+    for pid, mu, rank in ((1, 1900, 2), (2, 2000, 1), (3, 1800, None)):
+        p = Player.objects.create(player_id=pid, name_display=f"P{pid}")
+        PlayerRating.objects.create(
+            player=p, event="MS", mu=mu, rd=60, sigma=0.06, matches_played=10,
+            last_match_utc=t, rank=rank, rank_prev=(3 if pid == 2 else None),
+            wins=7, losses=3, form=[1850, 1880],
+        )
+    rows = client.get("/api/leaderboard?event=MS").json()["results"]
+    # Unranked (rank None) players are not on the default board; order = rank.
+    assert [r["player"]["player_id"] for r in rows] == [2, 1]
+    top = rows[0]
+    assert top["wins"] == 7 and top["losses"] == 3 and top["win_pct"] == 70.0
+    assert top["form"] == [1850, 1880, 2000]
+    assert top["rank_change"] == 2

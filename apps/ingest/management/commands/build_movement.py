@@ -20,17 +20,10 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import Max
 
-from apps.api.views import ACTIVE_DAYS
+from apps.ingest.boards import ACTIVE_DAYS, BOARD_MIN_MATCHES as MIN_MATCHES, board_ranks
 from apps.ingest.models import PlayerRating, RatingHistory
 
 MOVEMENT_DAYS = 28
-MIN_MATCHES = 5
-
-
-def _ranks(entries):
-    """entries: [(key, rating)] -> {key: 1-based rank}, ties broken by key."""
-    ordered = sorted(entries, key=lambda e: (-e[1], e[0]))
-    return {k: i + 1 for i, (k, _) in enumerate(ordered)}
 
 
 class Command(BaseCommand):
@@ -82,16 +75,8 @@ class Command(BaseCommand):
                 if n >= MIN_MATCHES and last and last >= prev_active:
                     prev_rows.append((r.player_id, g, mu - 2.0 * rd))
 
-            rank_now = _ranks([(p, v) for p, _, v in now_rows])
-            rank_prev = _ranks([(p, v) for p, _, v in prev_rows])
-            g_now, g_prev = {}, {}
-            for rows, out in ((now_rows, g_now), (prev_rows, g_prev)):
-                by_g = defaultdict(list)
-                for p, g, v in rows:
-                    if g:
-                        by_g[g].append((p, v))
-                for entries in by_g.values():
-                    out.update(_ranks(entries))
+            rank_now, g_now = board_ranks(now_rows)
+            rank_prev, g_prev = board_ranks(prev_rows)
 
             for r in ratings:
                 r.rank = rank_now.get(r.player_id)

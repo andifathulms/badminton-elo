@@ -16,6 +16,15 @@ from django.db import transaction
 from apps.ingest.models import Match, MatchPlayer, RatingHistory, TournamentPerformance
 
 DOUBLES = ("MD", "WD", "XD")
+_FRIENDLY_ROUND = {"SF": "Semi-final", "QF": "Quarter-final", "R16": "Last 16",
+                   "R32": "Last 32", "R64": "Last 64", "R128": "Last 128"}
+
+
+def achievement(round_name: str, won: bool) -> str:
+    """How far a player went, from their deepest match: Champion/Runner-up/…"""
+    if round_name in ("Final", "F"):
+        return "Champion" if won else "Runner-up"
+    return _FRIENDLY_ROUND.get(round_name, round_name or "")
 
 
 def _perf_rating(results: list[tuple[float, bool]]) -> float | None:
@@ -77,9 +86,27 @@ class Command(BaseCommand):
                     counts[(b, ev, tid)][a] += 1
         return {k: c.most_common(1)[0][0] for k, c in counts.items()}
 
+    def _achievements(self, sides, winner) -> dict:
+        """(player, event, tournament) -> achievement, from the deepest match
+        they played there (every match, incl. walkovers, like the bracket)."""
+        deepest: dict = {}
+        for mid, tid, ev, ro, rname in Match.objects.values_list(
+            "match_id", "tournament_id", "event", "round_order", "round_name"
+        ).iterator():
+            ro = ro or 0
+            for side in (1, 2):
+                won = winner.get(mid) == side
+                for pid in sides.get(mid, {}).get(side, []):
+                    key = (pid, ev, tid)
+                    cur = deepest.get(key)
+                    if cur is None or ro > cur[0]:
+                        deepest[key] = (ro, rname, won)
+        return {k: achievement(rname, won) for k, (_, rname, won) in deepest.items()}
+
     def handle(self, *args, **opts):
         sides, winner = self._match_data()
         partners = self._partners(sides)
+        reached = self._achievements(sides, winner)
 
         # Pass 1: per (player, event, tournament) aggregate + mu_start.
         agg: dict = defaultdict(
@@ -138,6 +165,7 @@ class Command(BaseCommand):
                 best_match_id=a["best_match"], best_delta=a["best_delta"],
                 perf_rating=perf.get((pid, ev, tid)),
                 partner_id=partners.get((pid, ev, tid)),
+                achievement=reached.get((pid, ev, tid), ""),
             )
             for (pid, ev, tid), a in agg.items()
         ]

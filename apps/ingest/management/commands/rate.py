@@ -15,13 +15,23 @@ optimization; a from-scratch recompute is the correctness baseline.)
 """
 from __future__ import annotations
 
-from datetime import datetime, time, timezone
+from collections import defaultdict
+from datetime import datetime, time, timedelta, timezone
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.db.models import Case, Count, F, IntegerField, Max, Sum, When
 
-from apps.ingest.models import Game, Match, MatchPlayer, PlayerRating, RatingHistory
+from apps.ingest.boards import ACTIVE_DAYS, BOARD_MIN_MATCHES, FORM_POINTS, board_ranks
+from apps.ingest.models import (
+    Game,
+    Match,
+    MatchPlayer,
+    Player,
+    PlayerRating,
+    RatingHistory,
+)
 from rating import GameRecord, MatchRecord, RatingConfig, run
 from rating.peaks import peak_ratings
 
@@ -56,6 +66,9 @@ def tier_grade(category_name: str) -> str:
 
 def _tier_weight(category_name: str, weights: dict) -> float:
     return weights.get(tier_grade(category_name), 1.0)
+
+
+_MIN_TS = datetime.min.replace(tzinfo=timezone.utc)
 
 
 def _effective_ts(match) -> datetime | None:
@@ -166,6 +179,70 @@ def load_records(event=None, weights=None) -> list[MatchRecord]:
     return records
 
 
+def win_loss_records(event=None) -> dict[tuple[int, str], tuple[int, int]]:
+    """(player, event) -> (wins, losses) over every match in the discipline
+    (walkovers included — the record a fan reads, not just rated matches)."""
+    qs = MatchPlayer.objects.all()
+    if event:
+        qs = qs.filter(match__event=event)
+    rows = (
+        qs.values("player_id", "match__event")
+        .annotate(
+            played=Count("id"),
+            won=Sum(Case(When(side=F("match__winner_side"), then=1),
+                         default=0, output_field=IntegerField())),
+        )
+        .order_by()
+    )
+    return {
+        (r["player_id"], r["match__event"]): (r["won"] or 0, r["played"] - (r["won"] or 0))
+        for r in rows.iterator()
+    }
+
+
+def form_lines(history) -> dict[tuple[int, str], list[int]]:
+    """(player, event) -> the rating carried into each of the last FORM_POINTS
+    tournaments (ratings are tournament-locked, so one value per period)."""
+    rows = defaultdict(list)
+    for d in history:
+        rows[(d.player_id, d.event)].append((d.applied_utc or _MIN_TS, d.match_id, d.mu_before))
+    out = {}
+    for key, seq in rows.items():
+        seq.sort(key=lambda x: (x[0], x[1]))
+        starts: list[float] = []
+        for _, _, mu_b in seq:
+            if not starts or starts[-1] != mu_b:
+                starts.append(mu_b)
+        out[key] = [round(x) for x in starts[-FORM_POINTS:]]
+    return out
+
+
+def current_board_ranks(ratings, event=None):
+    """Ranks on the default current board (apps.ingest.boards), per event and
+    within gender. Written by `rate` so the board is never blank between `rate`
+    and `build_movement` (which adds the 4-weeks-ago ranks)."""
+    latest = max((r.last_match_utc for r in ratings.values() if r.last_match_utc),
+                 default=None)
+    others = PlayerRating.objects.exclude(event=event) if event else PlayerRating.objects.none()
+    other_latest = others.aggregate(m=Max("last_match_utc"))["m"]
+    if other_latest and (latest is None or other_latest > latest):
+        latest = other_latest
+    if latest is None:
+        return {}, {}
+    cut = latest - timedelta(days=ACTIVE_DAYS)
+    gender = dict(Player.objects.exclude(gender="").values_list("player_id", "gender"))
+    by_event = defaultdict(list)
+    for (pid, ev), r in ratings.items():
+        if r.matches_played >= BOARD_MIN_MATCHES and r.last_match_utc and r.last_match_utc >= cut:
+            by_event[ev].append((pid, gender.get(pid, ""), r.mu - 2.0 * r.rd))
+    ranks, ranks_g = {}, {}
+    for ev, rows in by_event.items():
+        overall, within = board_ranks(rows)
+        ranks.update({(p, ev): v for p, v in overall.items()})
+        ranks_g.update({(p, ev): v for p, v in within.items()})
+    return ranks, ranks_g
+
+
 class Command(BaseCommand):
     help = "Compute per-(player, discipline) ratings from ingested matches."
 
@@ -212,6 +289,9 @@ class Command(BaseCommand):
         # Peak = highest settled mu (rd <= PEAK_MAX_RD) per (player, event), with
         # the rd/date at that moment. See rating.peaks.
         peak = peak_ratings(result.history, settings.RATING.get("PEAK_MAX_RD", 100.0))
+        record = win_loss_records(event)
+        form = form_lines(result.history)
+        ranks, ranks_g = current_board_ranks(result.ratings, event)
 
         PlayerRating.objects.bulk_create(
             [
@@ -226,6 +306,11 @@ class Command(BaseCommand):
                     peak_mu=peak.get((pid, ev), (r.mu, r.rd, r.last_match_utc))[0],
                     peak_rd=peak.get((pid, ev), (r.mu, r.rd, r.last_match_utc))[1],
                     peak_utc=peak.get((pid, ev), (r.mu, r.rd, r.last_match_utc))[2],
+                    wins=record.get((pid, ev), (0, 0))[0],
+                    losses=record.get((pid, ev), (0, 0))[1],
+                    form=form.get((pid, ev), []),
+                    rank=ranks.get((pid, ev)),
+                    rank_gender=ranks_g.get((pid, ev)),
                 )
                 for (pid, ev), r in result.ratings.items()
             ],

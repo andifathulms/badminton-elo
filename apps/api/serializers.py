@@ -359,7 +359,13 @@ class TournamentPerformanceSerializer(serializers.ModelSerializer):
             "best_match",
             "best_delta",
             "perf_rating",
+            "achievement",
         )
+
+    def to_representation(self, obj):
+        data = super().to_representation(obj)
+        data["achievement"] = data["achievement"] or None
+        return data
 
 
 class MatchListSerializer(serializers.Serializer):

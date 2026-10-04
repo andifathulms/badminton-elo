@@ -191,10 +191,20 @@ class PlayerRating(models.Model):
     rank_prev = models.IntegerField(null=True, blank=True)
     rank_gender = models.IntegerField(null=True, blank=True)
     rank_prev_gender = models.IntegerField(null=True, blank=True)
+    # Precomputed by `rate` so the leaderboard needs no per-request aggregates:
+    # record in this discipline (every match, incl. walkovers) and the rating
+    # carried into each of the last FORM_POINTS tournaments (sparkline).
+    wins = models.IntegerField(default=0)
+    losses = models.IntegerField(default=0)
+    form = models.JSONField(default=list, blank=True)
 
     class Meta:
         unique_together = ("player", "event")
         ordering = ["event", "-mu"]
+        indexes = [
+            models.Index(fields=["event", "rank"]),
+            models.Index(fields=["event", "rank_gender"]),
+        ]
 
     def __str__(self) -> str:
         return f"{self.player_id}/{self.event}: mu={self.mu:.0f} rd={self.rd:.0f}"
@@ -216,7 +226,15 @@ class RatingHistory(models.Model):
 
     class Meta:
         ordering = ["applied_utc", "match_id"]
-        indexes = [models.Index(fields=["player", "event", "applied_utc"])]
+        indexes = [
+            models.Index(fields=["player", "event", "applied_utc"]),
+            # Partial indexes for the upsets board (only big gains qualify), so
+            # it reads ~230k index entries in delta order, not 1.1M rows.
+            models.Index(fields=["-delta"], condition=models.Q(delta__gte=30),
+                         name="rh_upset_delta_idx"),
+            models.Index(fields=["event", "-delta"], condition=models.Q(delta__gte=30),
+                         name="rh_upset_event_delta_idx"),
+        ]
 
     def __str__(self) -> str:
         return f"{self.player_id}/{self.event} @M{self.match_id}: {self.delta:+.1f}"
@@ -346,12 +364,16 @@ class TournamentPerformance(models.Model):
         Player, on_delete=models.SET_NULL, null=True, blank=True,
         related_name="tournament_perfs_as_partner",
     )
+    # How far they went: Champion / Runner-up / Semi-final / … (build_analytics).
+    achievement = models.CharField(max_length=24, blank=True)
 
     class Meta:
         unique_together = ("player", "event", "tournament")
         indexes = [
             models.Index(fields=["-net_delta"]),
             models.Index(fields=["event", "-net_delta"]),
+            models.Index(fields=["-perf_rating"]),
+            models.Index(fields=["event", "-perf_rating"]),
         ]
 
     def __str__(self) -> str:

@@ -20,6 +20,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.ingest.boards import ACTIVE_DAYS
 from apps.ingest.models import (
     Draw,
     Match,
@@ -138,10 +139,6 @@ def prestige_group(category: str) -> str:
                                    "All England", "Super 100")):
         return "🌐 Grade 2 · BWF World Tour"
     return "🏸 Grade 3 · Continental Circuit"
-ACTIVE_DAYS = 365  # a player/pair idle longer than this counts as retired
-
-_active_cutoff_cache = {}
-
 
 def active_cutoff():
     """Anything last active before this is 'retired' — excluded from CURRENT
@@ -150,6 +147,17 @@ def active_cutoff():
     latest = PlayerRating.objects.aggregate(m=Max("last_match_utc"))["m"]
     ref = latest or timezone.now()
     return ref - timedelta(days=ACTIVE_DAYS)
+
+
+def _is_default_board(qp) -> bool:
+    """The board `rate`/`build_movement` pre-rank: current, by conservative
+    rating, >= 5 matches, active players only."""
+    return (
+        qp.get("ranking", "current") == "current"
+        and qp.get("order", "rating") == "rating"
+        and qp.get("min_matches", "5") == "5"
+        and qp.get("include_inactive") != "1"
+    )
 
 
 class LeaderboardView(generics.ListAPIView):
@@ -186,11 +194,18 @@ class LeaderboardView(generics.ListAPIView):
         if ranking == "peak":
             return qs.exclude(peak_mu=None).order_by("-peak_mu")
 
+        qp = self.request.query_params
+        # The default board (current, by rating, >= 5 matches, active) is ranked
+        # once by `rate`/`build_movement` — read the stored rank (indexed).
+        if _is_default_board(qp):
+            field = "rank_gender" if gender in ("M", "F") else "rank"
+            return qs.filter(**{f"{field}__isnull": False}).order_by(field)
+
         # Current board: hide retired players (idle > 1 year) unless asked.
-        if self.request.query_params.get("include_inactive") != "1":
+        if qp.get("include_inactive") != "1":
             qs = qs.filter(last_match_utc__gte=active_cutoff())
 
-        order = self.request.query_params.get("order", "rating")
+        order = qp.get("order", "rating")
         if order == "mu":
             return qs.order_by("-mu", "rd")
         # conservative rating = mu - 2*rd, ranked DB-side
@@ -199,75 +214,25 @@ class LeaderboardView(generics.ListAPIView):
         ).order_by("-_rating")
 
     def list(self, request, *args, **kwargs):
-        """Attach each page row's win% (batched over the page's players)."""
-        from django.db.models import Case, F, IntegerField, Sum, When
-
+        """Add each row's record, form line and rank movement — all stored on
+        PlayerRating by `rate`/`build_movement`, so no extra queries."""
         rows = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
-        event = request.query_params.get("event")
-        pids = [r.player_id for r in rows]
-        recs = {
-            r["player_id"]: r
-            for r in MatchPlayer.objects.filter(
-                player_id__in=pids, match__event=event
-            )
-            .values("player_id")
-            .annotate(
-                played=Count("id"),
-                won=Sum(
-                    Case(
-                        When(side=F("match__winner_side"), then=1),
-                        default=0,
-                        output_field=IntegerField(),
-                    )
-                ),
-            )
-        }
         data = self.get_serializer(rows, many=True).data
 
-        # Form line: the rating carried into each of the last FORM_POINTS
-        # tournaments (tournament-locked periods), ending at today's mu.
-        FORM_POINTS = 20
-        starts = defaultdict(list)
-        for pid, mu_b in (
-            RatingHistory.objects.filter(player_id__in=pids, event=event)
-            .order_by("player_id", "applied_utc", "match_id")
-            .values_list("player_id", "mu_before")
-        ):
-            s = starts[pid]
-            if not s or s[-1] != mu_b:
-                s.append(mu_b)
-
-        # Rank movement is only meaningful on the default board that
-        # build_movement ranked (current, by rating, >= 5 matches, active).
         qp = request.query_params
-        default_board = (
-            qp.get("ranking", "current") == "current"
-            and qp.get("order", "rating") == "rating"
-            and qp.get("min_matches", "5") == "5"
-            and qp.get("include_inactive") != "1"
-        )
+        default_board = _is_default_board(qp)
         gendered = qp.get("gender") in ("M", "F")
-        by_pid = {r.player_id: r for r in rows}
-
-        for row in data:
-            pid = row["player"]["player_id"]
-            pr = by_pid.get(pid)
-            row["form"] = [round(x) for x in starts.get(pid, [])[-FORM_POINTS:]] + (
-                [round(pr.mu)] if pr else []
-            )
-            if default_board and pr is not None:
+        for row, pr in zip(data, rows):
+            # Form: the rating carried into each recent tournament, then today's.
+            row["form"] = list(pr.form or []) + [round(pr.mu)]
+            if default_board:
                 now, prev = (
                     (pr.rank_gender, pr.rank_prev_gender) if gendered else (pr.rank, pr.rank_prev)
                 )
                 row["rank_change"] = (prev - now) if (now and prev) else None
-            r = recs.get(pid)
-            if r and r["played"]:
-                row["wins"] = r["won"] or 0
-                row["losses"] = r["played"] - (r["won"] or 0)
-                row["win_pct"] = round(100.0 * (r["won"] or 0) / r["played"], 1)
-            else:
-                row["wins"] = row["losses"] = 0
-                row["win_pct"] = None
+            played = pr.wins + pr.losses
+            row["wins"], row["losses"] = pr.wins, pr.losses
+            row["win_pct"] = round(100.0 * pr.wins / played, 1) if played else None
         return self.get_paginated_response(data)
 
 
@@ -1221,7 +1186,6 @@ class AnalyticsView(APIView):
                 tp.player, tp.partner = tp.partner, tp.player
 
         rows = TournamentPerformanceSerializer(picked, many=True).data
-        self._enrich_achievement(picked, rows)
         return Response({"results": rows})
 
     def _match_upsets(self, request, event, limit):
@@ -1309,39 +1273,6 @@ class AnalyticsView(APIView):
                 ),
             })
         return Response({"results": out})
-
-    def _enrich_achievement(self, picked, rows):
-        """Tag each row with how far the player went (Champion/Runner-up/SF/…)."""
-        from django.db.models import Q
-
-        q = Q()
-        for tp in picked:
-            q |= Q(
-                player_id=tp.player_id,
-                match__tournament_id=tp.tournament_id,
-                match__event=tp.event,
-            )
-        best: dict = {}
-        if picked:
-            for mp in MatchPlayer.objects.filter(q).select_related("match"):
-                key = (mp.player_id, mp.match.tournament_id, mp.match.event)
-                ro = mp.match.round_order or 0
-                cur = best.get(key)
-                if cur is None or ro > cur[0]:
-                    best[key] = (ro, mp.match.round_name, mp.match.winner_side == mp.side)
-
-        friendly = {"SF": "Semi-final", "QF": "Quarter-final", "R16": "Last 16",
-                    "R32": "Last 32", "R64": "Last 64", "R128": "Last 128"}
-        for tp, r in zip(picked, rows):
-            info = best.get((tp.player_id, tp.tournament_id, tp.event))
-            if not info:
-                r["achievement"] = None
-                continue
-            _, round_name, won = info
-            if round_name in ("Final", "F"):
-                r["achievement"] = "Champion" if won else "Runner-up"
-            else:
-                r["achievement"] = friendly.get(round_name, round_name or None)
 
 
 class CalibrationView(APIView):
