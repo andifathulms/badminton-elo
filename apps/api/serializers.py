@@ -294,13 +294,11 @@ class MatchSerializer(serializers.ModelSerializer):
         cached = getattr(obj, "_elo_cache", None)
         if cached is not None:
             return cached
-        from .elo import cumulative_elo
+        from .elo import chained_elo
 
-        out = {}
-        for l in obj.lineup.all():
-            row = cumulative_elo(l.player_id, obj.tournament_id).get(obj.match_id)
-            if row:
-                out[l.player_id] = row
+        # One query for everyone on court (was one per player).
+        pids = [l.player_id for l in obj.lineup.all()]
+        out = chained_elo([obj.tournament_id], pids).get(obj.match_id, {})
         obj._elo_cache = out
         return out
 

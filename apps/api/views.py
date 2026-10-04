@@ -705,18 +705,18 @@ class PlayerMatchesView(generics.ListAPIView):
         return qs.filter(match__event=event) if event else qs
 
     def list(self, request, *args, **kwargs):
-        from .elo import cumulative_elo
+        from .elo import chained_elo
 
         rows = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
         pid = int(self.kwargs["player_id"])
-        # Chain before/after within each tournament so a run reads cumulatively.
+        # Chain before/after within each tournament so a run reads cumulatively
+        # — one query for every tournament on the page.
         tour_ids = {mp.match.tournament_id for mp in rows if mp.match.tournament_id}
-        cum: dict = {}
-        for tid in tour_ids:
-            cum.update(cumulative_elo(pid, tid))
+        chains = chained_elo(tour_ids, [pid])
         deltas = {
             mid: {"before": round(b), "after": round(a), "delta": round(d, 1)}
-            for mid, (b, a, d) in cum.items()
+            for mid, by_player in chains.items()
+            for (b, a, d) in [by_player[pid]]
         }
         data = self.get_serializer(rows, many=True, context={"deltas": deltas}).data
         return self.get_paginated_response(data)
