@@ -35,6 +35,7 @@ PY
   # Correct team-cup rubber disciplines (scraper labels them by position) so
   # ratings land in the right bucket — self-heals future cup scrapes too.
   .venv/bin/python manage.py fix_cup_events >/dev/null 2>&1
+  .venv/bin/python manage.py fix_scoring_formats >/dev/null 2>&1   # pre-2006 side-out
   # Move rubbers stored in the wrong gendered team tournament (after the above).
   .venv/bin/python manage.py fix_team_splits --apply >/dev/null 2>&1
   # Recover missing player country_code from team-cup tie context (flags).

@@ -86,6 +86,7 @@ def _steps(year, mode="full"):
         # Wikipedia + BWF API copies of one event would be rated twice.
         ("Merging duplicate tournaments", cmd("dedup_tournaments", apply=True)),
         ("Fixing cup disciplines", cmd("fix_cup_events")),
+        ("Labelling side-out scoring", cmd("fix_scoring_formats")),
         ("Fixing team-event genders", cmd("fix_team_splits", apply=True)),
         ("Backfilling countries", cmd("backfill_cup_country")),
         # Before rate: it splits the XD board by gender.

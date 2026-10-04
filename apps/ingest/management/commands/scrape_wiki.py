@@ -202,7 +202,15 @@ def infobox_meta(text: str, year: int | None = None) -> dict:
     return meta
 
 
-def scoring_format(games) -> str:
+def scoring_format(games, year: int | None = None) -> str:
+    """Rally format from the points — except before 2006, when games were
+    side-out ('15x3s'; '5x7' in the 2001-02 trial), not rally points."""
+    if year is not None and year < 2006:
+        from apps.ingest.management.commands.fix_scoring_formats import side_out_code
+
+        code = side_out_code([max(a, b) for a, b in games])
+        if code:
+            return code
     mx = max((max(a, b) for a, b in games), default=15)
     target = 21 if mx > 15 else (15 if mx > 11 else 11)
     return f"3x{target}"
@@ -535,7 +543,8 @@ class Command(DataCommand):
             # present-day country_code.
             match.side1_country = m["side1"].get("country") or ""
             match.side2_country = m["side2"].get("country") or ""
-            match.scoring_format = scoring_format(m["games"]) if m["games"] else ""
+            match.scoring_format = (scoring_format(m["games"], t.start_date.year if t.start_date else None)
+                                    if m["games"] else "")
             match.rating_excluded = not m["games"]  # finals-only rows w/o scores
             match.save()
             match.games.all().delete()
