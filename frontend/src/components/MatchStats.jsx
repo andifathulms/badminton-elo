@@ -113,18 +113,18 @@ function GameChart({ g, index, big }) {
   )
 }
 
-function ScoreRace({ progression }) {
+function ScoreRace({ progression, names = ['side 1', 'side 2'] }) {
   const games = (progression || []).filter((g) => g && g.length)
   const [tab, setTab] = useState(0) // selected game index (defaults to Game 1)
   if (!games.length) return null
   const game = games[Math.min(tab, games.length - 1)]
 
   return (
-    <div className="chart-wrap">
+    <div className="chart-wrap card">
       {games.length > 1 && (
-        <div className="tabs mini-tabs">
+        <div className="segmented" style={{ marginBottom: 8 }}>
           {games.map((_, i) => (
-            <button key={i} className={`tab ${tab === i ? 'active' : ''}`}
+            <button key={i} className={`seg ${tab === i ? 'active' : ''}`}
                     onClick={() => setTab(i)}>
               Game {i + 1}
             </button>
@@ -134,47 +134,88 @@ function ScoreRace({ progression }) {
       <GameChart key={tab} g={game} index={Math.min(tab, games.length - 1)} big />
       <p className="muted small">
         Each side's running score, rally by rally (
-        <b className="race-key s1">side&nbsp;1</b> vs{' '}
-        <b className="race-key s2">side&nbsp;2</b>). Hover to read the exact score.
+        <b className="race-key s1">{names[0]}</b> vs{' '}
+        <b className="race-key s2">{names[1]}</b>). Hover to read the exact score.
       </p>
+    </div>
+  )
+}
+
+// Lead after every rally for one game: area above the line = side 2 ahead,
+// below = side 1 ahead (oriented to the names shown beside it).
+function Worm({ g, index, names }) {
+  const W = 300, H = 96, mid = H / 2
+  const leads = [0, ...g.map(([a, b]) => b - a)]
+  const mx = Math.max(6, ...leads.map(Math.abs))
+  const x = (i) => 4 + (i * (W - 8)) / Math.max(1, leads.length - 1)
+  const y = (l) => mid - (l / mx) * (mid - 10)
+  const path = (f) => leads.map((l, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(f(l)).toFixed(1)}`).join('')
+  const close = `L${x(leads.length - 1).toFixed(1)} ${mid}L4 ${mid}Z`
+  const last = g[g.length - 1]
+  return (
+    <div className="worm">
+      <div className="worm-h"><span>Game {index + 1}</span><b className="mono">{last[0]}–{last[1]}</b></div>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={`Lead after every rally, game ${index + 1}`}>
+        <line className="z" x1="0" x2={W} y1={mid} y2={mid} />
+        <path className="pa" d={path((l) => Math.max(0, l)) + close} />
+        <path className="na" d={path((l) => Math.min(0, l)) + close} />
+        <path className="wl2" d={path((l) => l)} />
+        <text x="4" y="10">{names[1]} ahead</text>
+        <text x="4" y={H - 3}>{names[0]} ahead</text>
+      </svg>
     </div>
   )
 }
 
 function StatBar({ label, a, b }) {
   const total = (a || 0) + (b || 0)
-  const pctA = total ? (100 * a) / total : 50
   return (
-    <div className="statbar">
-      <span className="statbar-a">{a ?? '—'}</span>
-      <div className="statbar-track">
-        <div className="statbar-fill" style={{ width: `${pctA}%` }} />
+    <div className="mst">
+      <span className="mst-lab">{label}</span>
+      <div className="mst-row">
+        <span className="mst-v">{a ?? '—'}</span>
+        <span className="mst-bars">
+          <span><i style={{ width: `${total ? (100 * a) / total : 0}%` }} /></span>
+          <span><i style={{ width: `${total ? (100 * b) / total : 0}%` }} /></span>
+        </span>
+        <span className="mst-v r">{b ?? '—'}</span>
       </div>
-      <span className="statbar-b">{b ?? '—'}</span>
-      <span className="statbar-label">{label}</span>
     </div>
   )
 }
 
-export default function MatchStats({ matchId }) {
+export default function MatchStats({ matchId, names = ['Side 1', 'Side 2'] }) {
   const { data, error, loading } = useAsync(() => api.matchStatistics(matchId), [matchId])
 
-  if (loading) return <p className="muted">Loading statistics…</p>
+  if (loading) return <div className="card" style={{ padding: 18 }}><p className="muted" style={{ margin: 0 }}>Loading statistics…</p></div>
   if (error || !data || data.available === false)
-    return <p className="muted">No detailed statistics available for this match.</p>
+    return <p className="muted">No rally-by-rally statistics are available for this match.</p>
+  const games = (data.point_progression || []).filter((g) => g && g.length)
 
   return (
-    <div>
-      <div className="statbars">
-        <StatBar label="Rallies won" a={data.team1_rallies_won} b={data.team2_rallies_won} />
-        <StatBar label="Longest streak" a={data.team1_consecutive_points} b={data.team2_consecutive_points} />
-        <StatBar label="Game points" a={data.team1_game_points} b={data.team2_game_points} />
+    <>
+      <div className="ms-grid">
+        {games.length > 0 && (
+          <section className="card t-panel">
+            <div className="t-panel-h"><h3>Momentum</h3><span className="muted small">lead after every rally</span></div>
+            <div className="worms">{games.map((g, i) => <Worm key={i} g={g} index={i} names={names} />)}</div>
+          </section>
+        )}
+        <section className="card t-panel">
+          <div className="t-panel-h"><h3>Match stats</h3>
+            {data.duration_min != null && <span className="muted small">{data.duration_min} min · {data.team1_rallies_played ?? '?'} rallies</span>}</div>
+          <div className="mst-names"><span>{names[0]}</span><span>{names[1]}</span></div>
+          <StatBar label="Rallies won" a={data.team1_rallies_won} b={data.team2_rallies_won} />
+          <StatBar label="Longest run of points" a={data.team1_consecutive_points} b={data.team2_consecutive_points} />
+          <StatBar label="Game points" a={data.team1_game_points} b={data.team2_game_points} />
+        </section>
       </div>
-      {data.duration_min != null && (
-        <p className="muted small">Duration: {data.duration_min} min · Total rallies:{' '}
-          {data.team1_rallies_played ?? '?'}</p>
+      {games.length > 0 && (
+        <>
+          <div className="sec-head" style={{ marginTop: 6 }}><h2>Score race</h2></div>
+          <ScoreRace progression={data.point_progression} names={names} />
+        </>
       )}
-      <ScoreRace progression={data.point_progression} />
-    </div>
+    </>
   )
 }

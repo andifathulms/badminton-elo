@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { api } from '../api.js'
 import { useAsync } from '../useAsync.js'
 import Select from '../components/Select.jsx'
@@ -7,23 +7,19 @@ import Pager from '../components/Pager.jsx'
 import PageHeader from '../components/PageHeader.jsx'
 import { SkeletonList } from '../components/Skeleton.jsx'
 import { EmptyState, ErrorState } from '../components/Empty.jsx'
+import Tier from '../components/Tier.jsx'
+import Icon from '../components/Icon.jsx'
+import { fmtRange, isLive } from '../dates.js'
 
 const YEARS = Array.from({ length: 45 }, (_, i) => 2026 - i)
 const YEAR_OPTS = [{ value: '', label: 'All years' }, ...YEARS.map((y) => ({ value: y, label: String(y) }))]
 const PAGE = 40
 const shortTier = (s) => (s || '').replace('HSBC BWF World Tour ', '').replace('BWF ', '')
 
-function isOngoing(t) {
-  if (!t.start_date) return false
-  const today = new Date().toISOString().slice(0, 10)
-  const end = t.end_date || t.start_date
-  return t.start_date <= today && today <= end
-}
-
-function dates(t) {
-  if (!t.start_date) return '—'
-  return t.start_date + (t.end_date && t.end_date !== t.start_date ? ` → ${t.end_date.slice(5)}` : '')
-}
+const isOngoing = isLive
+const dates = (t) => (t.start_date ? fmtRange(t.start_date, t.end_date) : '—')
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 function TournamentCard({ t }) {
   const initials = shortTier(t.category_name).split(' ').map((w) => w[0]).join('').slice(0, 3)
@@ -31,18 +27,18 @@ function TournamentCard({ t }) {
     <Link to={`/tournaments/${t.tournament_id}`}
           className={`tcard ${t.match_count ? '' : 'nodata'}`}>
       <div className="tcard-logo">
-        {t.logo_url
-          ? <img src={t.logo_url} alt="" loading="lazy" />
-          : <span className="tcard-logo-ph">{initials || '🏸'}</span>}
+        {t.logo_url && !/placeholder/i.test(t.logo_url)
+          ? <img src={t.logo_url} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+          : <span className="tcard-logo-ph">{initials || <Icon name="trophy" size={18} />}</span>}
       </div>
       <div className="tcard-body">
-        <div className="tcard-name">{t.name}{isOngoing(t) && <span className="badge-live">● Live</span>}</div>
+        <div className="tcard-name">{t.name}</div>
         <div className="tcard-meta">
-          {dates(t)}{t.venue_name ? ` · ${t.venue_name}` : ''}
+          {isOngoing(t) && <span className="live">LIVE</span>} {dates(t)}{t.venue_name ? ` · ${t.venue_name}` : ''}
         </div>
       </div>
       <div className="tcard-count">
-        {t.match_count ? <span className="metric">{t.match_count}</span>
+        {t.match_count ? <span className="mono muted">{t.match_count}</span>
           : <span className="nodata-dot">0</span>}
       </div>
     </Link>
@@ -90,14 +86,14 @@ function MasterView({ year }) {
             <button className={`master-head ${isCollapsed ? 'collapsed' : ''}`}
                     aria-expanded={!isCollapsed}
                     onClick={() => setCollapsed((c) => ({ ...c, [s.group]: !c[s.group] }))}>
-              <span className="master-head-title">{s.group}</span>
+              <span className="master-head-title">{s.group.replace(/^[^\p{L}\p{N}]+/u, '')}</span>
               <span className="master-head-count">{n}</span>
-              <span className={`caret ${isCollapsed ? '' : 'open'}`}>▸</span>
+              <span className={`caret ${isCollapsed ? '' : 'open'}`}><Icon name="arrowRight" size={13} /></span>
             </button>
             {!isCollapsed && s.tiers.map((tier) => (
               <div key={tier.tier} className="tier-block">
-                <div className="tier-sub">{shortTier(tier.tier) || '—'}
-                  <span className="muted small"> · {tier.rows.length}</span></div>
+                <div className="tier-sub"><Tier category={tier.tier} title={tier.tier} />
+                  <span>{shortTier(tier.tier) || '—'} · {tier.rows.length}</span></div>
                 <div className="tcard-grid">
                   {tier.rows.map((t) => <TournamentCard key={t.tournament_id} t={t} />)}
                 </div>
@@ -110,70 +106,97 @@ function MasterView({ year }) {
   )
 }
 
-function FlatList({ year, tier }) {
+function FlatList({ year, tier, q }) {
   const [page, setPage] = useState(0)
-  useEffect(() => setPage(0), [year, tier])
+  useEffect(() => setPage(0), [year, tier, q])
   const { data, error, loading, reload } = useAsync(
-    () => api.tournaments({ year, tier, limit: PAGE, offset: page * PAGE }),
-    [year, tier, page])
+    () => api.tournaments({ year, tier, q, limit: PAGE, offset: page * PAGE }),
+    [year, tier, q, page])
   if (loading) return <SkeletonList rows={10} />
   if (error) return <ErrorState error={error} onRetry={reload} what="tournaments" />
   if (!data) return null
+  if (!data.results.length) {
+    return <EmptyState icon="calendar" title="No tournaments match" hint="Try a different year, tier or search." />
+  }
+  // Group consecutive rows by start month — a calendar you can scan.
+  const groups = []
+  for (const t of data.results) {
+    const key = (t.start_date || '').slice(0, 7)
+    let g = groups[groups.length - 1]
+    if (!g || g.key !== key) { g = { key, rows: [] }; groups.push(g) }
+    g.rows.push(t)
+  }
   return (
     <>
-      <div className="table-scroll">
-      <table className="board">
-        <thead>
-          <tr><th>Tournament</th><th>Tier</th><th className="num">Dates</th><th className="num">Matches</th></tr>
-        </thead>
-        <tbody>
-          {data.results.map((t) => (
-            <tr key={t.tournament_id}>
-              <td>
-                <Link to={`/tournaments/${t.tournament_id}`}>{t.name}</Link>
-                {isOngoing(t) && <span className="badge-live">● Live</span>}
-              </td>
-              <td className="muted small">{shortTier(t.category_name)}</td>
-              <td className="num muted small nowrap">{dates(t)}</td>
-              <td className="num muted">{t.match_count}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      </div>
-      {data.results.length > 0
-        ? <Pager page={page} setPage={setPage} count={data.count} pageSize={PAGE} unit="tournaments" />
-        : <EmptyState icon="calendar" title="No tournaments match"
-            hint="Try a different year or tier filter." />}
+      {groups.map((g) => (
+        <section key={g.key || 'none'} className="cal-month">
+          <h3 className="cal-h">{g.key ? `${MONTHS[+g.key.slice(5, 7) - 1]} ${g.key.slice(0, 4)}` : 'Undated'}</h3>
+          <div className="cal-list card">
+            {g.rows.map((t) => (
+              <Link key={t.tournament_id} to={`/tournaments/${t.tournament_id}`} className="cal-row">
+                <span className={`cal-date ${isOngoing(t) ? 'live-d' : ''}`}>
+                  <b>{t.start_date ? +t.start_date.slice(8, 10) : '–'}</b>
+                  <span>{t.start_date ? MON[+t.start_date.slice(5, 7) - 1] : ''}</span>
+                </span>
+                <span className="cal-main">
+                  <span className="cal-nm">{t.name}</span>
+                  <span className="cal-sub">
+                    {isOngoing(t) && <span className="live">LIVE</span>}
+                    <span>{dates(t)}</span>{t.venue_name && <span>· {t.venue_name}</span>}
+                  </span>
+                </span>
+                <Tier category={t.category_name} />
+                <span className="cal-n mono">{t.match_count} <span>matches</span></span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ))}
+      <Pager page={page} setPage={setPage} count={data.count} pageSize={PAGE} unit="tournaments" />
     </>
   )
 }
 
 export default function Tournaments() {
-  const [year, setYear] = useState('')
-  const [tier, setTier] = useState('')
+  const [params, setParams] = useSearchParams()
+  const year = params.get('year') || ''
+  const tier = params.get('tier') || ''
+  const q = params.get('q') || ''
+  const [draft, setDraft] = useState(q)
+  useEffect(() => setDraft(q), [q])
+  const set = (k, v) => {
+    const next = Object.fromEntries(params.entries())
+    if (v) next[k] = v; else delete next[k]
+    setParams(next)
+  }
+  // Debounced search into the URL.
+  useEffect(() => {
+    if (draft === q) return
+    const t = setTimeout(() => set('q', draft.trim()), 300)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft])
   const { data: tiers } = useAsync(() => api.tournamentTiers(), [])
   const tierOpts = [
     { value: '', label: 'All tiers' },
     ...(tiers || []).map((t) => ({ value: t.tier, label: `${shortTier(t.tier)} (${t.count})` })),
   ]
   // The master (grouped-by-prestige) view kicks in when a year is picked and no
-  // tier filter is applied; otherwise the flat paginated list.
-  const master = year && !tier
+  // tier filter or search is applied; otherwise the month-grouped calendar.
+  const master = year && !tier && !q
 
   return (
     <div>
-      <PageHeader kicker="Tournament Master · 1983–now" title="Tournaments">
-        <Select label="Tier" value={tier} onChange={setTier} options={tierOpts} />
-        <Select label="Year" value={year} onChange={setYear} options={YEAR_OPTS} />
+      <PageHeader kicker="Tournaments · 1983 to now" title="Tournaments"
+        subtitle={master ? 'Every tournament of the year, grouped by prestige. Cards marked 0 have no results collected yet.' : 'Every collected event, newest first. Pick a year for the full season by prestige.'}>
+        <label className="t-search">
+          <Icon name="search" size={15} />
+          <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Find a tournament" aria-label="Find a tournament" />
+        </label>
+        <Select label="Tier" value={tier} onChange={(v) => set('tier', v)} options={tierOpts} />
+        <Select label="Year" value={year} onChange={(v) => set('year', String(v || ''))} options={YEAR_OPTS} />
       </PageHeader>
-      {!year && !tier && (
-        <p className="muted small" style={{ marginTop: -6 }}>
-          Pick a <strong>year</strong> to see every tournament ranked by prestige
-          (Olympics &amp; championships on top) — a master view to spot gaps.
-        </p>
-      )}
-      {master ? <MasterView year={year} /> : <FlatList year={year} tier={tier} />}
+      {master ? <MasterView year={year} /> : <FlatList year={year} tier={tier} q={q} />}
     </div>
   )
 }

@@ -5,9 +5,13 @@ import { useAsync } from '../useAsync.js'
 import { flag } from '../flags.js'
 import { SkeletonList, TournamentSkeleton } from '../components/Skeleton.jsx'
 import { ErrorState } from '../components/Empty.jsx'
+import Avatar from '../components/Avatar.jsx'
+import Icon from '../components/Icon.jsx'
+import Tier from '../components/Tier.jsx'
+import { Delta, Ev } from '../components/Chips.jsx'
+import { fmtRange, isLive } from '../dates.js'
 
 const eventLabel = (code) => EVENTS.find((e) => e.code === code)?.label || code
-const shortTier = (s) => (s || '').replace('HSBC BWF World Tour ', '').replace('BWF ', '')
 
 // Fixed discipline order for a tournament's champions + match tabs (the API
 // returns them by match count; we want the conventional MS WS MD WD XD).
@@ -20,19 +24,10 @@ const eventRank = (code) => {
 const ROUND_LABEL = { QF: 'Quarter-finals', SF: 'Semi-finals', F: 'Final' }
 const roundLabel = (r) => ROUND_LABEL[r] || r
 
-function isOngoing(t) {
-  if (!t.start_date) return false
-  const today = new Date().toISOString().slice(0, 10)
-  return t.start_date <= today && today <= (t.end_date || t.start_date)
-}
 
 function EloTag({ e }) {
   if (!e) return null
-  return (
-    <span className={`elo-chip ${e.delta >= 0 ? 'pos' : 'neg'}`}>
-      {e.delta >= 0 ? '+' : ''}{e.delta.toFixed(1)}
-    </span>
-  )
+  return <Delta value={e.delta} />
 }
 
 // One side of a match as three fixed grid cells (name · flag · elo), so rows
@@ -56,35 +51,74 @@ function Side({ players, winner, elo, side }) {
     : <>{eloCell}{fl}{name}</>
 }
 
+// Net rating change across the event: gainers to the right, losers to the left.
 function Movers({ movers, event }) {
   const m = movers?.[event]
   if (!m || (!m.gainers.length && !m.losers.length)) return null
-  const Row = ({ r, sign }) => (
-    <div className="mover-row">
-      <span className={`mover-delta ${sign}`}>
-        {r.net_delta >= 0 ? '+' : ''}{r.net_delta.toFixed(0)}
-      </span>
-      {/* Fixed-width flag slot — blank (but reserved) when the country is unknown,
-          so names stay aligned. */}
-      <span className="mover-fl">{r.player.country_code ? flag(r.player.country_code) : ''}</span>
-      <Link to={`/players/${r.player.player_id}`} className="mover-name">
-        {r.player.name_display}{r.partner && ` / ${r.partner.name_display}`}
-      </Link>
-    </div>
-  )
+  const rows = [...m.gainers, ...m.losers]
+  const mx = Math.max(1, ...rows.map((r) => Math.abs(r.net_delta)))
   return (
-    <div className="movers">
-      <div className="mover-col">
-        <div className="mover-head pos">▲ Biggest gainers</div>
-        {m.gainers.length ? m.gainers.map((r, i) => <Row key={i} r={r} sign="pos" />)
-          : <p className="muted small">—</p>}
+    <section className="card t-panel">
+      <div className="t-panel-h"><h3>Rating movers</h3><span className="muted small">net change this event</span></div>
+      <div className="mv-list">
+        {rows.map((r, i) => {
+          const up = r.net_delta >= 0
+          return (
+            <div key={i} className="mv">
+              <Link to={`/players/${r.player.player_id}`} className="mv-nm">
+                <span className="fl">{flag(r.player.country_code)}</span>
+                {r.player.name_display}{r.partner && ` / ${r.partner.name_display}`}
+              </Link>
+              <span className="mv-tr">
+                <i className={up ? 'up' : 'dn'} style={{ width: `${(Math.abs(r.net_delta) / mx) * 50}%` }}>
+                  {up ? '+' : '−'}{Math.abs(r.net_delta).toFixed(0)}
+                </i>
+              </span>
+            </div>
+          )
+        })}
       </div>
-      <div className="mover-col">
-        <div className="mover-head neg">▼ Biggest losses</div>
-        {m.losers.length ? m.losers.map((r, i) => <Row key={i} r={r} sign="neg" />)
-          : <p className="muted small">—</p>}
+    </section>
+  )
+}
+
+// Quarter-finals → final as a compact bracket, ordered so each match feeds
+// the one beside it.
+const ids = (m) => [...m.side1, ...m.side2].map((p) => p.player_id)
+const isFinal = (r) => r === 'F' || r === 'Final'
+function Bracket({ matches }) {
+  const fin = matches.filter((m) => isFinal(m.round_name))
+  const sf = matches.filter((m) => m.round_name === 'SF')
+  const qf = matches.filter((m) => m.round_name === 'QF')
+  if (!fin.length || !sf.length) return null
+  const F = fin[0]
+  const sideIds = (side) => side.map((p) => p.player_id)
+  const has = (m, pids) => ids(m).some((x) => pids.includes(x))
+  const sfs = [...sf].sort((a) => (has(a, sideIds(F.side1)) ? -1 : 1))
+  const qfs = []
+  sfs.forEach((s) => [s.side1, s.side2].forEach((side) => {
+    const q = qf.find((m) => has(m, sideIds(side)) && !qfs.includes(m))
+    if (q) qfs.push(q)
+  }))
+  const Box = ({ m }) => {
+    const abnormal = m.score_status && m.score_status !== 'Normal'
+    const row = (side, n) => (
+      <Link to={`/matches/${m.match_id}`} className={m.winner_side === n ? 'w' : 'l'}>
+        <span className="bm-nm"><span className="fl">{flag(side[0]?.country_code)}</span>{side.map((p) => p.name_display).join(' / ')}</span>
+        <span className="bm-g">{abnormal && n === 1 ? <span className="pill warn tiny">{m.score_status}</span> : (m.score || []).map((g, i) => <span key={i}>{g[n - 1]}</span>)}</span>
+      </Link>
+    )
+    return <div className="bm">{row(m.side1, 1)}{row(m.side2, 2)}</div>
+  }
+  return (
+    <section className="card t-panel">
+      <div className="t-panel-h"><h3>Final rounds</h3></div>
+      <div className={`bracket cols-${qfs.length ? 3 : 2}`}>
+        {qfs.length > 0 && <div className="bcol"><span className="bh">Quarter-finals</span>{qfs.map((m) => <Box key={m.match_id} m={m} />)}</div>}
+        <div className="bcol"><span className="bh">Semi-finals</span>{sfs.map((m) => <Box key={m.match_id} m={m} />)}</div>
+        <div className="bcol"><span className="bh">Final</span><Box m={F} /></div>
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -107,18 +141,25 @@ function MatchList({ id, events, movers }) {
 
   return (
     <>
-      <div className="tabs">
-        {events.map((e) => (
-          <button key={e.event}
-            className={`tab ${e.event === event ? 'active' : ''}`}
-            onClick={() => { setEvent(e.event); setRound(null) }}>
-            {e.event}
-            <span className="tab-label">{e.n}</span>
-          </button>
-        ))}
+      <div className="t-tabs">
+        <div className="tabs" role="tablist" aria-label="Discipline">
+          {events.map((e) => (
+            <button key={e.event} role="tab" aria-selected={e.event === event}
+              className={`tab ${e.event === event ? 'active' : ''}`}
+              onClick={() => { setEvent(e.event); setRound(null) }}>
+              {e.event}
+              <span className="tab-label">{e.n} matches</span>
+            </button>
+          ))}
+        </div>
       </div>
 
-      <Movers movers={movers} event={event} />
+      <div className="t-grid">
+        {data && <Bracket matches={data.results} />}
+        <Movers movers={movers} event={event} />
+      </div>
+
+      <div className="sec-head" style={{ marginTop: 22 }}><h2>All matches · {eventLabel(event)}</h2></div>
 
       {rounds.length > 1 && (
         <div className="roundtabs">
@@ -131,7 +172,7 @@ function MatchList({ id, events, movers }) {
       {loading && <SkeletonList rows={8} />}
       {error && <ErrorState error={error} onRetry={reload} what="matches" />}
       {data && (
-        <div className="mlist">
+        <div className="mlist card">
           {shown.map((m) => {
             const te = m.team_elo || {}
             return (
@@ -239,7 +280,7 @@ function Collapsible({ title, sub, defaultOpen = true, children }) {
   return (
     <section className={`cup-section ${open ? 'open' : ''}`}>
       <button className="cup-section-head" onClick={() => setOpen(!open)}>
-        <span className="caret">{open ? '▾' : '▸'}</span>
+        <Icon name={open ? 'arrowDown' : 'arrowRight'} size={13} className="caret" />
         <span className="cup-section-title">{title}</span>
         {sub && <span className="cup-section-sub">{sub}</span>}
       </button>
@@ -262,7 +303,7 @@ function TeamCup({ id }) {
     <div className="teamcup">
       {data.champion && (
         <div className="cup-champion">
-          <span className="cup-trophy">🏆</span>
+          <span className="cup-trophy"><Icon name="trophy" size={24} /></span>
           <span className="fl big">{flag(data.champion)}</span>
           <span className="cup-champion-name">{data.champion}</span>
           <span className="cup-champion-label">Champions</span>
@@ -296,6 +337,7 @@ function TeamCup({ id }) {
 export default function Tournament() {
   const { id } = useParams()
   const { data: t, error, loading, reload } = useAsync(() => api.tournament(id), [id])
+  const [logoFailed, setLogoFailed] = useState(false)
 
   if (loading) return <TournamentSkeleton />
   if (error) return <ErrorState error={error} onRetry={reload} what="this tournament" />
@@ -304,21 +346,26 @@ export default function Tournament() {
   const finals = [...(t.finals || [])].sort((a, b) => eventRank(a.event) - eventRank(b.event))
   const events = [...(t.events || [])].sort((a, b) => eventRank(a.event) - eventRank(b.event))
 
+  const logo = !logoFailed && t.logo_url && !/placeholder/i.test(t.logo_url) ? t.logo_url : null
   return (
-    <div>
-      <Link to="/tournaments" className="back">← Tournaments</Link>
-      <header className="page-hero">
-        <div className="page-hero-text">
-          <div className="match-head">
-            {t.category_name && <span className="pill">{shortTier(t.category_name)}</span>}
-            {isOngoing(t) && <span className="badge-live">● Live</span>}
+    <div className="tournament-page">
+      <div className="crumb">
+        <Link to="/tournaments">Tournaments</Link><span className="sep">/</span>
+        <Link to={`/tournaments?year=${(t.start_date || '').slice(0, 4)}`}>{(t.start_date || '').slice(0, 4)}</Link>
+      </div>
+      <header className="t-head">
+        <span className="t-emblem">{logo ? <img src={logo} alt="" onError={() => setLogoFailed(true)} /> : <Icon name="trophy" size={30} />}</span>
+        <div className="t-id">
+          <div className="t-chips">
+            {t.category_name && <Tier category={t.category_name} />}
+            {isLive(t) && <span className="live">LIVE</span>}
           </div>
           <h1>{t.name}</h1>
-          <div className="meta">
-            {t.venue_name && <span>📍 {t.venue_name}</span>}
-            <span>🗓 {t.start_date} → {t.end_date}</span>
-            {t.prize_money && <span>💰 ${Number(t.prize_money).toLocaleString()}</span>}
-            <span>🏸 {t.match_count} matches</span>
+          <div className="t-meta">
+            {t.venue_name && <span><Icon name="pin" size={14} /> {t.venue_name}</span>}
+            {t.start_date && <span><Icon name="calendar" size={14} /> {fmtRange(t.start_date, t.end_date, true)}</span>}
+            {t.prize_money && <span><Icon name="coin" size={14} /> ${Number(t.prize_money).toLocaleString()}</span>}
+            <span>{t.match_count} matches{events.length ? ` · ${events.length} disciplines` : ''}</span>
           </div>
         </div>
       </header>
@@ -328,35 +375,22 @@ export default function Tournament() {
       ) : (
         <>
           {finals.length > 0 && (
-            <>
-              <h2>🏆 Champions</h2>
-              <div className="champ-list">
+            <section>
+              <div className="sec-head"><h2>Champions</h2></div>
+              <div className="champs">
                 {finals.map((f) => (
-                  <div key={f.match_id} className="champ-row">
-                    <span className="champ-ev">{eventLabel(f.event)}</span>
-                    <span className="champ-who">
-                      {f.champions.map((p, i) => (
-                        <span key={p.player_id}>
-                          {i > 0 ? ' / ' : ''}
-                          <span className="fl">{flag(p.country_code)}</span>{' '}
-                          <Link to={`/players/${p.player_id}`}>{p.name_display}</Link>
-                        </span>
-                      ))}
-                      {f.champions.length === 0 && <span className="muted">—</span>}
-                    </span>
-                    <Link to={`/matches/${f.match_id}`} className="muted small">final →</Link>
-                  </div>
+                  <Link key={f.match_id} to={`/matches/${f.match_id}`} className="champ card">
+                    <Ev code={f.event} />
+                    <span className="pair-av">{f.champions.map((p) => <Avatar key={p.player_id} player={p} size={40} />)}</span>
+                    <span className="champ-nm">{f.champions.map((p) => p.name_display).join(' / ') || '—'}</span>
+                    <span className="champ-lab">{f.champions[0] ? `${flag(f.champions[0].country_code)} ${f.champions[0].country_code} · ` : ''}{eventLabel(f.event)}</span>
+                  </Link>
                 ))}
               </div>
-            </>
+            </section>
           )}
 
-          {events.length > 0 && (
-            <>
-              <h2>Matches</h2>
-              <MatchList id={id} events={events} movers={t.movers} />
-            </>
-          )}
+          {events.length > 0 && <MatchList id={id} events={events} movers={t.movers} />}
         </>
       )}
     </div>
