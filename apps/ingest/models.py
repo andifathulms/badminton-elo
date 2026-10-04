@@ -201,6 +201,12 @@ class PlayerRating(models.Model):
     wins = models.IntegerField(default=0)
     losses = models.IntegerField(default=0)
     form = models.JSONField(default=list, blank=True)
+    # The conservative rating boards rank by (mu − 2·rd), stored and indexed by
+    # the database itself so every write path keeps it right.
+    rating = models.GeneratedField(
+        expression=models.F("mu") - 2.0 * models.F("rd"),
+        output_field=models.FloatField(), db_persist=True,
+    )
 
     class Meta:
         unique_together = ("player", "event")
@@ -208,6 +214,7 @@ class PlayerRating(models.Model):
         indexes = [
             models.Index(fields=["event", "rank"]),
             models.Index(fields=["event", "rank_gender"]),
+            models.Index(fields=["event", "-rating"]),
         ]
 
     def __str__(self) -> str:
@@ -306,11 +313,19 @@ class Partnership(models.Model):
     # over/under-performs the mean of its members). Set by build_synergy.
     perf_rating = models.FloatField(null=True, blank=True)
     synergy = models.FloatField(null=True, blank=True)
+    # Conservative pair rating (combined_mu − 2·combined_rd), DB-generated.
+    rating = models.GeneratedField(
+        expression=models.F("combined_mu") - 2.0 * models.F("combined_rd"),
+        output_field=models.FloatField(), db_persist=True,
+    )
 
     class Meta:
         unique_together = ("event", "player1", "player2")
         ordering = ["event", "-combined_mu"]
-        indexes = [models.Index(fields=["event", "-combined_mu"])]
+        indexes = [
+            models.Index(fields=["event", "-combined_mu"]),
+            models.Index(fields=["event", "-rating"]),
+        ]
 
     def __str__(self) -> str:
         return f"{self.event}: {self.player1_id}+{self.player2_id} ({self.matches_together})"
@@ -433,6 +448,11 @@ class TournamentPerformance(models.Model):
             models.Index(fields=["event", "-net_delta"]),
             models.Index(fields=["-perf_rating"]),
             models.Index(fields=["event", "-perf_rating"]),
+            # The gains board hides unsettled newcomers (rd_start <= 130).
+            models.Index(fields=["-net_delta"], condition=models.Q(rd_start__lte=130),
+                         name="tp_settled_gains_idx"),
+            models.Index(fields=["event", "-net_delta"], condition=models.Q(rd_start__lte=130),
+                         name="tp_settled_event_gains_idx"),
         ]
 
     def __str__(self) -> str:

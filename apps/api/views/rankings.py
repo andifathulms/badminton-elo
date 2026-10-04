@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from django.db.models import F, FloatField
-from django.db.models.functions import Cast
 from rest_framework import generics
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -82,10 +80,8 @@ class LeaderboardView(generics.ListAPIView):
         order = qp.get("order", "rating")
         if order == "mu":
             return qs.order_by("-mu", "rd")
-        # conservative rating = mu - 2*rd, ranked DB-side
-        return qs.annotate(
-            _rating=Cast(F("mu") - 2.0 * F("rd"), FloatField())
-        ).order_by("-_rating")
+        # conservative rating = mu - 2*rd (a stored, indexed column)
+        return qs.order_by("-rating")
 
     def list(self, request, *args, **kwargs):
         """Add each row's record, form line and rank movement — all stored on
@@ -133,9 +129,7 @@ class PairsView(generics.ListAPIView):
         # year (even if one member is still active with a different partner).
         if self.request.query_params.get("include_inactive") != "1":
             qs = qs.filter(last_match_utc__gte=active_cutoff())
-        return qs.annotate(
-            _rating=F("combined_mu") - 2.0 * F("combined_rd")
-        ).order_by("-_rating")
+        return qs.order_by("-rating")
 
 
 class PairDetailView(APIView):

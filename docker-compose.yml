@@ -19,9 +19,15 @@ services:
       timeout: 3s
       retries: 10
 
+  # Shared API response cache for every gunicorn worker (apps/api/cache.py).
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
+
   web:
     build: .
     environment:
+      REDIS_URL: redis://redis:6379/1
       POSTGRES_DB: badminton
       POSTGRES_USER: badminton
       POSTGRES_PASSWORD: badminton
@@ -33,6 +39,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
     ports:
       - "8000:8000"
 

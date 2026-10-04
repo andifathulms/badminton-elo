@@ -6,3 +6,4 @@ httpx>=0.27
 pydantic>=2
 gunicorn>=22
 psycopg[binary]>=3.1
+redis>=5  # Django's RedisCache backend (REDIS_URL)
