@@ -183,10 +183,14 @@ RATING = {
     "SIGMA_INIT": 0.06,
     "TAU": 0.5,
     "PAIR_BLEND": "mean",
-    "LAMBDA": 0.5,
-    "M_MIN": 0.7,
-    "M_MAX": 1.4,
-    "D_FLOOR": 0.50,
+    # Margin (PRD §7.3): M = 1 + LAMBDA·(2d − 1), clamped to [M_MIN, M_MAX].
+    # D_FLOOR = 0 lets a narrow win count for LESS than a plain win (M < 1), not
+    # only blowouts for more. Tuned with `manage.py backtest`: logloss 0.5350 ->
+    # 0.5250 on 2023+, confirmed 0.5340 -> 0.5240 on unseen 2016-2019.
+    "LAMBDA": 2.0,
+    "M_MIN": 0.4,
+    "M_MAX": 2.5,
+    "D_FLOOR": 0.0,
     "K_RETIRE": 0.3,
     "RD_INFLATE_C": 34.6,
     # Rank-based seeding (PRD §7.6): rank 1 -> SEED_RANK_TOP_MU, rank

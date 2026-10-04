@@ -41,6 +41,8 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--since", default="2023-01-01",
                             help="Score matches on/after this date (YYYY-MM-DD).")
+        parser.add_argument("--until", default=None,
+                            help="Stop scoring before this date (YYYY-MM-DD).")
         parser.add_argument("--event", default=None, help="Limit to one discipline.")
         parser.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
                             help="Override a settings.RATING key for this run.")
@@ -48,7 +50,11 @@ class Command(BaseCommand):
                             help="Ignore BWF ranking seeds (flat cold start).")
 
     def handle(self, *args, **opts):
-        since = datetime.strptime(opts["since"], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        def _date(raw):
+            return datetime.strptime(raw, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+
+        since = _date(opts["since"])
+        until = _date(opts["until"]) if opts["until"] else None
         overrides = dict(_parse_override(s) for s in opts["set"])
         config = _config(overrides)
 
@@ -58,7 +64,7 @@ class Command(BaseCommand):
         self.stdout.write(f"loaded {len(records)} matches in {time.monotonic() - t0:.0f}s")
 
         t0 = time.monotonic()
-        res = backtest(records, config, seed_ranks=seeds, since=since)
+        res = backtest(records, config, seed_ranks=seeds, since=since, until=until)
         label = ", ".join(f"{k}={v}" for k, v in overrides.items()) or "current settings"
         if opts["no_seeds"]:
             label += " (no seeds)"

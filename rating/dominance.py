@@ -14,13 +14,14 @@ def dominance(
     games: tuple[GameRecord, ...] | list[GameRecord],
     winner_side: int,
     *,
-    d_floor: float = 0.50,
+    d_floor: float = 0.0,
 ) -> float:
     """Return d = winner_points / total_points across the whole match.
 
     Comparable across 3x21 / 3x15 / 5x11 / side-out formats because it is a
-    ratio, not a raw point difference. Floored at ``d_floor`` so a close win
-    never scores below an even split. Returns ``d_floor`` if no points exist.
+    ratio, not a raw point difference. Floored at ``d_floor`` (default 0: a
+    winner who scored fewer total points gets d < 0.5, so M < 1). Returns 0.5
+    (neutral) if no points exist.
     """
     winner_pts = 0
     total_pts = 0
@@ -29,7 +30,7 @@ def dominance(
         total_pts += g.side1_points + g.side2_points
         winner_pts += w
     if total_pts <= 0:
-        return d_floor
+        return max(0.5, d_floor)
     return max(winner_pts / total_pts, d_floor)
 
 

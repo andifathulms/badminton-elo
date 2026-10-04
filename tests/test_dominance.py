@@ -37,3 +37,16 @@ def test_margin_multiplier_clamped():
     assert margin_multiplier(1.0, CFG) == CFG.m_max
     assert abs(margin_multiplier(0.5, CFG) - 1.0) < 1e-9
     assert margin_multiplier(0.0, CFG) == CFG.m_min
+
+
+def test_narrow_win_can_dampen_below_one():
+    from rating import GameRecord, RatingConfig, dominance, margin_multiplier
+
+    cfg = RatingConfig()
+    # Won 2-1 but scored fewer points overall (21-19, 5-21, 21-19): d < 0.5.
+    games = (GameRecord(1, 21, 19), GameRecord(2, 5, 21), GameRecord(3, 21, 19))
+    d = dominance(games, 1, d_floor=cfg.d_floor)
+    assert d < 0.5
+    assert margin_multiplier(d, cfg) < 1.0
+    # No points recorded -> neutral, never the minimum.
+    assert margin_multiplier(dominance((), 1, d_floor=cfg.d_floor), cfg) == 1.0

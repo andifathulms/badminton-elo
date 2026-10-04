@@ -57,8 +57,10 @@ def score(
     matches: list[MatchRecord],
     result: RunResult,
     since: datetime | None = None,
+    until: datetime | None = None,
 ) -> BacktestResult:
-    """Grade the pre-match predictions in `result.history` for `matches`."""
+    """Grade the pre-match predictions in `result.history` for matches in
+    [since, until)."""
     pre: dict[int, dict[int, tuple[float, float]]] = {}
     for d in result.history:
         pre.setdefault(d.match_id, {})[d.player_id] = (d.mu_before, d.rd_before)
@@ -69,7 +71,10 @@ def score(
     for m in matches:
         if m.match_id not in pre or m.winner_side not in (1, 2):
             continue
-        if since is not None and (m.match_time_utc is None or m.match_time_utc < since):
+        t = m.match_time_utc
+        if since is not None and (t is None or t < since):
+            continue
+        if until is not None and (t is None or t >= until):
             continue
         players = pre[m.match_id]
         t1 = team_rating([players[p] for p in m.side1_player_ids if p in players])
@@ -102,8 +107,9 @@ def backtest(
     *,
     seed_ranks=None,
     since: datetime | None = None,
+    until: datetime | None = None,
     engine: Engine = run,
 ) -> BacktestResult:
-    """Run `engine` over `matches` and score predictions from `since` on."""
+    """Run `engine` over `matches` and score predictions in [since, until)."""
     result = engine(matches, config, seed_ranks=seed_ranks)
-    return score(matches, result, since=since)
+    return score(matches, result, since=since, until=until)

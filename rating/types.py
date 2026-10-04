@@ -67,10 +67,10 @@ class RatingConfig:
     sigma_init: float = 0.06
     tau: float = 0.5
     pair_blend: str = "mean"
-    lambda_: float = 0.5
-    m_min: float = 0.7
-    m_max: float = 1.4
-    d_floor: float = 0.50
+    lambda_: float = 2.0
+    m_min: float = 0.4
+    m_max: float = 2.5
+    d_floor: float = 0.0
     k_retire: float = 0.3
     rd_inflate_c: float = 34.6
     tier_weights: dict[str, float] = field(default_factory=dict)
