@@ -71,3 +71,14 @@ def test_active_cutoff_comes_from_version(db, board):
     t = datetime(2026, 3, 1, tzinfo=timezone.utc)
     PlayerRating.objects.update(last_match_utc=t)
     assert bump().active_cutoff == t - timedelta(days=365)
+
+
+def test_bump_refreshes_tournament_match_counts(db):
+    from apps.ingest.models import Match, Tournament
+
+    t = Tournament.objects.create(tournament_id=7, name="T")
+    Match.objects.create(match_id=1, tournament=t, event="MS", round_name="F",
+                         score_status="Normal")
+    assert Tournament.objects.get(pk=7).match_count == 0
+    bump()
+    assert Tournament.objects.get(pk=7).match_count == 1

@@ -92,16 +92,11 @@ def tournament_collection(request):
     with transaction.atomic():
         tid = _next_manual_id(Tournament, "tournament_id")
         t = Tournament.objects.create(tournament_id=tid, **ser.validated_data)
-    from django.db.models import Count
-
-    fresh = Tournament.objects.annotate(match_count=Count("matches")).get(pk=t.pk)
-    return Response(TournamentListSerializer(fresh).data, status=status.HTTP_201_CREATED)
+    return Response(TournamentListSerializer(t).data, status=status.HTTP_201_CREATED)
 
 
 def _tournament_search(request):
-    from django.db.models import Count
-
-    qs = Tournament.objects.annotate(match_count=Count("matches"))
+    qs = Tournament.objects.all()
     q = (request.query_params.get("q") or "").strip()
     if q:
         qs = qs.filter(name__icontains=q)
@@ -123,10 +118,7 @@ def tournament_edit(request, tournament_id):
     ser = TournamentEditSerializer(t, data=request.data, partial=True)
     ser.is_valid(raise_exception=True)
     ser.save()
-    from django.db.models import Count
-
-    fresh = Tournament.objects.annotate(match_count=Count("matches")).get(pk=t.pk)
-    return Response(TournamentListSerializer(fresh).data)
+    return Response(TournamentListSerializer(t).data)
 
 
 # --- Players ----------------------------------------------------------------

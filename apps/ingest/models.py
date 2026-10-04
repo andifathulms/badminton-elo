@@ -31,9 +31,13 @@ class Tournament(models.Model):
         max_digits=12, decimal_places=2, null=True, blank=True
     )
     venue_name = models.CharField(max_length=255, blank=True)
+    # Denormalized COUNT(matches), refreshed at every DataVersion bump, so lists
+    # don't join all matches to hide empty tournaments.
+    match_count = models.IntegerField(default=0)
 
     class Meta:
         ordering = ["-start_date", "name"]
+        indexes = [models.Index(fields=["match_count", "-start_date"])]
 
     def __str__(self) -> str:
         return f"{self.name} ({self.tournament_id})"

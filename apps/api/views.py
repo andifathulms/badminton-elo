@@ -767,11 +767,7 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = TournamentListSerializer
 
     def get_queryset(self):
-        qs = (
-            Tournament.objects.annotate(match_count=Count("matches"))
-            .filter(match_count__gt=0)
-            .order_by("-start_date")
-        )
+        qs = Tournament.objects.filter(match_count__gt=0).order_by("-start_date")
         year = self.request.query_params.get("year")
         if year and year.isdigit():
             qs = qs.filter(start_date__year=int(year))
@@ -808,7 +804,7 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
         sorted by prestige (multi-sport & championships on top), each tagged
         with its section group. Powers the by-year 'tournament master' view."""
         year = request.query_params.get("year")
-        qs = Tournament.objects.annotate(match_count=Count("matches"))
+        qs = Tournament.objects.all()
         if year and year.isdigit():
             qs = qs.filter(start_date__year=int(year))
         tours = sorted(
@@ -823,8 +819,7 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
     def tiers(self, request):
         """Distinct non-empty tiers present, ordered by prestige then count."""
         rows = (
-            Tournament.objects.annotate(mc=Count("matches"))
-            .filter(mc__gt=0)
+            Tournament.objects.filter(match_count__gt=0)
             .exclude(category_name="")
             .exclude(category_name=None)
             .values("category_name")
@@ -1098,11 +1093,7 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
         )
         return Response(
             {
-                **TournamentListSerializer(
-                    Tournament.objects.annotate(match_count=Count("matches")).get(
-                        pk=t.pk
-                    )
-                ).data,
+                **TournamentListSerializer(t).data,
                 "slug": t.slug,
                 "is_team_cup": team_cup_kind(t) is not None,
                 "cup": team_cup_kind(t),
@@ -1604,11 +1595,12 @@ class EventsView(APIView):
     """GET /api/events — the discipline buckets and their rated-player counts."""
 
     def get(self, request):
-        counts = {
-            e: PlayerRating.objects.filter(event=e).count() for e in EVENTS
-        }
+        counts = dict(
+            PlayerRating.objects.filter(event__in=EVENTS).order_by()
+            .values_list("event").annotate(n=Count("id"))
+        )
         return Response(
-            [{"event": e, "rated_players": counts[e]} for e in EVENTS]
+            [{"event": e, "rated_players": counts.get(e, 0)} for e in EVENTS]
         )
 
 

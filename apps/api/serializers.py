@@ -220,8 +220,6 @@ class TournamentBriefSerializer(serializers.ModelSerializer):
 
 
 class TournamentListSerializer(serializers.ModelSerializer):
-    match_count = serializers.IntegerField(read_only=True)
-
     class Meta:
         model = Tournament
         fields = (
