@@ -67,11 +67,17 @@ def match_signatures(tournament_ids) -> dict[int, dict]:
     return out
 
 
-def find_pairs():
-    """[(wiki Tournament, api Tournament, plan)] where plan = {dup, bye, move,
-    drop} lists of match ids. A pair needs MIN_SHARE of the wiki copy to
-    duplicate the API copy."""
-    wikis = list(Tournament.objects.filter(code__startswith="wiki:", match_count__gt=0,
+# Source priority, most authoritative first. A copy is compared against every
+# MORE authoritative source: German Wikipedia yields to the BWF API, English
+# Wikipedia to both (German lists every match; English often only finals).
+SOURCES = (("dewiki:", ("wiki:", "dewiki:")), ("wiki:", ("wiki:",)))
+
+
+def find_pairs(source: str = "wiki:", weaker: tuple[str, ...] = ("wiki:",)):
+    """[(copy Tournament, authoritative Tournament | None, plan)] where plan =
+    {dup, bye, move, drop} lists of match ids, for copies whose code starts with
+    `source`, against tournaments whose code starts with none of `weaker`."""
+    wikis = list(Tournament.objects.filter(code__startswith=source, match_count__gt=0,
                                            start_date__isnull=False))
     api_sigs: dict[int, tuple[set, set]] = {}
 
@@ -90,8 +96,9 @@ def find_pairs():
         else:
             near = {"start_date__gte": w.start_date - WINDOW,
                     "start_date__lte": w.start_date + WINDOW}
-        apis = Tournament.objects.filter(match_count__gt=0, **near).exclude(
-            code__startswith="wiki:")
+        apis = Tournament.objects.filter(match_count__gt=0, **near)
+        for prefix in weaker:
+            apis = apis.exclude(code__startswith=prefix)
         wrecs = match_signatures([w.tournament_id])
         best = None
         for a in apis:

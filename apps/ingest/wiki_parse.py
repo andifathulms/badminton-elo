@@ -80,6 +80,7 @@ BRACKET_RE = re.compile(r"\{\{\s*(\d+)TeamBracket[^\n}|]*", re.I)
 # 2**rounds.
 INVOKE_BRACKET_RE = re.compile(r"\{\{\s*#invoke:\s*Team[ _]bracket\b", re.I)
 ROUNDS_RE = re.compile(r"^[ \t]*\|[ \t]*rounds[ \t]*=[ \t]*(\d+)", re.M)
+DE_FLAG_RE = re.compile(r"\{\{\s*([A-Z]{3})\s*\|\s*#")
 # {{flagIOC2athlete|[[Lin Dan]]|CHN|2026 Asian Games}}: the country is the
 # first bare 3-letter code parameter.
 ATHLETE_FLAG_RE = re.compile(r"\{\{\s*flag\w*athlete\b[^{}]*?\|\s*([A-Z]{3})\s*(?:\||\}\})")
@@ -115,10 +116,13 @@ def parse_team(raw: str) -> dict | None:
     country = None
     am = ATHLETE_FLAG_RE.search(raw)
     m = FLAG_RE.search(raw)
+    dm = DE_FLAG_RE.search(raw)
     if am:
         country = am.group(1)
     elif m:
         country = _country(m.group(1))
+    elif dm:  # German Wikipedia: {{KOR|#}}
+        country = dm.group(1)
     players = []
     for lm in LINK_RE.finditer(raw):
         title = _clean(lm.group(1))

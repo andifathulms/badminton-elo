@@ -21,8 +21,14 @@ RATE_S = 1.0  # seconds between live requests
 
 
 class WikiClient:
-    def __init__(self, cache_dir: Path | None = None, rate_s: float = RATE_S):
-        self.cache_dir = cache_dir or CACHE_DIR
+    """`lang` picks the Wikipedia edition (default English). Non-English
+    editions cache under data/wiki_cache/<lang>/."""
+
+    def __init__(self, cache_dir: Path | None = None, rate_s: float = RATE_S,
+                 lang: str = "en"):
+        self.lang = lang
+        self.api = API if lang == "en" else f"https://{lang}.wikipedia.org/w/api.php"
+        self.cache_dir = cache_dir or (CACHE_DIR if lang == "en" else CACHE_DIR / lang)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.rate_s = rate_s
         self._last = 0.0
@@ -50,7 +56,7 @@ class WikiClient:
                 time.sleep(dt)
             self._last = time.monotonic()
             try:
-                r = self._client.get(API, params=params)
+                r = self._client.get(self.api, params=params)
                 r.raise_for_status()
                 return r.json()
             except (httpx.TransportError, httpx.HTTPStatusError) as e:
@@ -86,6 +92,37 @@ class WikiClient:
         cp.write_text(json.dumps({"title": title, "wikitext": wt}))
         return wt
 
+    def langlinks(self, titles: list[str], to: str = "en") -> dict[str, str | None]:
+        """{title: the linked article title in edition `to`, or None}, batched
+        50 titles per request (redirects followed) and cached per title."""
+        cp = self.cache_dir / f"_langlinks_{to}.json"
+        known: dict = json.loads(cp.read_text()) if cp.exists() else {}
+        todo = [t for t in dict.fromkeys(titles) if t not in known]
+        for i in range(0, len(todo), 50):
+            batch = todo[i:i + 50]
+            j = self._get({"action": "query", "titles": "|".join(batch), "prop": "langlinks",
+                           "lllang": to, "lllimit": 500, "redirects": 1, "format": "json"})
+            q = j.get("query", {})
+            alias = {}
+            for key in ("normalized", "redirects"):
+                for r in q.get(key, []):
+                    alias[r["to"]] = alias.get(r["from"], r["from"])
+            for page in q.get("pages", {}).values():
+                links = page.get("langlinks") or []
+                target = links[0]["*"] if links else None
+                src = page.get("title")
+                # map back through redirects/normalisation to what we asked for
+                origin = src
+                while origin in alias:
+                    origin = alias[origin]
+                for t in (src, origin):
+                    if t in batch:
+                        known[t] = target
+            for t in batch:
+                known.setdefault(t, None)
+            cp.write_text(json.dumps(known))
+        return {t: known.get(t) for t in titles}
+
     def category_members(self, category: str) -> list[str]:
         """All page titles in Category:<category> (cache-first, paginated)."""
         cp = self._cache_path("CAT_" + category)
@@ -96,7 +133,8 @@ class WikiClient:
         while True:
             params = {
                 "action": "query", "list": "categorymembers",
-                "cmtitle": f"Category:{category}", "cmlimit": 500, "format": "json",
+                "cmtitle": category if ":" in category else f"Category:{category}",
+                "cmlimit": 500, "format": "json",
             }
             if cont:
                 params["cmcontinue"] = cont
