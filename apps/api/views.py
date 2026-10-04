@@ -725,7 +725,7 @@ class PlayerMatchesView(generics.ListAPIView):
 class MatchViewSet(viewsets.ReadOnlyModelViewSet):
     """GET /api/matches/{id} — one match with lineup and games.
     GET /api/matches/{id}/statistics — rally stats + point progression
-    (served from cache, fetched live from BWF on first request)."""
+    (stored; the first request queues a background fetch and says "pending")."""
 
     queryset = (
         Match.objects.all()
@@ -737,23 +737,26 @@ class MatchViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["get"])
     def statistics(self, request, match_id=None):
-        from apps.ingest.h2h import fetch_and_store_stats
+        """Stored rally stats, or {"available": false, "pending": true} while a
+        background fetch runs (never calls BWF inside the request)."""
+        from apps.ingest import statsjobs
         from apps.ingest.models import MatchStatistics
 
         from .serializers import MatchStatisticsSerializer
 
         match = self.get_object()
         stats = MatchStatistics.objects.filter(match=match).first()
-        if stats is None:
-            try:
-                stats = fetch_and_store_stats(match)
-            except Exception:  # noqa: BLE001 - live fetch is best-effort
-                stats = None
-        if stats is None:
+        if stats is not None:
+            data = MatchStatisticsSerializer(stats).data
+            data["available"] = True
+            return Response(data)
+        if not match.code:
             return Response({"available": False})
-        data = MatchStatisticsSerializer(stats).data
-        data["available"] = True
-        return Response(data)
+        status = statsjobs.enqueue(match)
+        if status in (statsjobs.PENDING, statsjobs.RUNNING):
+            statsjobs.kick()
+            return Response({"available": False, "pending": True})
+        return Response({"available": False})
 
 
 class TournamentViewSet(viewsets.ReadOnlyModelViewSet):

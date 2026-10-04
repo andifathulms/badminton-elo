@@ -305,6 +305,24 @@ class MatchStatistics(models.Model):
         return f"stats M{self.match_id}"
 
 
+class StatsFetchJob(models.Model):
+    """Queue entry for a background fetch of one match's rally statistics
+    (apps.ingest.statsjobs). The API never calls BWF inside a request."""
+
+    match = models.OneToOneField(
+        Match, on_delete=models.CASCADE, related_name="stats_job", primary_key=True
+    )
+    status = models.CharField(max_length=12, default="pending")  # pending/running/done/failed
+    attempts = models.IntegerField(default=0)
+    updated_utc = models.DateTimeField()
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "updated_utc"])]
+
+    def __str__(self) -> str:
+        return f"stats job M{self.match_id}: {self.status}"
+
+
 class ReconcileDecision(models.Model):
     """A human ruling on an ambiguous Wikipedia<->BWF identity, keyed by the
     Wiki player's stable title so it isn't surfaced again once decided."""

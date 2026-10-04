@@ -184,8 +184,23 @@ function StatBar({ label, a, b }) {
   )
 }
 
+// The API answers {pending: true} while it fetches a match's stats from BWF in
+// the background; poll until they land (or give up after ~30 s).
+const POLL_MS = 2000
+const POLL_TRIES = 15
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+async function statisticsWhenReady(matchId) {
+  let res = await api.matchStatistics(matchId)
+  for (let i = 0; res?.pending && i < POLL_TRIES; i++) {
+    await sleep(POLL_MS)
+    res = await api.matchStatistics(matchId)
+  }
+  return res
+}
+
 export default function MatchStats({ matchId, names = ['Side 1', 'Side 2'] }) {
-  const { data, error, loading } = useAsync(() => api.matchStatistics(matchId), [matchId])
+  const { data, error, loading } = useAsync(() => statisticsWhenReady(matchId), [matchId])
 
   if (loading) return <div className="card" style={{ padding: 18 }}><p className="muted" style={{ margin: 0 }}>Loading statistics…</p></div>
   if (error || !data || data.available === false)

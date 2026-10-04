@@ -486,3 +486,45 @@ def test_default_board_reads_stored_rank_record_and_form(client):
     assert top["wins"] == 7 and top["losses"] == 3 and top["win_pct"] == 70.0
     assert top["form"] == [1850, 1880, 2000]
     assert top["rank_change"] == 2
+
+
+@pytest.mark.django_db
+def test_statistics_miss_queues_a_background_fetch(client, monkeypatch):
+    from apps.ingest import statsjobs
+    from apps.ingest.models import Match, StatsFetchJob, Tournament
+
+    kicked = []
+    monkeypatch.setattr(statsjobs, "kick", lambda: kicked.append(1))
+    t = Tournament.objects.create(tournament_id=1, name="T")
+    m = Match.objects.create(match_id=10, code="ABC", tournament=t, event="MS",
+                             round_name="F", score_status="Normal", winner_side=1)
+    r = client.get(f"/api/matches/{m.match_id}/statistics").json()
+    assert r == {"available": False, "pending": True}
+    assert StatsFetchJob.objects.get(match=m).status == "pending"
+    assert kicked  # the request never fetched from BWF itself
+
+
+@pytest.mark.django_db
+def test_stats_drain_marks_jobs_done_or_failed(monkeypatch):
+    from django.utils import timezone
+
+    from apps.ingest import h2h, statsjobs
+    from apps.ingest.models import Match, MatchStatistics, StatsFetchJob, Tournament
+
+    t = Tournament.objects.create(tournament_id=1, name="T")
+    ok = Match.objects.create(match_id=10, code="A", tournament=t, event="MS",
+                              round_name="F", score_status="Normal")
+    bad = Match.objects.create(match_id=11, code="B", tournament=t, event="MS",
+                               round_name="SF", score_status="Normal")
+    for m in (ok, bad):
+        StatsFetchJob.objects.create(match=m, status="pending", updated_utc=timezone.now())
+
+    def fake_fetch(match, client=None):
+        if match.match_id == 10:
+            return MatchStatistics.objects.create(match=match, duration_min=40)
+        return None
+
+    monkeypatch.setattr(h2h, "fetch_and_store_stats", fake_fetch)
+    assert statsjobs.drain() == 2
+    assert StatsFetchJob.objects.get(match=ok).status == "done"
+    assert StatsFetchJob.objects.get(match=bad).status == "failed"
