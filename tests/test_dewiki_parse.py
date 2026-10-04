@@ -69,3 +69,8 @@ def test_side_out_relabelling_rule():
     assert side_out_code([21, 19]) is None         # rally, leave it
     assert scoring_format([(15, 4), (15, 9)], 1995) == "15x3s"
     assert scoring_format([(15, 4), (15, 9)], 2016) == "3x15"
+
+
+def test_byes_are_not_matches():
+    text = "== Herreneinzel ==\n* {{DNK|#}} [[Peter Gade]] – Freilos: w.o.\n* {{DNK|#}} [[A]] – Bye: w.o.\n"
+    assert parse_article(text) == []

@@ -2,7 +2,8 @@
 
 English Wikipedia usually has only the finals of an old event; German
 Wikipedia lists every match (apps/ingest/dewiki_parse.py). Tournaments are
-enumerated from the per-year category "Kategorie:Badminton {year}" and kept to
+enumerated from "Kategorie:Badminton {year}" plus its Grand Prix subcategory
+("Kategorie:World Badminton Grand Prix {year}") and kept to
 the event types the BWF-API era also covers — international opens, Grand
 Prix, internationals, continental and world championships, multi-sport games
 — not national championships, club leagues, junior/senior or student events.
@@ -96,8 +97,11 @@ class Command(DataCommand):
             else:
                 jobs = []
                 for y in range(o["yr_from"], o["yr_to"] + 1):
+                    # The Grand Prix events (the big Opens) sit in a SUBcategory,
+                    # not directly in 'Badminton {year}'.
                     gp = set(de.category_members(f"Kategorie:World Badminton Grand Prix {y}"))
-                    for t in de.category_members(f"Kategorie:Badminton {y}"):
+                    year_pages = de.category_members(f"Kategorie:Badminton {y}")
+                    for t in dict.fromkeys(year_pages + sorted(gp)):
                         if wanted(t):
                             jobs.append((t, gp))
             # Per-discipline subpages ('…(Badminton)/Herreneinzel') join their base.

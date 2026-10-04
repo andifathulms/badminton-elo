@@ -24,7 +24,7 @@ import math
 import re
 from datetime import date
 
-from .wiki_parse import _parse_one, _template_body
+from .wiki_parse import _parse_one, _template_body, is_bye
 
 DISCIPLINES = [  # (heading word, event) — longest first
     ("herreneinzel", "MS"), ("dameneinzel", "WS"), ("herrendoppel", "MD"),
@@ -64,6 +64,9 @@ def _players(side: str) -> list[tuple[str, str, str | None]]:
             title = display
         if not display or title.lower().startswith(("datei:", "file:")):
             continue
+        if is_bye(display) or is_bye(title) or "freilos" in display.lower():
+            return []  # a bye is not a contest: drop the whole side
+
         out.append((title, display, country))
     return out
 
