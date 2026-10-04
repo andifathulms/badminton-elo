@@ -38,6 +38,7 @@ PY
   # Full rebuild (~70s) so out-of-order historical periods (Wikipedia 1983-2006
   # backfill) integrate correctly, not just newest-appended matches.
   .venv/bin/python manage.py rate --rebuild >/dev/null 2>&1 || { unset SQLITE_PATH; return 1; }
+  .venv/bin/python manage.py build_movement >/dev/null 2>&1   # rank arrows (after rate)
   .venv/bin/python manage.py build_pairs >/dev/null 2>&1
   .venv/bin/python manage.py build_analytics >/dev/null 2>&1
   .venv/bin/python manage.py build_cup_history >/dev/null 2>&1

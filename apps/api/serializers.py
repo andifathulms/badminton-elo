@@ -129,6 +129,10 @@ class PlayerRatingSerializer(serializers.ModelSerializer):
             "sigma",
             "matches_played",
             "last_match_utc",
+            "rank",
+            "rank_prev",
+            "rank_gender",
+            "rank_prev_gender",
         )
 
     def get_rating(self, obj) -> float:

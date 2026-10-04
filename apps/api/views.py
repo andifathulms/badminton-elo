@@ -223,8 +223,44 @@ class LeaderboardView(generics.ListAPIView):
             )
         }
         data = self.get_serializer(rows, many=True).data
+
+        # Form line: the rating carried into each of the last FORM_POINTS
+        # tournaments (tournament-locked periods), ending at today's mu.
+        FORM_POINTS = 20
+        starts = defaultdict(list)
+        for pid, mu_b in (
+            RatingHistory.objects.filter(player_id__in=pids, event=event)
+            .order_by("player_id", "applied_utc", "match_id")
+            .values_list("player_id", "mu_before")
+        ):
+            s = starts[pid]
+            if not s or s[-1] != mu_b:
+                s.append(mu_b)
+
+        # Rank movement is only meaningful on the default board that
+        # build_movement ranked (current, by rating, >= 5 matches, active).
+        qp = request.query_params
+        default_board = (
+            qp.get("ranking", "current") == "current"
+            and qp.get("order", "rating") == "rating"
+            and qp.get("min_matches", "5") == "5"
+            and qp.get("include_inactive") != "1"
+        )
+        gendered = qp.get("gender") in ("M", "F")
+        by_pid = {r.player_id: r for r in rows}
+
         for row in data:
-            r = recs.get(row["player"]["player_id"])
+            pid = row["player"]["player_id"]
+            pr = by_pid.get(pid)
+            row["form"] = [round(x) for x in starts.get(pid, [])[-FORM_POINTS:]] + (
+                [round(pr.mu)] if pr else []
+            )
+            if default_board and pr is not None:
+                now, prev = (
+                    (pr.rank_gender, pr.rank_prev_gender) if gendered else (pr.rank, pr.rank_prev)
+                )
+                row["rank_change"] = (prev - now) if (now and prev) else None
+            r = recs.get(pid)
             if r and r["played"]:
                 row["wins"] = r["won"] or 0
                 row["losses"] = r["played"] - (r["won"] or 0)

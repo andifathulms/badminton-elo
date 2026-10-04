@@ -54,7 +54,7 @@ def _steps(year, mode="full"):
     def cmd(name, **kw):
         return lambda: call_command(name, stdout=io.StringIO(), stderr=io.StringIO(), **kw)
 
-    builds = ("build_pairs", "build_analytics", "build_cup_history", "build_records",
+    builds = ("build_movement", "build_pairs", "build_analytics", "build_cup_history", "build_records",
               "build_calibration", "build_clutch", "build_nation_power",
               "build_consistency", "build_synergy")
 

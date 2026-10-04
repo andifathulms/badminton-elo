@@ -184,6 +184,13 @@ class PlayerRating(models.Model):
     # a form-volatility measure (low = steady, high = erratic). Set by
     # build_consistency after rate; null until then.
     volatility = models.FloatField(null=True, blank=True)
+    # Position on the default CURRENT board (active, >= 5 matches, ranked by
+    # mu − 2·rd) now and MOVEMENT_DAYS ago; *_gender is the same within the
+    # player's gender (XD's split boards). Set by build_movement after rate.
+    rank = models.IntegerField(null=True, blank=True)
+    rank_prev = models.IntegerField(null=True, blank=True)
+    rank_gender = models.IntegerField(null=True, blank=True)
+    rank_prev_gender = models.IntegerField(null=True, blank=True)
 
     class Meta:
         unique_together = ("player", "event")
