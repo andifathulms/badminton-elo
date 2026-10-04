@@ -12,7 +12,7 @@ dominance/margin math (§7.3), and the deterministic chronological driver (§7.7
 """
 from .dominance import dominance, margin_multiplier
 from .engine import update_match, update_period
-from .run import RunResult, match_sort_key, run
+from .run import RunResult, group_periods, match_sort_key, period_sort_key, rollback, run
 from .types import (
     GameRecord,
     MatchRecord,
@@ -29,6 +29,9 @@ __all__ = [
     "run",
     "RunResult",
     "match_sort_key",
+    "group_periods",
+    "period_sort_key",
+    "rollback",
     "GameRecord",
     "MatchRecord",
     "Rating",

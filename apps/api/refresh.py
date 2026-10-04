@@ -83,7 +83,8 @@ def _steps(year, mode="full"):
         ("Normalizing events", cmd("normalize_events")),
         ("Fixing cup disciplines", cmd("fix_cup_events")),
         ("Backfilling countries", cmd("backfill_cup_country")),
-        ("Recomputing ratings", cmd("rate", rebuild=True)),
+        # Incremental: replays only changed tournaments, rebuilds when it must.
+        ("Recomputing ratings", cmd("rate")),
         ("Building analytics", run_builds),
     ]
     return (collect if mode == "full" else []), rebuild

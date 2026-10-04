@@ -258,6 +258,10 @@ RATING = {
     # All-time peak counts only once a rating is settled (rd <= this), so an
     # early lucky streak at rd 200+ can't post a peak. See rating/peaks.py.
     "PEAK_MAX_RD": 100.0,
+    # Incremental `rate` keeps an undo log for periods starting within this
+    # many days of the newest one, so changes there (an ongoing tournament
+    # gaining matches) replay just the tail; older changes rebuild fully.
+    "UNDO_DAYS": 120,
     # W_tier per prestige grade (rate.TIER_GRADES: major/high/mid/low). Empty =
     # every match weighs 1.0. Backtested graded weights (e.g. major 1.1 ... low
     # 0.9) were no better than none (logloss 0.5218 vs 0.5210), so it's off.

@@ -5,13 +5,14 @@ Reads normalized matches out of the ORM, converts them to plain
 settings), runs the engine chronologically, and writes PlayerRating +
 RatingHistory back. The engine itself never touches Django.
 
-`rate` and `rate --rebuild` both do a full deterministic recompute (PRD §7.7):
-running twice yields identical ratings. (Incremental resume is a future
-optimization; a from-scratch recompute is the correctness baseline.)
+`rate` is incremental: it replays only the tournaments that changed when they
+are the newest ones (apps/ingest/incremental.py), and rebuilds from scratch
+otherwise. `rate --rebuild` always recomputes from scratch — the deterministic
+reference (PRD §7.7); both give identical ratings.
 
     python manage.py rate
     python manage.py rate --rebuild
-    python manage.py rate --event XD        # limit to one discipline
+    python manage.py rate --event XD        # one discipline, from scratch
 """
 from __future__ import annotations
 
@@ -22,6 +23,7 @@ from django.conf import settings
 from django.db import transaction
 from django.db.models import Case, Count, F, IntegerField, Max, Sum, When
 
+from apps.ingest import incremental
 from apps.ingest.boards import ACTIVE_DAYS, BOARD_MIN_MATCHES, FORM_POINTS, board_ranks
 from apps.ingest.management.base import DataCommand
 from apps.ingest.models import (
@@ -32,8 +34,9 @@ from apps.ingest.models import (
     PlayerRating,
     RatingHistory,
 )
-from rating import GameRecord, MatchRecord, RatingConfig, run
+from rating import GameRecord, MatchRecord, RatingConfig, group_periods, rollback, run
 from rating.peaks import peak_ratings
+from rating.types import RatingDelta
 
 # Prestige grade per tournament category (key into TIER_WEIGHTS). Every
 # category the data holds maps to one grade, so the World Championships or a
@@ -179,12 +182,14 @@ def load_records(event=None, weights=None) -> list[MatchRecord]:
     return records
 
 
-def win_loss_records(event=None) -> dict[tuple[int, str], tuple[int, int]]:
+def win_loss_records(event=None, player_ids=None) -> dict[tuple[int, str], tuple[int, int]]:
     """(player, event) -> (wins, losses) over every match in the discipline
     (walkovers included — the record a fan reads, not just rated matches)."""
     qs = MatchPlayer.objects.all()
     if event:
         qs = qs.filter(match__event=event)
+    if player_ids is not None:
+        qs = qs.filter(player_id__in=list(player_ids))
     rows = (
         qs.values("player_id", "match__event")
         .annotate(
@@ -250,7 +255,7 @@ class Command(DataCommand):
         parser.add_argument(
             "--rebuild",
             action="store_true",
-            help="Deterministic recompute from scratch (default behaviour too).",
+            help="Recompute everything from scratch (the deterministic reference).",
         )
         parser.add_argument("--event", default=None, help="Limit to one discipline.")
         parser.add_argument(
@@ -259,23 +264,67 @@ class Command(DataCommand):
 
     def handle(self, *args, **opts):
         weights = settings.RATING["TIER_WEIGHTS"]
-        records = load_records(opts["event"], weights)
-        seed_ranks = load_seed_ranks(opts["event"])
-        self.stdout.write(
-            f"Loaded {len(records)} rated matches, {len(seed_ranks)} seed ranks; "
-            "running engine…"
-        )
+        event = opts["event"]
+        config = _config()
+        records = load_records(event, weights)
+        seed_ranks = load_seed_ranks(event)
+        self.stdout.write(f"Loaded {len(records)} rated matches, {len(seed_ranks)} seed ranks.")
 
-        result = run(records, _config(), seed_ranks=seed_ranks)
+        if event:
+            # One discipline from scratch; the incremental bookkeeping covers
+            # all disciplines, so forget it (the next plain `rate` is full).
+            result = run(records, config, seed_ranks=seed_ranks)
+            with transaction.atomic():
+                self._write(result, event, opts["batch_size"])
+                incremental.clear_state()
+            self.stdout.write(self.style.SUCCESS(f"rate complete ({event}, from scratch)."))
+            return
+
+        periods = group_periods(records)
+        fps = {tid: incremental.fingerprint(ms) for tid, ms in periods}
+        cfg_hash = incremental.config_hash(config)
+        sd_hash = incremental.seeds_hash(seed_ranks)
+        boundary = incremental.undo_boundary(periods, settings.RATING.get("UNDO_DAYS", 120))
+        plan = (
+            incremental.Plan("full", "--rebuild") if opts["rebuild"]
+            else incremental.plan(periods, fps, cfg_hash, sd_hash)
+        )
+        self.stdout.write(f"Plan: {plan.mode} ({plan.reason}).")
+        if plan.mode == "noop":
+            self.stdout.write(self.style.SUCCESS("rate complete (nothing changed)."))
+            return
+
+        if plan.mode == "incremental":
+            start = rollback(incremental.load_ratings(), incremental.load_undo(plan.rolled))
+            replay = periods[plan.first:]
+            result = run(
+                [m for _, ms in replay for m in ms], config,
+                seed_ranks=seed_ranks, initial=start, undo_since=boundary,
+            )
+            with transaction.atomic():
+                self._write_incremental(result, start, [t for t, _ in replay], plan.rolled,
+                                        opts["batch_size"])
+                incremental.save_state(periods, fps, cfg_hash, sd_hash, result.undo, boundary,
+                                       replaced=[t for t, _ in replay])
+            self.stdout.write(self.style.SUCCESS(
+                f"rate complete: replayed {len(replay)} tournament(s), "
+                f"{len(result.history)} history rows."
+            ))
+            return
+
+        result = run(records, config, seed_ranks=seed_ranks, undo_since=boundary)
         self.stdout.write(
             f"Computed {len(result.ratings)} (player, event) ratings, "
             f"{len(result.history)} history rows."
         )
-        self._write(result, opts["event"], opts["batch_size"])
+        with transaction.atomic():
+            self._write(result, None, opts["batch_size"])
+            incremental.save_state(periods, fps, cfg_hash, sd_hash, result.undo, boundary)
         self.stdout.write(self.style.SUCCESS("rate complete."))
 
     # -- write --------------------------------------------------------------
-    @transaction.atomic
+    # Callers own the transaction: a nested atomic() here would be a SAVEPOINT,
+    # which on SQLite copies every page of the 1M-row rewrite (~3x slower).
     def _write(self, result, event, batch_size):
         # Full recompute: clear prior outputs (scoped to --event if given).
         ph = PlayerRating.objects.all()
@@ -316,20 +365,83 @@ class Command(DataCommand):
             ],
             batch_size=batch_size,
         )
-        RatingHistory.objects.bulk_create(
-            [
-                RatingHistory(
-                    player_id=d.player_id,
-                    event=d.event,
-                    match_id=d.match_id,
-                    mu_before=d.mu_before,
-                    mu_after=d.mu_after,
-                    rd_before=d.rd_before,
-                    rd_after=d.rd_after,
-                    delta=d.delta,
-                    applied_utc=d.applied_utc,
-                )
-                for d in result.history
-            ],
-            batch_size=batch_size,
+        _bulk_history(result.history, batch_size)
+
+    def _write_incremental(self, result, start, replay_tids, rolled_tids, batch_size):
+        """Swap the replayed tournaments' history and update only the ratings
+        they touch (plus everyone's board rank, which can shift)."""
+        RatingHistory.objects.filter(match__tournament_id__in=replay_tids).delete()
+        _bulk_history(result.history, batch_size)
+
+        before = incremental.load_ratings()  # still the pre-replay rows
+        touched = {(d.player_id, d.event) for d in result.history}
+        touched |= {k for k in before if k not in start}  # first seen in a rolled period
+        gone = [k for k in touched if k not in result.ratings]
+
+        # Peaks and form from each touched rating's full stored history.
+        hist = [
+            RatingDelta(player_id=pid, event=ev, match_id=mid, mu_before=mb, mu_after=ma,
+                        rd_before=rb, rd_after=ra, delta=dl, applied_utc=at)
+            for pid, ev, mid, mb, ma, rb, ra, dl, at in RatingHistory.objects.filter(
+                player_id__in={p for p, _ in touched}
+            ).order_by("applied_utc", "match_id").values_list(
+                "player_id", "event", "match_id", "mu_before", "mu_after",
+                "rd_before", "rd_after", "delta", "applied_utc",
+            ).iterator()
+            if (pid, ev) in touched
+        ]
+        peak = peak_ratings(hist, settings.RATING.get("PEAK_MAX_RD", 100.0))
+        form = form_lines(hist)
+        record = win_loss_records(player_ids={p for p, _ in touched})
+
+        for pid, ev in gone:
+            PlayerRating.objects.filter(player_id=pid, event=ev).delete()
+        rows = {(r.player_id, r.event): r for r in PlayerRating.objects.filter(
+            player_id__in={p for p, _ in touched})}
+        new, upd = [], []
+        for key in touched - set(gone):
+            r = result.ratings[key]
+            pr = rows.get(key) or PlayerRating(player_id=key[0], event=key[1])
+            pk = peak.get(key, (r.mu, r.rd, r.last_match_utc))
+            pr.mu, pr.rd, pr.sigma = r.mu, r.rd, r.sigma
+            pr.matches_played, pr.last_match_utc = r.matches_played, r.last_match_utc
+            pr.peak_mu, pr.peak_rd, pr.peak_utc = pk
+            pr.wins, pr.losses = record.get(key, (0, 0))
+            pr.form = form.get(key, [])
+            (upd if pr.pk else new).append(pr)
+        PlayerRating.objects.bulk_create(new, batch_size=batch_size)
+        PlayerRating.objects.bulk_update(
+            upd, ["mu", "rd", "sigma", "matches_played", "last_match_utc", "peak_mu",
+                  "peak_rd", "peak_utc", "wins", "losses", "form"], batch_size=batch_size,
         )
+
+        # Board ranks over everyone (a few new results can shift them all).
+        everyone = incremental.load_ratings()
+        ranks, ranks_g = current_board_ranks(everyone)
+        stale = []
+        for pr in PlayerRating.objects.only("id", "player_id", "event", "rank", "rank_gender"):
+            key = (pr.player_id, pr.event)
+            if (pr.rank, pr.rank_gender) != (ranks.get(key), ranks_g.get(key)):
+                pr.rank, pr.rank_gender = ranks.get(key), ranks_g.get(key)
+                stale.append(pr)
+        PlayerRating.objects.bulk_update(stale, ["rank", "rank_gender"], batch_size=batch_size)
+
+
+def _bulk_history(history, batch_size):
+    RatingHistory.objects.bulk_create(
+        [
+            RatingHistory(
+                player_id=d.player_id,
+                event=d.event,
+                match_id=d.match_id,
+                mu_before=d.mu_before,
+                mu_after=d.mu_after,
+                rd_before=d.rd_before,
+                rd_after=d.rd_after,
+                delta=d.delta,
+                applied_utc=d.applied_utc,
+            )
+            for d in history
+        ],
+        batch_size=batch_size,
+    )

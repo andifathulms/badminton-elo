@@ -227,3 +227,45 @@ def test_cross_discipline_prior_off_by_default():
     res = run(md + [xd], CFG)
     first_xd = next(d for d in res.history if d.match_id == 2 and d.player_id == 1)
     assert first_xd.mu_before == pytest.approx(1500.0)
+
+
+def test_resumed_run_equals_full_run():
+    from dataclasses import replace
+
+    cfg = replace(CFG, cross_prior_weight=0.7)
+    ms = []
+    for i in range(1, 13):  # 12 weekly tournaments, mixed disciplines
+        t = T0 + timedelta(days=7 * i)
+        ms.append(_match(100 + i, 1 + i % 2, (1,), (2 + i % 3,), event="MS", t=t, tournament_id=i))
+        ms.append(_match(200 + i, 1, (1, 5), (6, 7 + i % 2), event="MD", t=t, tournament_id=i))
+    full = run(ms, cfg)
+    first = run([m for m in ms if m.tournament_id <= 8], cfg)
+    rest = run([m for m in ms if m.tournament_id > 8], cfg, initial=first.ratings)
+    assert rest.ratings == full.ratings  # bit-identical
+    assert first.history + rest.history == full.history
+
+
+def test_rollback_then_replay_equals_full_run():
+    from dataclasses import replace
+
+    from rating import rollback
+
+    cfg = replace(CFG, cross_prior_weight=0.7)
+    ms = []
+    for i in range(1, 11):
+        t = T0 + timedelta(days=7 * i)
+        ms.append(_match(100 + i, 1 + i % 2, (1,), (2 + i % 3,), event="MS", t=t, tournament_id=i))
+        ms.append(_match(200 + i, 1, (1, 5), (6, 7 + i % 2), event="MD", t=t, tournament_id=i))
+    old = run(ms, cfg, undo_since=T0 + timedelta(days=7 * 8))
+    assert set(old.undo) == {8, 9, 10}
+    # Tournament 9 gains a match and 10 flips a result; 8 is untouched.
+    changed = [m for m in ms if m.tournament_id < 9] + [
+        _match(409, 2, (1, 5), (6, 8), event="MD", t=T0 + timedelta(days=63), tournament_id=9),
+        _match(309, 1, (3,), (4,), event="MS", t=T0 + timedelta(days=63), tournament_id=9),
+        _match(110, 2, (1,), (3,), event="MS", t=T0 + timedelta(days=70), tournament_id=10),
+        _match(210, 1, (1, 5), (6, 7), event="MD", t=T0 + timedelta(days=70), tournament_id=10),
+    ] + [m for m in ms if m.tournament_id == 9]
+    full = run(changed, cfg)
+    start = rollback(old.ratings, [old.undo[9], old.undo[10]])
+    resumed = run([m for m in changed if m.tournament_id >= 9], cfg, initial=start)
+    assert resumed.ratings == full.ratings

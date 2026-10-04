@@ -12,7 +12,7 @@ result back.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timezone
 
 from collections import defaultdict
@@ -35,6 +35,10 @@ def match_sort_key(m: MatchRecord):
 class RunResult:
     ratings: dict[tuple[int, str], Rating] = field(default_factory=dict)
     history: list[RatingDelta] = field(default_factory=list)
+    # Undo log for incremental re-rating: tournament_id -> {key: the key's
+    # Rating just before that period (None = first seen there)}. Recorded only
+    # for periods starting on/after `undo_since`.
+    undo: dict[int, dict[tuple[int, str], Rating | None]] = field(default_factory=dict)
 
 
 def _inflate_for_inactivity(
@@ -76,10 +80,30 @@ def _usable_rank(seed, period_start: datetime | None) -> int | None:
     return rank if observed <= period_start.date() else None
 
 
+def period_sort_key(period: list[MatchRecord]):
+    """A rating period's place in time: its earliest match's sort key."""
+    return min(match_sort_key(x) for x in period)
+
+
+def group_periods(matches: list[MatchRecord]) -> list[tuple[int, list[MatchRecord]]]:
+    """Rateable matches grouped into rating periods (tournaments), in the
+    deterministic order `run` processes them: [(tournament_id, matches)]."""
+    periods: dict[int, list[MatchRecord]] = defaultdict(list)
+    for m in matches:
+        if m.rating_excluded or m.winner_side not in (1, 2):
+            continue
+        if not m.side1_player_ids or not m.side2_player_ids:
+            continue
+        periods[m.tournament_id].append(m)
+    return sorted(periods.items(), key=lambda kv: period_sort_key(kv[1]))
+
+
 def run(
     matches: list[MatchRecord],
     config: RatingConfig,
     seed_ranks: dict[tuple[int, str], SeedRank] | None = None,
+    initial: dict[tuple[int, str], Rating] | None = None,
+    undo_since: datetime | None = None,
 ) -> RunResult:
     """Process tournaments (rating periods) chronologically (PRD §7.7).
 
@@ -94,12 +118,24 @@ def run(
     rank or (rank, observed_date). A new key is seeded from a rank only if it
     was observed by the start of the player's first period (PRD §7.6), else
     flat.
+
+    `initial` resumes from earlier ratings (incremental rating): `matches`
+    must then hold only periods that come after everything those ratings
+    already include. The inputs are copied, never mutated, and the result is
+    identical to a full run over all periods.
+
+    `undo_since` records, for every period starting on/after it, each touched
+    rating's state before the period (`RunResult.undo`) — what a later run
+    needs to roll those periods back and replay them (see `rollback`).
     """
     result = RunResult()
     ratings = result.ratings
     seed_ranks = seed_ranks or {}
 
     events_of: dict[int, list[str]] = defaultdict(list)  # player -> rated events
+    for (pid, event), r in (initial or {}).items():
+        ratings[(pid, event)] = replace(r)
+        events_of[pid].append(event)
 
     def rating_for(player_id: int, event: str, period_start) -> Rating:
         key = (player_id, event)
@@ -109,30 +145,27 @@ def run(
             if rank:
                 r = rank_seed(rank, config)
             else:
-                others = [ratings[(player_id, e)] for e in events_of[player_id]]
+                # Sorted, so the prior sums in the same order whether the run
+                # is full or resumed (bit-identical results).
+                others = [ratings[(player_id, e)] for e in sorted(events_of[player_id])]
                 r = cross_discipline_seed(others, config) or flat_seed(config)
             ratings[key] = r
             events_of[player_id].append(event)
         return r
 
-    # Group into rating periods (tournaments), ordered by their earliest match.
-    periods: dict[int, list[MatchRecord]] = defaultdict(list)
-    for m in matches:
-        if m.rating_excluded or m.winner_side not in (1, 2):
-            continue
-        if not m.side1_player_ids or not m.side2_player_ids:
-            continue
-        periods[m.tournament_id].append(m)
-
-    ordered = sorted(
-        periods.values(), key=lambda ms: min(match_sort_key(x) for x in ms)
-    )
-
-    for period in ordered:
+    for tid, period in group_periods(matches):
         period_start = min(
             (m.match_time_utc for m in period if m.match_time_utc),
             default=None,
         )
+        if undo_since is not None and period_start is not None and period_start >= undo_since:
+            log = result.undo[tid] = {}
+            for m in period:
+                for pid in (*m.side1_player_ids, *m.side2_player_ids):
+                    key = (pid, m.event)
+                    if key not in log:
+                        prior = ratings.get(key)
+                        log[key] = replace(prior) if prior is not None else None
         # Seed newcomers and inflate for inactivity ONCE, at the period start,
         # so every match in the tournament sees the same frozen rating.
         seen: set[tuple[int, str]] = set()
@@ -149,3 +182,23 @@ def run(
         result.history.extend(update_period(period, ratings, config))
 
     return result
+
+
+def rollback(
+    ratings: dict[tuple[int, str], Rating],
+    undo_logs: list[dict[tuple[int, str], Rating | None]],
+) -> dict[tuple[int, str], Rating]:
+    """Undo periods from current `ratings`, newest first.
+
+    `undo_logs` are the periods' undo logs (RunResult.undo values) in
+    processing order; they are applied in reverse. A key first seen in an
+    undone period is removed. Returns a new dict; inputs are not mutated.
+    """
+    out = {k: replace(r) for k, r in ratings.items()}
+    for log in reversed(undo_logs):
+        for key, prior in log.items():
+            if prior is None:
+                out.pop(key, None)
+            else:
+                out[key] = replace(prior)
+    return out

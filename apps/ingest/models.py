@@ -244,6 +244,43 @@ class RatingHistory(models.Model):
         return f"{self.player_id}/{self.event} @M{self.match_id}: {self.delta:+.1f}"
 
 
+# --- Incremental rating bookkeeping (apps/ingest/incremental.py) -------------
+class RatingState(models.Model):
+    """Singleton (pk=1): what the stored ratings were computed with. A change
+    of settings or seed ranks forces a full rebuild."""
+
+    config_hash = models.CharField(max_length=40)
+    seeds_hash = models.CharField(max_length=40)
+    updated_utc = models.DateTimeField()
+
+
+class RatedPeriod(models.Model):
+    """One rating period (tournament) included in the stored ratings, with a
+    fingerprint of its matches and its place in the processing order."""
+
+    tournament_id = models.IntegerField(primary_key=True)
+    fingerprint = models.CharField(max_length=40)
+    start_ts = models.DateTimeField(null=True, blank=True)
+    start_round = models.IntegerField(default=0)
+    start_match = models.IntegerField(default=0)
+
+
+class RatingUndo(models.Model):
+    """Undo log for a recent period: a rating's state just before the period
+    (existed=False: first seen there). Lets `rate` roll recent periods back
+    and replay them when their matches change."""
+
+    tournament_id = models.IntegerField(db_index=True)
+    player_id = models.IntegerField()
+    event = models.CharField(max_length=8)
+    existed = models.BooleanField(default=True)
+    mu = models.FloatField(null=True)
+    rd = models.FloatField(null=True)
+    sigma = models.FloatField(null=True)
+    matches_played = models.IntegerField(default=0)
+    last_match_utc = models.DateTimeField(null=True, blank=True)
+
+
 class Partnership(models.Model):
     """A doubles/mixed partnership (derived, PRD domain rule 5: no PAIR rating is
     computed by the engine — this is a read-side aggregate of two members who
