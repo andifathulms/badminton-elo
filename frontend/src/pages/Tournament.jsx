@@ -125,19 +125,19 @@ function Bracket({ matches }) {
 function MatchList({ id, events, movers }) {
   const [event, setEvent] = useState(events[0]?.event || 'MS')
   const [round, setRound] = useState(null)
+  // One round per request; the server lists the rounds and picks the earliest
+  // when none is chosen (or the chosen one isn't in this discipline).
   const { data, error, loading, reload } = useAsync(
-    () => api.tournamentMatches(id, { event, limit: 300 }),
+    () => api.tournamentMatches(id, { event, round: round || '', limit: 500 }),
+    [id, event, round],
+  )
+  const bracket = useAsync(
+    () => api.tournamentMatches(id, { event, round: 'QF,SF,F,Final', limit: 50 }),
     [id, event],
   )
-  const rounds = data
-    ? [...new Map(data.results.map((m) => [m.round_name, m.round_order])).entries()]
-        .sort((a, b) => a[1] - b[1])
-        .map(([name]) => name)
-    : []
-  // Default to the earliest round (no "All" tab); fall back if the chosen round
-  // isn't in this discipline.
-  const activeRound = round && rounds.includes(round) ? round : rounds[0]
-  const shown = data ? data.results.filter((m) => m.round_name === activeRound) : []
+  const rounds = data ? data.rounds.map((r) => r.round_name) : []
+  const activeRound = data?.round
+  const shown = data ? data.results : []
 
   return (
     <>
@@ -155,7 +155,7 @@ function MatchList({ id, events, movers }) {
       </div>
 
       <div className="t-grid">
-        {data && <Bracket matches={data.results} />}
+        {bracket.data && <Bracket matches={bracket.data.results} />}
         <Movers movers={movers} event={event} />
       </div>
 

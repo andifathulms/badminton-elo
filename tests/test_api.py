@@ -528,3 +528,36 @@ def test_stats_drain_marks_jobs_done_or_failed(monkeypatch):
     assert statsjobs.drain() == 2
     assert StatsFetchJob.objects.get(match=ok).status == "done"
     assert StatsFetchJob.objects.get(match=bad).status == "failed"
+
+
+def test_tournament_matches_by_round(api):
+    r = api.get("/api/tournaments/5229/matches?event=XD&round=").json()
+    names = [x["round_name"] for x in r["rounds"]]
+    assert r["round"] == names[0]  # earliest when none chosen
+    assert {m["round_name"] for m in r["results"]} == {names[0]}
+    assert sum(x["count"] for x in r["rounds"]) == 31  # the whole main draw
+
+    two = api.get("/api/tournaments/5229/matches?event=XD&round=SF,QF").json()
+    assert {m["round_name"] for m in two["results"]} == {"SF", "QF"}
+    assert len(two["results"]) == 6
+
+
+def test_history_tournament_resolution_is_exact(api):
+    from apps.ingest.models import PlayerRating
+
+    pr = PlayerRating.objects.filter(event="XD").order_by("-matches_played").first()
+    per_match = api.get(f"/api/players/{pr.player_id}/history?event=XD").json()
+    per_t = api.get(f"/api/players/{pr.player_id}/history?event=XD&resolution=tournament").json()
+    assert len(per_t) == 1  # one tournament in the fixture
+    assert per_t[0]["matches"] == len(per_match)
+    assert per_t[0]["mu_after"] == round(per_match[-1]["mu_after"], 1)
+    assert per_t[0]["delta"] == round(sum(p["delta"] for p in per_match), 1)
+
+
+def test_analytics_pages_come_from_one_board(api):
+    full = api.get("/api/analytics/tournament-gains?min_matches=1&include_new=1&limit=100").json()
+    p1 = api.get("/api/analytics/tournament-gains?min_matches=1&include_new=1&limit=3").json()
+    p2 = api.get("/api/analytics/tournament-gains?min_matches=1&include_new=1&limit=3&offset=3").json()
+    assert p1["count"] == p2["count"] == full["count"] == len(full["results"])
+    key = lambda r: (r["player"]["player_id"], r["net_delta"])  # noqa: E731
+    assert [key(r) for r in p1["results"] + p2["results"]] == [key(r) for r in full["results"][:6]]

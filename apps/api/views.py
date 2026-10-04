@@ -260,12 +260,44 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["get"])
     def history(self, request, player_id=None):
-        """Rating-over-time points for the player (optionally one --event)."""
-        qs = RatingHistory.objects.filter(player_id=player_id).order_by("applied_utc")
+        """Rating-over-time points for the player (optionally one ?event=).
+
+        ?resolution=tournament returns one point per rating period instead of
+        one per match — exact, because ratings only change once per
+        tournament (the engine is tournament-locked), and ~5x smaller.
+        """
+        qs = RatingHistory.objects.filter(player_id=player_id).order_by(
+            "applied_utc", "match_id"
+        )
         event = request.query_params.get("event")
         if event:
             qs = qs.filter(event=event)
-        return Response(RatingHistoryPointSerializer(qs, many=True).data)
+        if request.query_params.get("resolution") != "tournament":
+            return Response(RatingHistoryPointSerializer(qs, many=True).data)
+
+        periods: dict = {}  # (event, tournament) -> point, in first-seen order
+        for row in qs.values(
+            "event", "match_id", "mu_before", "mu_after", "rd_before", "rd_after",
+            "delta", "applied_utc", "match__tournament_id", "match__tournament__name",
+        ):
+            key = (row["event"], row["match__tournament_id"])
+            p = periods.get(key)
+            if p is None:
+                periods[key] = p = {
+                    "event": row["event"],
+                    "tournament": {"id": row["match__tournament_id"],
+                                   "name": row["match__tournament__name"]},
+                    "mu_before": row["mu_before"], "rd_before": row["rd_before"],
+                    "delta": 0.0, "matches": 0,
+                }
+            p["delta"] += row["delta"]
+            p["matches"] += 1
+            p.update(match=row["match_id"], mu_after=row["mu_after"],
+                     rd_after=row["rd_after"], applied_utc=row["applied_utc"])
+        for p in periods.values():
+            for k in ("mu_before", "rd_before", "mu_after", "rd_after", "delta"):
+                p[k] = round(p[k], 1)
+        return Response(list(periods.values()))
 
     @action(detail=True, methods=["get"])
     def style(self, request, player_id=None):
@@ -835,7 +867,14 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["get"])
     def matches(self, request, tournament_id=None):
-        """GET /api/tournaments/{id}/matches[?event=] — bracket-ordered matches."""
+        """GET /api/tournaments/{id}/matches[?event=&round=] — bracket-ordered.
+
+        With ?round= present the response also lists the event's rounds
+        (`rounds`: name, order, count) and holds only the asked rounds'
+        matches (comma-separated, e.g. QF,SF,F); an empty or unknown value
+        picks the earliest round (`round` says what was served). The page
+        loads one round at a time instead of the whole draw.
+        """
         qs = (
             Match.objects.filter(tournament_id=tournament_id)
             .prefetch_related("lineup__player", "games")
@@ -844,13 +883,28 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
         event = request.query_params.get("event")
         if event:
             qs = qs.filter(event=event)
+        by_round = "round" in request.query_params
+        rounds, chosen = [], None
+        if by_round:
+            rounds = [
+                {"round_name": r["round_name"], "round_order": r["round_order"], "count": r["n"]}
+                for r in qs.order_by().values("round_name", "round_order")
+                .annotate(n=Count("match_id")).order_by("round_order", "round_name")
+            ]
+            names = [r["round_name"] for r in rounds]
+            asked = [r for r in request.query_params.get("round", "").split(",") if r]
+            valid = [r for r in asked if r in names] or names[:1]
+            chosen = ",".join(valid) or None
+            qs = qs.filter(round_name__in=valid)
         page = self.paginate_queryset(qs)
         data = MatchListSerializer(page, many=True).data
         # Attach each side's ELO for the match (pair mean for doubles), chained
         # across the tournament so the running figures read correctly.
-        from .elo import tournament_match_elo
+        from .elo import chained_elo
 
-        elo_map = tournament_match_elo(int(tournament_id))
+        # Only the players on this page (their chains still span the whole run).
+        on_page = {l.player_id for m in page for l in m.lineup.all()}
+        elo_map = chained_elo([int(tournament_id)], on_page)
         for m, row in zip(page, data):
             pm = elo_map.get(m.match_id, {})
             team = {}
@@ -867,7 +921,11 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
                         "delta": round(sum(v[2] for v in vals) / len(vals), 1),
                     }
             row["team_elo"] = team
-        return self.get_paginated_response(data)
+        response = self.get_paginated_response(data)
+        if by_round:
+            response.data["rounds"] = rounds
+            response.data["round"] = chosen
+        return response
 
     @action(detail=True, methods=["get"])
     def ties(self, request, tournament_id=None):
@@ -1116,8 +1174,12 @@ class TournamentViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
 
+ANALYTICS_MAX_ROWS = 100  # a board's depth; pages are served from within it
+
+
 class AnalyticsView(APIView):
-    """GET /api/analytics/{tournament-gains|upsets}[?event=&min_matches=&limit=].
+    """GET /api/analytics/{tournament-gains|upsets|performances}
+    [?event=&min_matches=&limit=&offset=] — one page of the top 100 (`count`).
 
     tournament-gains: biggest net ELO gained across a single tournament.
     upsets: biggest single-match ELO gains (the standout wins).
@@ -1131,14 +1193,18 @@ class AnalyticsView(APIView):
         except ValueError:
             min_matches = 2
         try:
-            limit = min(int(request.query_params.get("limit", 40)), 100)
+            limit = min(int(request.query_params.get("limit", 40)), ANALYTICS_MAX_ROWS)
         except ValueError:
             limit = 40
+        try:
+            offset = max(int(request.query_params.get("offset", 0)), 0)
+        except ValueError:
+            offset = 0
 
         # Upsets are ranked per MATCH (every standout single win), not per
         # tournament-performance — a pair can appear twice in one tournament.
         if kind == "upsets":
-            return self._match_upsets(request, event, limit)
+            return self._match_upsets(request, event, limit, offset)
 
         qs = TournamentPerformance.objects.select_related(
             "player", "partner", "tournament"
@@ -1158,7 +1224,7 @@ class AnalyticsView(APIView):
         seen: set = set()
         picked: list = []
         for tp in qs[:2000]:
-            if len(picked) >= limit:
+            if len(picked) >= ANALYTICS_MAX_ROWS:
                 break
             if tp.event in DOUBLES:
                 keys = []
@@ -1174,6 +1240,10 @@ class AnalyticsView(APIView):
                 seen.update(keys)
             picked.append(tp)
 
+        # Board = the top ANALYTICS_MAX_ROWS collapsed rows; serve one page of it.
+        count = len(picked)
+        picked = picked[offset:offset + limit]
+
         # Show mixed pairs male-first, female-second (the collapsed row's `player`
         # is just whoever performed better that week, so order isn't stable).
         for tp in picked:
@@ -1184,9 +1254,9 @@ class AnalyticsView(APIView):
                 tp.player, tp.partner = tp.partner, tp.player
 
         rows = TournamentPerformanceSerializer(picked, many=True).data
-        return Response({"results": rows})
+        return Response({"results": rows, "count": count})
 
-    def _match_upsets(self, request, event, limit):
+    def _match_upsets(self, request, event, limit, offset=0):
         """Biggest single-match upsets: rank individual wins by ELO gained.
         A positive delta means the player won and gained, so the winning side
         is exactly the players with a positive delta. Collapsed to one row per
@@ -1210,8 +1280,10 @@ class AnalyticsView(APIView):
                 continue
             seen.add(r["match_id"])
             picks.append(r)
-            if len(picks) >= limit:
+            if len(picks) >= ANALYTICS_MAX_ROWS:
                 break
+        count = len(picks)
+        picks = picks[offset:offset + limit]
 
         ids = [p["match_id"] for p in picks]
         matches = {
@@ -1270,7 +1342,7 @@ class AnalyticsView(APIView):
                      for l in lineup if l.side != side]
                 ),
             })
-        return Response({"results": out})
+        return Response({"results": out, "count": count})
 
 
 class CalibrationView(APIView):

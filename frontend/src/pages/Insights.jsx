@@ -86,8 +86,8 @@ function GainsTable({ kind, event, includeNew }) {
   const [open, setOpen] = useState(null)
   useEffect(() => { setPage(0); setOpen(null) }, [kind, event, includeNew])
   const { data, error, loading, reload } = useAsync(
-    () => api.analytics(kind, { event, minMatches: 3, limit: 100, includeNew }),
-    [kind, event, includeNew],
+    () => api.analytics(kind, { event, minMatches: 3, limit: PAGE, offset: page * PAGE, includeNew }),
+    [kind, event, includeNew, page],
   )
   const isUpset = kind === 'upsets'
   const isPerf = kind === 'performances'
@@ -95,7 +95,7 @@ function GainsTable({ kind, event, includeNew }) {
   if (error) return <ErrorState error={error} onRetry={reload} />
 
   const metricHead = isUpset ? 'Gain' : isPerf ? 'Perf' : 'Net ELO'
-  const shown = data.results.slice(page * PAGE, page * PAGE + PAGE)
+  const shown = data.results
   return (
     <>
     <table className="board">
@@ -174,7 +174,7 @@ function GainsTable({ kind, event, includeNew }) {
         })}
       </tbody>
     </table>
-    <Pager page={page} setPage={setPage} count={data.results.length} pageSize={PAGE} />
+    <Pager page={page} setPage={setPage} count={data.count} pageSize={PAGE} />
     </>
   )
 }
@@ -185,16 +185,15 @@ function UpsetsSection({ event, includeNew }) {
   const [page, setPage] = useState(0)
   useEffect(() => { setPage(0) }, [event, includeNew])
   const { data, error, loading, reload } = useAsync(
-    () => api.analytics('upsets', { event, minMatches: 3, limit: 100, includeNew }),
-    [event, includeNew],
+    () => api.analytics('upsets', { event, minMatches: 3, limit: PAGE, offset: page * PAGE, includeNew }),
+    [event, includeNew, page],
   )
   if (loading) return <SkeletonList rows={8} />
   if (error) return <ErrorState error={error} onRetry={reload} />
-  const shown = data.results.slice(page * PAGE, page * PAGE + PAGE)
   return (
     <>
-      <UpsetsTable rows={shown} />
-      <Pager page={page} setPage={setPage} count={data.results.length} pageSize={PAGE} />
+      <UpsetsTable rows={data.results} />
+      <Pager page={page} setPage={setPage} count={data.count} pageSize={PAGE} />
     </>
   )
 }

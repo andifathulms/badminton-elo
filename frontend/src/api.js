@@ -60,11 +60,13 @@ export const api = {
   // s1/s2 are arrays of player ids (1 for singles, up to 2 for doubles).
   h2h: (event, s1, s2) =>
     get(`/h2h?${qs({ event, s1: s1.join(','), s2: s2.join(',') })}`),
-  tournamentMatches: (id, { event, limit = 100, offset = 0 } = {}) =>
-    get(`/tournaments/${id}/matches?${qs({ event, limit, offset })}`),
+  // `round` given (even '') = one round + the list of rounds; '' = earliest.
+  tournamentMatches: (id, { event, round, limit = 100, offset = 0 } = {}) =>
+    get(`/tournaments/${id}/matches?${qs({ event, limit, offset })}${
+      round === undefined ? '' : `&round=${encodeURIComponent(round)}`}`),
   tournamentTies: (id) => get(`/tournaments/${id}/ties`),
-  analytics: (kind, { event, minMatches = 2, limit = 40, includeNew } = {}) =>
-    get(`/analytics/${kind}?${qs({ event, min_matches: minMatches, limit, include_new: includeNew ? 1 : '' })}`),
+  analytics: (kind, { event, minMatches = 2, limit = 40, offset = 0, includeNew } = {}) =>
+    get(`/analytics/${kind}?${qs({ event, min_matches: minMatches, limit, offset, include_new: includeNew ? 1 : '' })}`),
   performancePath: (player, event, tournament) =>
     get(`/performance/path?${qs({ player, event, tournament })}`),
   records: (kind, { event, limit = 25 } = {}) =>
@@ -80,7 +82,7 @@ export const api = {
     get(`/analytics/synergy?${qs({ event, min, order })}`),
   player: (id) => get(`/players/${id}`),
   playerStyle: (id, partner) => get(`/players/${id}/style?${qs({ partner })}`),
-  playerHistory: (id, event) => get(`/players/${id}/history?${qs({ event })}`),
+  playerHistory: (id, event) => get(`/players/${id}/history?${qs({ event, resolution: 'tournament' })}`),
   playerMatches: (id, { event, limit = 25, offset = 0 } = {}) =>
     get(`/players/${id}/matches?${qs({ event, limit, offset })}`),
   match: (id) => get(`/matches/${id}`),
