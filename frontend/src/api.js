@@ -51,6 +51,8 @@ const qs = (params) =>
     .join('&')
 
 export const api = {
+  // Everything Home shows, in one cached payload (see HomeView).
+  home: () => get('/home'),
   events: () => get('/events'),
   leaderboard: (event, { minMatches = 5, order = 'rating', ranking = 'current', gender, limit = 50, offset = 0 } = {}) =>
     get(`/leaderboard?${qs({ event, min_matches: minMatches, order, ranking, gender, limit, offset })}`),
@@ -80,7 +82,9 @@ export const api = {
     get(`/analytics/consistency?${qs({ event, min, order })}`),
   synergy: (event, { min = 20, order = 'best' } = {}) =>
     get(`/analytics/synergy?${qs({ event, min, order })}`),
-  player: (id) => get(`/players/${id}`),
+  player: (id, { include } = {}) => get(`/players/${id}?${qs({ include })}`),
+  // Several players by id (brief rows, in the order asked).
+  playersByIds: (ids) => get(`/players?${qs({ ids: ids.join(',') })}`),
   playerStyle: (id, partner) => get(`/players/${id}/style?${qs({ partner })}`),
   playerHistory: (id, event) => get(`/players/${id}/history?${qs({ event, resolution: 'tournament' })}`),
   playerMatches: (id, { event, limit = 25, offset = 0 } = {}) =>

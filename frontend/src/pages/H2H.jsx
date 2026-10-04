@@ -200,14 +200,17 @@ export default function H2H() {
   // open on the latest major's final in this discipline instead of a blank page.
   useEffect(() => {
     let alive = true
-    async function idsToPlayers(raw) {
-      const ids = (raw || '').split(',').filter(Boolean)
-      const ps = await Promise.all(ids.map((id) => api.player(id).catch(() => null)))
-      return ps.filter(Boolean)
-    }
+    const idsOf = (raw) => (raw || '').split(',').filter(Boolean).map(Number)
     async function init() {
-      const s1 = await idsToPlayers(params.get('s1') || params.get('p1'))
-      const s2 = await idsToPlayers(params.get('s2') || params.get('p2'))
+      // Both sides in one request (they used to load one after the other).
+      const ids1 = idsOf(params.get('s1') || params.get('p1'))
+      const ids2 = idsOf(params.get('s2') || params.get('p2'))
+      const found = ids1.length || ids2.length
+        ? await api.playersByIds([...ids1, ...ids2]).catch(() => [])
+        : []
+      const byId = new Map(found.map((p) => [p.player_id, p]))
+      const s1 = ids1.map((i) => byId.get(i)).filter(Boolean)
+      const s2 = ids2.map((i) => byId.get(i)).filter(Boolean)
       if (!alive) return
       if (s1.length || s2.length) { setSide1(s1); setSide2(s2); return }
       try {

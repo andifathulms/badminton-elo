@@ -18,6 +18,7 @@ from .views import (
     CupView,
     EventsView,
     H2HView,
+    HomeView,
     LeaderboardView,
     MatchViewSet,
     PairDetailView,
@@ -37,6 +38,7 @@ router.register("matches", MatchViewSet, basename="match")
 router.register("tournaments", TournamentViewSet, basename="tournament")
 
 urlpatterns = [
+    path("home", HomeView.as_view(), name="home"),
     path("leaderboard", LeaderboardView.as_view(), name="leaderboard"),
     path("h2h", H2HView.as_view(), name="h2h"),
     path("pairs/detail", PairDetailView.as_view(), name="pair-detail"),

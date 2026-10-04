@@ -56,16 +56,23 @@ function PlayerSkeleton() {
 
 export default function Player() {
   const { id } = useParams()
-  const { data: player, error, loading, reload } = useAsync(() => api.player(id), [id])
+  // The profile arrives with the opening discipline's rating history embedded
+  // (?include=history), so the chart doesn't wait on a second request.
+  const { data: player, error, loading, reload } = useAsync(
+    () => api.player(id, { include: 'history' }), [id],
+  )
   const [event, setEvent] = useState(null)
 
   const ratings = player?.ratings || []
-  // Default to the discipline the player is ranked best in, else the strongest.
+  // Default to the discipline the player is ranked best in, else the strongest
+  // (the server picks the same one for the embedded history).
   const ranked = ratings.filter((r) => r.rank).sort((a, b) => a.rank - b.rank)
   const activeEvent = event || ranked[0]?.event || ratings[0]?.event
+  const embedded = player && player.history_event === activeEvent ? player.history : null
   const history = useAsync(
-    () => (activeEvent ? api.playerHistory(id, activeEvent) : Promise.resolve([])),
-    [id, activeEvent],
+    () => (embedded ? Promise.resolve(embedded)
+      : activeEvent ? api.playerHistory(id, activeEvent) : Promise.resolve([])),
+    [id, activeEvent, embedded],
   )
 
   if (loading) return <PlayerSkeleton />

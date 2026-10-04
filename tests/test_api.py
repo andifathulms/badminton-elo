@@ -561,3 +561,35 @@ def test_analytics_pages_come_from_one_board(api):
     assert p1["count"] == p2["count"] == full["count"] == len(full["results"])
     key = lambda r: (r["player"]["player_id"], r["net_delta"])  # noqa: E731
     assert [key(r) for r in p1["results"] + p2["results"]] == [key(r) for r in full["results"][:6]]
+
+
+def test_home_bundles_each_endpoints_payload(api):
+    from django.core.cache import caches
+
+    caches["api"].clear()
+    home = api.get("/api/home").json()
+    assert set(home) == {"events", "tournaments", "calibration", "major", "no1s",
+                         "board", "upsets"}
+    assert home["events"] == api.get("/api/events").json()
+    assert home["no1s"]["XD"]["results"] == api.get(
+        "/api/pairs?event=XD&limit=2&min_matches=5").json()["results"]
+    assert home["tournaments"]["count"] == api.get("/api/tournaments?limit=12").json()["count"]
+
+
+def test_players_by_ids_keeps_order(api):
+    from apps.ingest.models import Player
+
+    a, b = Player.objects.order_by("player_id").values_list("player_id", flat=True)[:2]
+    rows = api.get(f"/api/players?ids={b},{a},999999999").json()
+    assert [r["player_id"] for r in rows] == [b, a]
+
+
+def test_player_detail_can_embed_history(api):
+    from apps.ingest.models import PlayerRating
+
+    pid = PlayerRating.objects.filter(event="XD").first().player_id
+    d = api.get(f"/api/players/{pid}?include=history").json()
+    assert d["history_event"] == "XD"
+    assert d["history"] == api.get(
+        f"/api/players/{pid}/history?event=XD&resolution=tournament").json()
+    assert "history" not in api.get(f"/api/players/{pid}").json()

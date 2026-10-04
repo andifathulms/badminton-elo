@@ -240,10 +240,51 @@ class LeaderboardView(generics.ListAPIView):
         return self.get_paginated_response(data)
 
 
-class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
-    """GET /api/players/{id} — player detail; GET /api/players?q=lin — search."""
+def history_points(player_id, event=None, resolution=None) -> list:
+    """Rating-over-time points for a player (optionally one discipline).
 
-    queryset = Player.objects.all().prefetch_related("ratings")
+    resolution="tournament" gives one point per rating period instead of one
+    per match — exact, because ratings only change once per tournament (the
+    engine is tournament-locked), and much smaller.
+    """
+    qs = RatingHistory.objects.filter(player_id=player_id).order_by(
+        "applied_utc", "match_id"
+    )
+    if event:
+        qs = qs.filter(event=event)
+    if resolution != "tournament":
+        return RatingHistoryPointSerializer(qs, many=True).data
+
+    periods: dict = {}  # (event, tournament) -> point, in first-seen order
+    for row in qs.values(
+        "event", "match_id", "mu_before", "mu_after", "rd_before", "rd_after",
+        "delta", "applied_utc", "match__tournament_id", "match__tournament__name",
+    ):
+        key = (row["event"], row["match__tournament_id"])
+        p = periods.get(key)
+        if p is None:
+            periods[key] = p = {
+                "event": row["event"],
+                "tournament": {"id": row["match__tournament_id"],
+                               "name": row["match__tournament__name"]},
+                "mu_before": row["mu_before"], "rd_before": row["rd_before"],
+                "delta": 0.0, "matches": 0,
+            }
+        p["delta"] += row["delta"]
+        p["matches"] += 1
+        p.update(match=row["match_id"], mu_after=row["mu_after"],
+                 rd_after=row["rd_after"], applied_utc=row["applied_utc"])
+    for p in periods.values():
+        for k in ("mu_before", "rd_before", "mu_after", "rd_after", "delta"):
+            p[k] = round(p[k], 1)
+    return list(periods.values())
+
+
+class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
+    """GET /api/players/{id} — player detail; GET /api/players?q=lin — search;
+    GET /api/players?ids=1,2,3 — those players (brief, unpaginated, in order)."""
+
+    queryset = Player.objects.all()
     lookup_field = "player_id"
 
     def get_serializer_class(self):
@@ -253,51 +294,51 @@ class PlayerViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        if self.action != "list":
+            return qs.prefetch_related("ratings")
         q = self.request.query_params.get("q")
         if q:
             qs = qs.filter(name_display__icontains=q).order_by("name_display")
         return qs
 
+    def list(self, request, *args, **kwargs):
+        raw = request.query_params.get("ids")
+        if raw is None:
+            return super().list(request, *args, **kwargs)
+        try:
+            ids = [int(x) for x in raw.split(",") if x][:20]
+        except ValueError:
+            raise ValidationError({"ids": "comma-separated player ids"})
+        found = {p.player_id: p for p in Player.objects.filter(player_id__in=ids)}
+        return Response(PlayerBriefSerializer(
+            [found[i] for i in ids if i in found], many=True
+        ).data)
+
+    def retrieve(self, request, *args, **kwargs):
+        """Player detail. ?include=history embeds the rating history (tournament
+        resolution) of the discipline the profile opens on — the one they're
+        ranked best in, else their strongest — so the page needs no second
+        round-trip before drawing the chart."""
+        player = self.get_object()
+        data = self.get_serializer(player).data
+        if "history" in request.query_params.get("include", "").split(","):
+            ratings = data["ratings"]  # ordered by -mu
+            ranked = sorted((r for r in ratings if r.get("rank")), key=lambda r: r["rank"])
+            event = (ranked[0] if ranked else ratings[0])["event"] if ratings else None
+            data["history_event"] = event
+            data["history"] = (
+                history_points(player.player_id, event, "tournament") if event else []
+            )
+        return Response(data)
+
     @action(detail=True, methods=["get"])
     def history(self, request, player_id=None):
-        """Rating-over-time points for the player (optionally one ?event=).
-
-        ?resolution=tournament returns one point per rating period instead of
-        one per match — exact, because ratings only change once per
-        tournament (the engine is tournament-locked), and ~5x smaller.
-        """
-        qs = RatingHistory.objects.filter(player_id=player_id).order_by(
-            "applied_utc", "match_id"
-        )
-        event = request.query_params.get("event")
-        if event:
-            qs = qs.filter(event=event)
-        if request.query_params.get("resolution") != "tournament":
-            return Response(RatingHistoryPointSerializer(qs, many=True).data)
-
-        periods: dict = {}  # (event, tournament) -> point, in first-seen order
-        for row in qs.values(
-            "event", "match_id", "mu_before", "mu_after", "rd_before", "rd_after",
-            "delta", "applied_utc", "match__tournament_id", "match__tournament__name",
-        ):
-            key = (row["event"], row["match__tournament_id"])
-            p = periods.get(key)
-            if p is None:
-                periods[key] = p = {
-                    "event": row["event"],
-                    "tournament": {"id": row["match__tournament_id"],
-                                   "name": row["match__tournament__name"]},
-                    "mu_before": row["mu_before"], "rd_before": row["rd_before"],
-                    "delta": 0.0, "matches": 0,
-                }
-            p["delta"] += row["delta"]
-            p["matches"] += 1
-            p.update(match=row["match_id"], mu_after=row["mu_after"],
-                     rd_after=row["rd_after"], applied_utc=row["applied_utc"])
-        for p in periods.values():
-            for k in ("mu_before", "rd_before", "mu_after", "rd_after", "delta"):
-                p[k] = round(p[k], 1)
-        return Response(list(periods.values()))
+        """Rating-over-time points (?event=, ?resolution=tournament)."""
+        return Response(history_points(
+            player_id,
+            request.query_params.get("event"),
+            request.query_params.get("resolution"),
+        ))
 
     @action(detail=True, methods=["get"])
     def style(self, request, player_id=None):
@@ -1660,6 +1701,69 @@ class AgingView(APIView):
             "mean_peak_age": round(sum(ages) / n, 1),
             "bins": bins,
             "peakers": peakers,
+        })
+
+
+# The "latest major" Home and Head-to-Head open on: newest completed one.
+MAJOR_TIERS = (
+    "Grade 1 – Individual Tournaments", "HSBC BWF World Tour Finals",
+    "HSBC BWF World Tour Super 1000", "HSBC BWF World Tour Super 750",
+)
+
+
+def _subcall(request, path: str, **params):
+    """Run another public GET view in-process and return its payload, so a
+    composite endpoint reuses each view exactly (no duplicated logic)."""
+    from django.http import HttpRequest, QueryDict
+    from django.urls import resolve
+
+    sub = HttpRequest()
+    sub.method = "GET"
+    sub.path = sub.path_info = path
+    sub.META = {**request.META, "QUERY_STRING": ""}
+    sub.GET = QueryDict(mutable=True)
+    for k, v in params.items():
+        sub.GET[k] = str(v)
+    match = resolve(path)
+    resp = match.func(sub, *match.args, **match.kwargs)
+    if resp.status_code != 200:
+        return None
+    return resp.data
+
+
+class HomeView(APIView):
+    """GET /api/home — everything the Home page shows, in one (cached) payload.
+
+    Each key is exactly what the matching endpoint returns:
+      events       /events
+      tournaments  /tournaments?limit=12   (also the count and "this week")
+      calibration  /analytics/calibration?event=ALL
+      major        /tournaments/{latest completed major}  (or null)
+      no1s         {event: /leaderboard or /pairs ?limit=2&min_matches=5}
+      board        /leaderboard?event=MS&limit=6&min_matches=5
+      upsets       /analytics/upsets?limit=3&min_matches=3
+    """
+
+    def get(self, request):
+        latest_major = (
+            Tournament.objects.filter(
+                match_count__gt=0, category_name__in=MAJOR_TIERS,
+                end_date__lte=timezone.now().date(),
+            ).order_by("-end_date").values_list("tournament_id", flat=True).first()
+        )
+        no1s = {
+            e: _subcall(request, "/api/pairs" if e in DOUBLES else "/api/leaderboard",
+                        event=e, limit=2, min_matches=5)
+            for e in EVENTS
+        }
+        return Response({
+            "events": _subcall(request, "/api/events"),
+            "tournaments": _subcall(request, "/api/tournaments", limit=12),
+            "calibration": _subcall(request, "/api/analytics/calibration", event="ALL"),
+            "major": _subcall(request, f"/api/tournaments/{latest_major}") if latest_major else None,
+            "no1s": no1s,
+            "board": _subcall(request, "/api/leaderboard", event="MS", limit=6, min_matches=5),
+            "upsets": _subcall(request, "/api/analytics/upsets", limit=3, min_matches=3),
         })
 
 

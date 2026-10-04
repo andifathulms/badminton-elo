@@ -13,7 +13,7 @@ import { Skeleton, SkeletonList } from '../components/Skeleton.jsx'
 import CountUp from '../components/CountUp.jsx'
 import { flag } from '../flags.js'
 import { fmtRange, isLive, today } from '../dates.js'
-import { latestMajor } from '../featured.js'
+import { homeData } from '../featured.js'
 
 const DOUBLES = new Set(['MD', 'WD', 'XD'])
 const isDoubles = (e) => DOUBLES.has(e)
@@ -31,11 +31,13 @@ function SectionHead({ title, to, linkText, children }) {
 
 const ORDER = ['MS', 'WS', 'MD', 'WD', 'XD']
 
-function Hero({ events, tcount, calib }) {
-  const { data: major } = useAsync(latestMajor, [])
+function Hero({ home }) {
+  const events = home?.events
+  const tcount = home?.tournaments
+  const calib = home?.calibration
+  const major = home?.major
   const totalRated = events ? events.reduce((a, e) => a + e.rated_players, 0) : null
-  const live = useAsync(() => api.tournaments({ limit: 12 }), [])
-  const liveCount = live.data ? live.data.results.filter(isLive).length : 0
+  const liveCount = tcount ? tcount.results.filter(isLive).length : 0
   const finals = major ? [...(major.finals || [])].sort((a, b) => ORDER.indexOf(a.event) - ORDER.indexOf(b.event)) : []
   return (
     <section className="home-hero arena">
@@ -86,29 +88,25 @@ function Hero({ events, tcount, calib }) {
   )
 }
 
-// Reigning No. 1 + the gap to No. 2, per discipline.
-function no1Of(event) {
-  const q = isDoubles(event.code)
-    ? api.pairs(event.code, { limit: 2, minMatches: 5 })
-    : api.leaderboard(event.code, { limit: 2, minMatches: 5 })
-  return q.then((d) => {
-    const [a, b] = d.results
-    if (!a) return { event, players: null }
-    const pair = !!a.player1
-    return {
-      event,
-      players: pair ? [a.player1, a.player2] : [a.player],
-      rating: a.rating,
-      lead: b ? a.rating - b.rating : null,
-      form: a.form,
-      together: a.matches_together,
-      to: pair ? `/pairs/${event.code}/${a.player1.player_id}/${a.player2.player_id}` : `/players/${a.player.player_id}`,
-    }
-  })
+// Reigning No. 1 + the gap to No. 2, per discipline (from the home payload's
+// top-2 board for that discipline).
+function no1Of(event, d) {
+  const [a, b] = d?.results || []
+  if (!a) return { event, players: null }
+  const pair = !!a.player1
+  return {
+    event,
+    players: pair ? [a.player1, a.player2] : [a.player],
+    rating: a.rating,
+    lead: b ? a.rating - b.rating : null,
+    form: a.form,
+    together: a.matches_together,
+    to: pair ? `/pairs/${event.code}/${a.player1.player_id}/${a.player2.player_id}` : `/players/${a.player.player_id}`,
+  }
 }
 
-function WorldNo1s() {
-  const { data } = useAsync(() => Promise.all(EVENTS.map(no1Of)), [])
+function WorldNo1s({ home }) {
+  const data = home ? EVENTS.map((e) => no1Of(e, home.no1s[e.code])) : null
   if (!data) {
     return <div className="no1-grid">{EVENTS.map((e) => <div key={e.code} className="no1 card"><Skeleton h={150} /></div>)}</div>
   }
@@ -141,12 +139,14 @@ function WorldNo1s() {
   )
 }
 
-function MiniBoard() {
+function MiniBoard({ initial }) {
   const [event, setEvent] = useState('MS')
   const doubles = isDoubles(event)
+  // The MS board arrives with the home payload; other tabs load on demand.
   const { data, loading } = useAsync(
-    () => (doubles ? api.pairs(event, { limit: 6, minMatches: 5 }) : api.leaderboard(event, { limit: 6, minMatches: 5 })),
-    [event],
+    () => (event === 'MS' && initial ? Promise.resolve(initial)
+      : doubles ? api.pairs(event, { limit: 6, minMatches: 5 }) : api.leaderboard(event, { limit: 6, minMatches: 5 })),
+    [event, initial],
   )
   const label = EVENTS.find((e) => e.code === event)?.label
   return (
@@ -181,8 +181,9 @@ function MiniBoard() {
   )
 }
 
-function ThisWeek() {
-  const { data, loading } = useAsync(() => api.tournaments({ limit: 7 }), [])
+function ThisWeek({ home }) {
+  const data = home?.tournaments
+  const loading = !home
   return (
     <section className="panel">
       <SectionHead title="This week" to="/tournaments" linkText="Calendar" />
@@ -208,9 +209,9 @@ function ThisWeek() {
   )
 }
 
-function Upsets() {
+function Upsets({ home }) {
   const navigate = useNavigate()
-  const { data } = useAsync(() => api.analytics('upsets', { minMatches: 3, limit: 3 }), [])
+  const data = home?.upsets
   return (
     <section>
       <SectionHead title="Giant-killings" to="/insights?lens=upsets" linkText="All upsets" />
@@ -239,21 +240,20 @@ function Upsets() {
 }
 
 export default function Dashboard() {
-  const { data: events } = useAsync(() => api.events(), [])
-  const { data: tcount } = useAsync(() => api.tournaments({ limit: 1 }), [])
-  const { data: calib } = useAsync(() => api.calibration('ALL'), [])
+  // One request for the whole page (it used to be ~18).
+  const { data: home } = useAsync(homeData, [])
   return (
     <div className="dashboard">
-      <Hero events={events} tcount={tcount} calib={calib} />
+      <Hero home={home} />
       <section>
         <SectionHead title="World No. 1s" to="/rankings" linkText="All rankings" />
-        <WorldNo1s />
+        <WorldNo1s home={home} />
       </section>
       <div className="dash-grid">
-        <MiniBoard />
-        <ThisWeek />
+        <MiniBoard initial={home?.board} />
+        <ThisWeek home={home} />
       </div>
-      <Upsets />
+      <Upsets home={home} />
     </div>
   )
 }
