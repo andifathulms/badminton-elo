@@ -77,6 +77,8 @@ def _steps(year, mode="full"):
 
     collect = [
         (f"Collecting {year} tournaments", cmd("sync_calendar", year=year)),
+        # Events the calendar doesn't list (e.g. the 2026 Asian Games).
+        ("Finding unlisted tournaments", cmd("discover_tournaments")),
         ("Deduplicating matches", cmd("dedup_matches", apply=True)),
     ]
     rebuild = [
