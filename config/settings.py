@@ -205,11 +205,8 @@ RATING = {
     "CROSS_PRIOR_WEIGHT": 0.7,
     "CROSS_PRIOR_RD": 200.0,
     "CROSS_PRIOR_MIN_MATCHES": 5,
-    "TIER_WEIGHTS": {
-        "Super1000": 1.1,
-        "Super750": 1.05,
-        "Super500": 1.0,
-        "Super300": 0.95,
-        "Super100": 0.9,
-    },
+    # W_tier per prestige grade (rate.TIER_GRADES: major/high/mid/low). Empty =
+    # every match weighs 1.0. Backtested graded weights (e.g. major 1.1 ... low
+    # 0.9) were no better than none (logloss 0.5218 vs 0.5210), so it's off.
+    "TIER_WEIGHTS": {},
 }

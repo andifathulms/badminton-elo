@@ -15,7 +15,6 @@ optimization; a from-scratch recompute is the correctness baseline.)
 """
 from __future__ import annotations
 
-import re
 from datetime import datetime, time, timezone
 
 from django.conf import settings
@@ -25,18 +24,37 @@ from django.db import transaction
 from apps.ingest.models import Game, Match, MatchPlayer, PlayerRating, RatingHistory
 from rating import GameRecord, MatchRecord, RatingConfig, run
 
-# "HSBC BWF World Tour Super 500" -> "Super500" (key into TIER_WEIGHTS).
-_TIER_RE = re.compile(r"(Super\s?\d+|Finals)", re.IGNORECASE)
+# Prestige grade per tournament category (key into TIER_WEIGHTS). Every
+# category the data holds maps to one grade, so the World Championships or a
+# Superseries Premier can never weigh less than a Super 1000. Unlisted -> "low".
+TIER_GRADES = {
+    "major": (
+        "Olympics", "World Championships", "HSBC BWF World Tour Finals",
+        "HSBC BWF World Tour Super 1000", "All England",
+        "World Superseries Premier", "Thomas Cup", "Uber Cup", "Sudirman Cup",
+    ),
+    "high": (
+        "HSBC BWF World Tour Super 750", "HSBC BWF World Tour Super 500",
+        "World Superseries", "Super Series", "Grand Prix Gold", "Asian Games",
+        "Commonwealth Games", "Continental Individual Championships",
+        "Grade 1 – Individual Tournaments", "Grade 1 – Team Tournaments",
+    ),
+    "mid": (
+        "HSBC BWF World Tour Super 300", "BWF Tour Super 100", "Grand Prix",
+        "Continental Team Championships", "SEA Games", "European Games",
+        "Pan American Games", "African Games", "Continental Individual Games",
+        "Continental Team Games",
+    ),
+}
+_GRADE_OF = {cat: grade for grade, cats in TIER_GRADES.items() for cat in cats}
+
+
+def tier_grade(category_name: str) -> str:
+    return _GRADE_OF.get((category_name or "").strip(), "low")
 
 
 def _tier_weight(category_name: str, weights: dict) -> float:
-    if not category_name:
-        return 1.0
-    m = _TIER_RE.search(category_name)
-    if not m:
-        return 1.0
-    key = m.group(1).replace(" ", "")
-    return weights.get(key, 1.0)
+    return weights.get(tier_grade(category_name), 1.0)
 
 
 def _effective_ts(match) -> datetime | None:

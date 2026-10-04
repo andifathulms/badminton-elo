@@ -87,3 +87,17 @@ def test_rebuild_flag_matches_plain_rate(rated):
     plain = snapshot()
     call_command("rate", "--rebuild", verbosity=0)
     assert snapshot() == plain
+
+
+def test_tier_grades_rank_majors_consistently():
+    from apps.ingest.management.commands.rate import _tier_weight, tier_grade
+
+    assert tier_grade("World Championships") == "major"
+    assert tier_grade("HSBC BWF World Tour Super 1000") == "major"
+    assert tier_grade("HSBC BWF World Tour Finals") == "major"
+    assert tier_grade("Grand Prix Gold") == "high"
+    assert tier_grade("International Series") == "low"
+    assert tier_grade("") == "low"
+    w = {"major": 1.1, "low": 0.9}
+    assert _tier_weight("Olympics", w) == 1.1
+    assert _tier_weight("Grand Prix", w) == 1.0  # grade missing from weights
