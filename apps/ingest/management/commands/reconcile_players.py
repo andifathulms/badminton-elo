@@ -53,6 +53,9 @@ def _ascii(name: str) -> str:
 def norm(name: str) -> str:
     """Case/accent/markup-insensitive, word-order-insensitive key.
     'LEE Chong Wei' and \"'''Lee Chong Wei'''\" -> 'chong lee wei'."""
+    # BWF disambiguates namesakes with a suffix — 'YU Yang (F)' — that is
+    # not part of the name.
+    name = re.sub(r"\s*\((?:[MF]|\d{4})\)\s*$", "", name)
     return " ".join(sorted(re.sub(r"[^a-z ]", " ", _ascii(name).lower()).split()))
 
 
@@ -86,6 +89,10 @@ class Command(DataCommand):
             if not cands:
                 # spelling-segmentation fallback: unique letter-multiset match
                 lc = bwf_by_letters.get(letter_key(w.name_display), [])
+                # same letters is weak evidence ('Mikael Rosén' = 'Meer
+                # Solanki'): require the same country too
+                lc = [c for c in lc if w.country_code and
+                      canon_country(c.country_code) == canon_country(w.country_code)]
                 if len(lc) == 1:
                     auto.append((w, lc[0])); continue
                 unmatched.append(w); continue
@@ -98,6 +105,11 @@ class Command(DataCommand):
                     cc = cands
             else:
                 cc = cands if o["name_only"] else []
+                if not cc:
+                    unmatched.append(w); continue
+            if w.gender:
+                # a namesake of the other sex (Yu Yang M / F) is never a match
+                cc = [c for c in cc if not c.gender or c.gender == w.gender]
                 if not cc:
                     unmatched.append(w); continue
             if len(cc) == 1:
