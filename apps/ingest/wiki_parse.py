@@ -148,8 +148,10 @@ def parse_team(raw: str) -> dict | None:
 
 
 def _score_int(v: str):
-    # strip wiki bold/italic ('''15'''), tags (<sup>), and templates first
-    v = re.sub(r"'{2,}|<[^>]+>|\{\{[^}]*\}\}", "", v).strip()
+    # strip wiki bold/italic ('''15'''), tags (<sup>), and templates first —
+    # to a space, so a stray digit after the markup ("'''17'''15", a typo in
+    # the 1983 Worlds bracket) stays a separate number and isn't read as 1715
+    v = re.sub(r"'{2,}|<[^>]+>|\{\{[^}]*\}\}", " ", v).strip()
     m = re.search(r"\d+", v)
     return int(m.group()) if m else None
 

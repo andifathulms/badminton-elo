@@ -271,3 +271,10 @@ def test_infobox_dates_ignore_maintenance_tags_and_honour_postponement():
 == Schedule ==
 A schedule row: {{Start date|2026|5|1}}."""
     assert str(infobox_meta(text, 2022)["start"]) == "2023-09-28"
+
+
+def test_score_cell_keeps_only_the_first_number():
+    from apps.ingest.wiki_parse import _score_int
+    assert _score_int("'''17'''15") == 17
+    assert _score_int("'''15'''") == 15
+    assert _score_int("21<sup>r</sup>") == 21
