@@ -4,16 +4,22 @@ The engine rates individuals, never pairs (PRD domain rule 5). This command
 aggregates who played together (MD/WD/XD), how often, their record, and their
 COMBINED current strength (mean mu, RMS rd of the two members) so pairs can be
 ranked. Run after `rate` + `infer_gender`.
+
+The pair's PEAK is the best combined rating the two reached in a match they
+played TOGETHER (after that match, as for individual peaks; settled — rd <=
+PEAK_MAX_RD — beats unsettled). Not the mean of each member's career peak:
+that credits a five-match pairing with peaks both reached with other partners.
 """
 from __future__ import annotations
 
 import math
 from collections import defaultdict
 
+from django.conf import settings
 from django.db import transaction
 
 from apps.ingest.management.base import DataCommand
-from apps.ingest.models import MatchPlayer, Partnership, Player, PlayerRating
+from apps.ingest.models import MatchPlayer, Partnership, Player, PlayerRating, RatingHistory
 
 DOUBLES = ("MD", "WD", "XD")
 
@@ -53,9 +59,17 @@ class Command(DataCommand):
 
         # 2) aggregate partnerships (event, low_id, high_id).
         agg: dict = defaultdict(
-            lambda: {"matches": 0, "wins": 0, "utc": None}
+            lambda: {"matches": 0, "wins": 0, "utc": None, "peak": None, "raw": None}
         )
-        for m in by_match.values():
+        # each member's rating right after every doubles match they played
+        after = {
+            (mid, pid): (mu, rd)
+            for mid, pid, mu, rd in RatingHistory.objects.filter(
+                event__in=DOUBLES).values_list("match_id", "player_id", "mu_after",
+                                               "rd_after").iterator(chunk_size=50_000)
+        }
+        max_rd = settings.RATING.get("PEAK_MAX_RD", 100.0)
+        for match_id, m in by_match.items():
             for side in (1, 2):
                 players = m[side]
                 if len(players) != 2:
@@ -67,6 +81,12 @@ class Command(DataCommand):
                     a["wins"] += 1
                 if m["utc"] and (a["utc"] is None or m["utc"] > a["utc"]):
                     a["utc"] = m["utc"]
+                r1, r2 = after.get((match_id, players[0])), after.get((match_id, players[1]))
+                if r1 and r2:
+                    cand = ((r1[0] + r2[0]) / 2.0, math.sqrt((r1[1] ** 2 + r2[1] ** 2) / 2.0))
+                    slot = "peak" if cand[1] <= max_rd else "raw"
+                    if a[slot] is None or cand[0] > a[slot][0]:
+                        a[slot] = cand
 
         # 3) combined current + peak strength from member ratings.
         ratings = {
@@ -98,10 +118,7 @@ class Command(DataCommand):
             r2 = ratings.get((p2, event))
             if not r1 or not r2:
                 continue
-            peak_mu = peak_rd = None
-            if r1[2] is not None and r2[2] is not None:
-                peak_mu = blend(r1[2], r2[2])
-                peak_rd = blend_rd(r1[3], r2[3])
+            peak_mu, peak_rd = a["peak"] or a["raw"] or (None, None)
             rows_out.append(
                 Partnership(
                     event=event,

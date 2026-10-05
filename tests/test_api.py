@@ -609,3 +609,21 @@ def test_ties_served_live_or_precomputed(api):
     bump()
     caches["api"].clear()
     assert api.get("/api/tournaments/5229/ties").json() == {"stored": True}
+
+
+def test_pair_peak_is_reached_together(api):
+    """A pair's peak is the best combined rating after a match they played
+    TOGETHER — never more than that (not the mean of career peaks)."""
+    from apps.ingest.models import MatchPlayer, Partnership, RatingHistory
+
+    for pr in Partnership.objects.filter(event="XD"):
+        together = (set(MatchPlayer.objects.filter(player_id=pr.player1_id)
+                        .values_list("match_id", "side"))
+                    & set(MatchPlayer.objects.filter(player_id=pr.player2_id)
+                          .values_list("match_id", "side")))
+        best = max(
+            (RatingHistory.objects.get(match_id=mid, player_id=pr.player1_id).mu_after
+             + RatingHistory.objects.get(match_id=mid, player_id=pr.player2_id).mu_after) / 2
+            for mid, _ in together
+        )
+        assert pr.combined_peak_mu <= best + 1e-6
