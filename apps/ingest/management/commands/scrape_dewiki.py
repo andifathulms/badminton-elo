@@ -173,10 +173,12 @@ class Command(DataCommand):
         t.category_name = tier
         t.save()
         n = 0
+        produced = set()
         for m in parsed:
             s1 = "+".join(sorted(p[0] for p in m["side1"]))
             s2 = "+".join(sorted(p[0] for p in m["side2"]))
             skey = f"{code}:{m['event']}:{m['stage']}:{m['round_name']}:{s1}|{s2}"[:255]
+            produced.add(skey)
             match = Match.objects.filter(source_key=skey).first() or Match(
                 match_id=self.matches.next(), source_key=skey)
             match.tournament = t
@@ -201,4 +203,9 @@ class Command(DataCommand):
                     p = self._player(de_title, display, en_of.get(de_title), country)
                     MatchPlayer.objects.get_or_create(match=match, side=side, player=p)
             n += 1
+        # Rows this article no longer yields (the round labelling changed
+        # between parser versions, and the round is in the key) are stale.
+        # Only this source's own rows: dedup may have moved others in.
+        Match.objects.filter(source_key__startswith=f"{code}:").exclude(
+            source_key__in=produced).delete()
         return n

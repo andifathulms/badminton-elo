@@ -71,7 +71,12 @@ def match_signatures(tournament_ids) -> dict[int, dict]:
 # Source priority, most authoritative first. A copy is compared against every
 # MORE authoritative source: German Wikipedia yields to the BWF API, English
 # Wikipedia to both (German lists every match; English often only finals).
-SOURCES = (("dewiki:", ("wiki:", "dewiki:")), ("wiki:", ("wiki:",)))
+# Last, a German FINALS-ONLY copy (< SMALL matches, from a 'Finalergebnisse'
+# table) yields to any fuller copy — e.g. the English 1986 Commonwealth Games
+# bracket holds the five finals the German article lists.
+SMALL = 10
+SOURCES = (("dewiki:", ("wiki:", "dewiki:"), None), ("wiki:", ("wiki:",), None),
+           ("dewiki:", ("dewiki:",), SMALL))
 
 
 
@@ -98,12 +103,17 @@ def _best_overlap(w, apis, wrecs, api_index):
     return best
 
 
-def find_pairs(source: str = "wiki:", weaker: tuple[str, ...] = ("wiki:",)):
+def find_pairs(source: str = "wiki:", weaker: tuple[str, ...] = ("wiki:",),
+               max_matches: int | None = None):
     """[(copy Tournament, authoritative Tournament | None, plan)] where plan =
     {dup, bye, move, drop} lists of match ids, for copies whose code starts with
-    `source`, against tournaments whose code starts with none of `weaker`."""
-    wikis = list(Tournament.objects.filter(code__startswith=source, match_count__gt=0,
-                                           start_date__isnull=False))
+    `source`, against tournaments whose code starts with none of `weaker`.
+    `max_matches` limits it to copies with fewer matches than that."""
+    wikis = Tournament.objects.filter(code__startswith=source, match_count__gt=0,
+                                      start_date__isnull=False)
+    if max_matches:
+        wikis = wikis.filter(match_count__lt=max_matches)
+    wikis = list(wikis)
     api_sigs: dict[int, tuple[set, set]] = {}
 
     def api_index(tid):

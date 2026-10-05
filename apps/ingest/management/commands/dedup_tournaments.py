@@ -24,10 +24,11 @@ class Command(DataCommand):
         parser.add_argument("--apply", action="store_true")
 
     def handle(self, *args, **opts):
-        # German copies first (vs the API), then English (vs API + German).
+        # German copies first (vs the API), then English (vs API + German), then
+        # German finals-only copies (vs anything fuller).
         pairs = []
-        for source, weaker in SOURCES:
-            found = find_pairs(source, weaker)
+        for source, weaker, small in SOURCES:
+            found = find_pairs(source, weaker, small)
             if opts["apply"] and found:
                 self._apply(found)
             pairs += found
