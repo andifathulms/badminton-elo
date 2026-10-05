@@ -9,8 +9,10 @@ and game/match odds follow from badminton's actual scoring (race to 21, win
 by 2, capped at 30; best of three). Each match updates ratings by the rallies
 each side actually won — its likelihood is w·[n₁·log p + n₂·log(1−p)], where
 w < 1 discounts rallies for not being independent. Matches without usable
-rally points (side-out eras, retirements, no score) update on the match
-result through the same model: P(win) = match(game(p)).
+rally points (retirements, no score) update on the match result through the
+same model: P(win) = match(game(p)). Side-out-era games (only the server
+scored, pre-2006) are read by rating.sideout: the probability of each game
+score under side-out rules, weighted by sideout_weight (0 = result only).
 
 The update is Glicko's — one Newton step with each player's own uncertainty
 — so seeding, the cross-discipline prior, inactivity inflation and the
@@ -27,10 +29,14 @@ from collections import defaultdict
 from functools import lru_cache
 
 from .engine import _SCALE, _g
+from .sideout import game_terms
 from .types import MatchRecord, Rating, RatingConfig, RatingDelta
 
 # Rally-point formats: (points to win a game, cap, games to win the match).
 RALLY_FORMATS = {"3x21": (21, 30, 2), "3x15": (15, 21, 2), "3x11": (11, 15, 2)}
+# Side-out formats (only the server scores) — read by rating.sideout.
+SIDEOUT_FORMATS = {"15x3s", "5x7"}
+DOUBLES = {"MD", "WD", "XD"}
 _DEFAULT_FORMAT = (21, 30, 2)
 
 
@@ -83,7 +89,7 @@ def _fmt(m: MatchRecord):
     return RALLY_FORMATS.get(m.scoring_format, _DEFAULT_FORMAT)
 
 
-def make_update(beta: float, rally_weight: float):
+def make_update(beta: float, rally_weight: float, sideout_weight: float = 0.0):
     """A period update (same contract as engine.update_period) for this model."""
 
     def update_period(matches, ratings, config: RatingConfig) -> list[RatingDelta]:
@@ -106,6 +112,9 @@ def make_update(beta: float, rally_weight: float):
             n1 = sum(g.side1_points for g in m.games)
             n2 = sum(g.side2_points for g in m.games)
             rally = (m.scoring_format in RALLY_FORMATS and not m.is_retired and n1 + n2 > 0)
+            sideout = (sideout_weight > 0 and m.scoring_format in SIDEOUT_FORMATS
+                       and not m.is_retired and bool(m.games))
+            scores = [(g.side1_points, g.side2_points) for g in m.games]
             fmt = _fmt(m)
             for ids, won, n_s, mu_t, mu_o, phi_o in (
                 (m.side1_player_ids, m.winner_side == 1, n1, mu1, mu2, phi2),
@@ -114,7 +123,16 @@ def make_update(beta: float, rally_weight: float):
                 gg = _g(phi_o)
                 p = _sigmoid(beta * gg * (mu_t - mu_o))
                 slope = beta * gg * p * (1.0 - p)  # dp/dµ
-                if rally:
+                terms = None
+                if sideout:
+                    own = scores if ids is m.side1_player_ids else [(b, a) for a, b in scores]
+                    terms = game_terms(p, own, m.event in DOUBLES)
+                if terms is not None:
+                    # side-out game scores (rating.sideout): d log P/dp, Fisher info
+                    d_lp, fisher = terms
+                    grad = sideout_weight * d_lp * slope
+                    info = sideout_weight * fisher * slope * slope
+                elif rally:
                     total = n1 + n2
                     grad = rally_weight * beta * gg * (n_s - total * p)
                     info = rally_weight * total * beta * gg * slope

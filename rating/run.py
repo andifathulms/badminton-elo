@@ -85,7 +85,7 @@ def period_update(config: RatingConfig):
     if config.engine == "points":
         from .points import make_update
 
-        return make_update(config.rally_beta, config.rally_weight)
+        return make_update(config.rally_beta, config.rally_weight, config.sideout_weight)
     if config.engine != "glicko":
         raise ValueError(f"unknown rating engine {config.engine!r}")
     return update_period

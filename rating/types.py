@@ -96,6 +96,9 @@ class RatingConfig:
     engine: str = "glicko"
     rally_beta: float = 0.13
     rally_weight: float = 0.35
+    # Side-out era (pre-2006) games: weight of the game-score likelihood
+    # (rating.sideout). 0 = rate those matches on the result only.
+    sideout_weight: float = 0.0
 
 
 @dataclass(frozen=True)

@@ -38,6 +38,7 @@ def rating_config(overrides: dict | None = None) -> RatingConfig:
         engine=r.get("ENGINE", "glicko"),
         rally_beta=r.get("RALLY_BETA", 0.13),
         rally_weight=r.get("RALLY_WEIGHT", 0.35),
+        sideout_weight=r.get("SIDEOUT_WEIGHT", 0.0),
     )
 
 
