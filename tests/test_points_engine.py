@@ -62,3 +62,16 @@ def test_points_engine_rewards_the_rally_margin():
     close = run([m(1, 1, 2, ((22, 20), (21, 19)))], cfg).ratings[(1, "MS")].mu
     blowout = run([m(2, 3, 4, ((21, 5), (21, 7)))], cfg).ratings[(3, "MS")].mu
     assert blowout > close > 1500
+
+
+def test_impossible_scores_count_as_a_plain_win():
+    def m(mid, a, b, games):
+        return MatchRecord(match_id=mid, event="WD", match_time_utc=T0, round_order=1,
+                           winner_side=1, score_status="Normal", scoring_format="3x21",
+                           rating_excluded=False, side1_player_ids=(a,), side2_player_ids=(b,),
+                           games=tuple(GameRecord(i + 1, x, y) for i, (x, y) in enumerate(games)),
+                           tournament_id=mid)
+    cfg = RatingConfig(engine="points")
+    typo = run([m(1, 1, 2, ((15, 18), (15, 11), (1715, 15)))], cfg).ratings[(1, "WD")].mu
+    plain = run([m(2, 3, 4, ())], cfg).ratings[(3, "WD")].mu
+    assert typo == pytest.approx(plain)

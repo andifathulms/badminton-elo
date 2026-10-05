@@ -111,7 +111,12 @@ def make_update(beta: float, rally_weight: float, sideout_weight: float = 0.0):
             mu2, phi2 = team(m.side2_player_ids, m.event)
             n1 = sum(g.side1_points for g in m.games)
             n2 = sum(g.side2_points for g in m.games)
-            rally = (m.scoring_format in RALLY_FORMATS and not m.is_retired and n1 + n2 > 0)
+            # A game beyond the format's cap (a typo like 127-19, or '17-15'
+            # read as 1715) is not rally data: rate such a match on its result.
+            cap = RALLY_FORMATS.get(m.scoring_format, _DEFAULT_FORMAT)[1]
+            legal = all(g.side1_points <= cap and g.side2_points <= cap for g in m.games)
+            rally = (m.scoring_format in RALLY_FORMATS and not m.is_retired and n1 + n2 > 0
+                     and legal)
             sideout = (sideout_weight > 0 and m.scoring_format in SIDEOUT_FORMATS
                        and not m.is_retired and bool(m.games))
             scores = [(g.side1_points, g.side2_points) for g in m.games]
