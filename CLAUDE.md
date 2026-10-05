@@ -112,7 +112,7 @@ docker compose run --rm web python manage.py scrape --all
 
 ## Rating engine (Phase 2, `rating/`)
 Pure module. Ratings per `(player,event)`; team rating = mean of members, combined RD = RMS; each tournament is a rating period rated against start-of-period ratings; each player moves scaled by own RD (Glicko Newton step); RD shrinks after, inflates for inactivity. Constants from Django settings, passed **in** to the engine (engine never reads settings itself; `apps/ingest/engine_config.py` is the bridge).
-- **Live engine = `points`** (`settings.RATING["ENGINE"]`): the rating gap sets the chance of winning a rally; game/match odds follow from the scoring rules; updates use rallies won (`RALLY_WEIGHT` per rally). Side-out-era/retired/scoreless matches update on the result through the same model. `glicko` (binary result × dominance `M` × `W_tier`) remains selectable.
+- **Live engine = `points`** (`settings.RATING["ENGINE"]`): the rating gap sets the chance of winning a rally; game/match odds follow from the scoring rules; updates use rallies won (`RALLY_WEIGHT` per rally). Side-out-era (pre-2006) games are read by `rating/sideout.py` (P(game score) under side-out rules, `SIDEOUT_WEIGHT`); retired/scoreless matches update on the result through the same model. `glicko` (binary result × dominance `M` × `W_tier`) remains selectable.
 - Seeds: a BWF rank seeds a debut only if observed by then; otherwise the cross-discipline prior, else flat.
 - **Change engine settings only through `manage.py backtest`** (held-out log-loss; confirm on a second window). Current: points 0.5135 vs glicko 0.5210 (2023+).
 - `rate` is incremental and must equal `rate --rebuild` exactly (tests enforce it). Settings/seed changes force a full rebuild automatically.

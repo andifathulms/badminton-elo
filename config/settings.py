@@ -248,6 +248,11 @@ RATING = {
     "ENGINE": "points",
     "RALLY_BETA": 0.13,
     "RALLY_WEIGHT": 0.35,
+    # Side-out era (pre-2006: only the server scored) — weight of the game-score
+    # likelihood (rating/sideout.py); 0 = result only. Backtest logloss 0.5374
+    # -> 0.5169 (1995-2005), confirmed 0.5433 -> 0.5252 (unseen 1988-1994);
+    # 2023+ 0.5151 -> 0.5146.
+    "SIDEOUT_WEIGHT": 0.5,
     # Margin (PRD §7.3, glicko engine): M = 1 + LAMBDA·(2d − 1), in [M_MIN, M_MAX].
     # D_FLOOR = 0 lets a narrow win count for LESS than a plain win (M < 1), not
     # only blowouts for more. Tuned with `manage.py backtest`: logloss 0.5350 ->
