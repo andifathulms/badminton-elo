@@ -45,6 +45,8 @@ LEAD_DATE = re.compile(
     r"(\d{1,2})\.\s*(?:(?:bis\s*(?:zum\s*)?)?\d{1,2}\.\s*)?"
     r"(" + "|".join(m for m in MONTHS if m) + r")\s*(\d{4})", re.I)
 TURNIERPLAN = re.compile(r"\{\{\s*Turnierplan(\d+)", re.I)
+TABLE = re.compile(r"\{\|(.*?)\n\|\}", re.S)
+DOUBLES_OF = {"MS": "MD", "WS": "WD"}  # a singles label on a two-player row
 DEPTH_CODE = {0: ("F", 90), 1: ("SF", 80), 2: ("QF", 70), 3: ("R16", 40),
               4: ("R32", 30), 5: ("R64", 20), 6: ("R128", 10)}
 
@@ -153,6 +155,50 @@ def _bracket_matches(text: str, pos: int, size: int, event: str) -> tuple[list[d
     return out, pos + len(body)
 
 
+
+def _cell(raw: str) -> str:
+    """'rowspan="2"| text' -> 'text' (a lone '|' splits attributes from content)."""
+    raw = raw.strip()
+    if "|" in raw and "[[" not in raw.split("|", 1)[0] and "{{" not in raw.split("|", 1)[0]:
+        raw = raw.split("|", 1)[1]
+    return raw.strip()
+
+
+def finals_table(text: str) -> list[dict]:
+    """Finals from a 'Finalergebnisse' table (Disziplin | Sieger | Finalist |
+    Ergebnis): the only results many 1980s/90s articles carry."""
+    out = []
+    for tm in TABLE.finditer(text):
+        body = tm.group(1)
+        head = body.lower()
+        if not ("sieger" in head and "finalist" in head and "ergebnis" in head):
+            continue
+        for row in re.split(r"\n\|-[^\n]*", body)[1:]:
+            cells = [_cell(c) for c in re.split(r"\n\|\s?|\|\|", "\n" + row.strip())
+                     if c.strip()]
+            if len(cells) < 4:
+                continue
+            event = _event_of(cells[0])
+            if not event:
+                continue
+            s1 = _players(re.sub(r"<br\s*/?>", " / ", cells[1]))
+            s2 = _players(re.sub(r"<br\s*/?>", " / ", cells[2]))
+            sc = _score(cells[3])
+            if not s1 or not s2 or sc is None or len(s1) != len(s2) or len(s1) > 2:
+                continue
+            if len(s1) == 2:
+                event = DOUBLES_OF.get(event, event)
+            elif event in ("MD", "WD", "XD"):
+                continue
+            games, status = sc
+            if "aufgabe" in cells[3].lower():
+                status = "Retired"
+            out.append({"event": event, "stage": "main", "side1": s1, "side2": s2,
+                        "games": games, "winner_side": 1, "status": status,
+                        "round_name": "F", "round_order": 90})
+    return out
+
+
 def parse_article(text: str) -> list[dict]:
     """All matches in a German tournament article.
 
@@ -208,4 +254,11 @@ def parse_article(text: str) -> list[dict]:
     for ms in sections.values():
         _assign_rounds(ms)
         out += ms
+    # A finals table only fills disciplines the article has no match list for.
+    have = {m["event"] for m in out}
+    seen = set()
+    for f in finals_table(text):
+        if f["event"] not in have and f["event"] not in seen:
+            seen.add(f["event"])
+            out.append(f)
     return out

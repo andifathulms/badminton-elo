@@ -74,3 +74,44 @@ def test_side_out_relabelling_rule():
 def test_byes_are_not_matches():
     text = "== Herreneinzel ==\n* {{DNK|#}} [[Peter Gade]] – Freilos: w.o.\n* {{DNK|#}} [[A]] – Bye: w.o.\n"
     assert parse_article(text) == []
+
+
+FINALS = """Die Japan Open 1984 fanden vom 19. bis zum 22. Januar 1984 statt.
+== Finalergebnisse ==
+{| class=wikitable
+! Disziplin
+! Sieger
+! Finalist
+! Ergebnis
+|-
+| Herreneinzel
+| {{DNK|#}} [[Morten Frost]]
+| {{IDN|#}} [[Liem Swie King]]
+| 15-1, 18-15
+|-
+| Dameneinzel
+| {{ENG|#}} [[Karen Bridge|Karen Beckman]]<br />{{ENG|#}} [[Gillian Gilks]]
+| {{IDN|#}} [[Ruth Damayanti]]<br />{{IDN|#}} [[Verawaty Fadjrin]]
+| 13-15, 15-3, 15-12
+|-
+| rowspan="2"| Dameneinzel
+| {{CHN|#}} [[Qian Ping]]
+| {{CHN|#}} [[Zheng Yuli]]
+| 3-1, Aufgabe
+|}
+"""
+
+
+def test_finals_table_fills_events_without_match_lists():
+    ms = {m["event"]: m for m in parse_article(FINALS)}
+    assert ms["MS"]["games"] == [(15, 1), (18, 15)]
+    assert ms["MS"]["round_name"] == "F"
+    # a two-player row under a singles label is the doubles final
+    assert [p[1] for p in ms["WD"]["side1"]] == ["Karen Beckman", "Gillian Gilks"]
+    assert ms["WS"]["status"] == "Retired"
+
+
+def test_finals_table_never_duplicates_a_match_list():
+    text = "== Herreneinzel ==\n* [[A]] – [[B]]: 15-1 / 15-2\n" + FINALS
+    ms = parse_article(text)
+    assert [m["event"] for m in ms].count("MS") == 1
