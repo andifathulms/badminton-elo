@@ -18,6 +18,7 @@ from .models import Match, Tournament
 from .wiki_parse import is_bye
 
 WINDOW = timedelta(days=10)
+YEAR_FALLBACK_MIN = 10  # wiki matches needed before a year-wide search
 # Letters NFKD doesn't decompose (it would DROP them: 'Trần Đình' -> 'trn inh').
 _FOLD = str.maketrans({"đ": "d", "ø": "o", "æ": "ae", "ß": "ss", "ł": "l", "ð": "d",
                        "þ": "th", "œ": "oe", "ı": "i"})
@@ -73,6 +74,30 @@ def match_signatures(tournament_ids) -> dict[int, dict]:
 SOURCES = (("dewiki:", ("wiki:", "dewiki:")), ("wiki:", ("wiki:",)))
 
 
+
+def _best_overlap(w, apis, wrecs, api_index):
+    """(w, api, plan) for the candidate holding the most of `w`'s matches,
+    if that is >= MIN_SHARE of them; else None."""
+    best = None
+    for a in apis:
+        scores, names = api_index(a.tournament_id)
+        plan = {"dup": [], "bye": [], "move": [], "drop": []}
+        for mid, r in wrecs.items():
+            if r["bye"]:
+                plan["bye"].append(mid)
+            elif (r["score"] and r["score"] in scores) or r["names"] in names:
+                plan["dup"].append(mid)
+            elif r["plausible"]:
+                plan["move"].append(mid)
+            else:
+                plan["drop"].append(mid)
+        real = len(wrecs) - len(plan["bye"])
+        if real and len(plan["dup"]) / real >= MIN_SHARE:
+            if best is None or len(plan["dup"]) > len(best[2]["dup"]):
+                best = (w, a, plan)
+    return best
+
+
 def find_pairs(source: str = "wiki:", weaker: tuple[str, ...] = ("wiki:",)):
     """[(copy Tournament, authoritative Tournament | None, plan)] where plan =
     {dup, bye, move, drop} lists of match ids, for copies whose code starts with
@@ -100,23 +125,16 @@ def find_pairs(source: str = "wiki:", weaker: tuple[str, ...] = ("wiki:",)):
         for prefix in weaker:
             apis = apis.exclude(code__startswith=prefix)
         wrecs = match_signatures([w.tournament_id])
-        best = None
-        for a in apis:
-            scores, names = api_index(a.tournament_id)
-            plan = {"dup": [], "bye": [], "move": [], "drop": []}
-            for mid, r in wrecs.items():
-                if r["bye"]:
-                    plan["bye"].append(mid)
-                elif (r["score"] and r["score"] in scores) or r["names"] in names:
-                    plan["dup"].append(mid)
-                elif r["plausible"]:
-                    plan["move"].append(mid)
-                else:
-                    plan["drop"].append(mid)
-            real = len(wrecs) - len(plan["bye"])
-            if real and len(plan["dup"]) / real >= MIN_SHARE:
-                if best is None or len(plan["dup"]) > len(best[2]["dup"]):
-                    best = (w, a, plan)
+        best = _best_overlap(w, apis, wrecs, api_index)
+        if best is None and "start_date__gte" in near and len(wrecs) >= YEAR_FALLBACK_MIN:
+            # A wrong infobox date (1996 Olympics: '1 July') puts the copy
+            # outside the window. A big enough copy that is >= MIN_SHARE
+            # duplicate is the same event wherever it sits in the year.
+            wide = Tournament.objects.filter(match_count__gt=0,
+                                             start_date__year=w.start_date.year)
+            for prefix in weaker:
+                wide = wide.exclude(code__startswith=prefix)
+            best = _best_overlap(w, wide.exclude(pk__in=apis), wrecs, api_index)
         if best:
             out.append(best)
             continue
